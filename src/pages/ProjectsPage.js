@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import Layout from '../components/Layout';
 import { getAllProjects, getDashboardStats } from '../lib/supabase';
+import { PACKAGES, PROJECT_STATUS } from '../lib/constants';
 
 const Header = styled.div`
   display: flex;
@@ -14,164 +15,190 @@ const Header = styled.div`
   gap: 1rem;
   
   h1 {
-    font-size: 1.75rem;
-    font-weight: 600;
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 2rem;
+    font-weight: 400;
   }
 `;
 
 const NewButton = styled(Link)`
   padding: 0.75rem 1.5rem;
-  background: #fff;
-  color: #000;
-  border-radius: 8px;
-  font-size: 0.85rem;
+  background: #1A1A1A;
+  color: #fff;
+  font-size: 0.7rem;
   font-weight: 600;
-  transition: all 0.2s;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: background 0.2s;
   
-  &:hover {
-    background: #eee;
+  &:hover { background: #333; }
+`;
+
+const Toolbar = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+`;
+
+const SearchInput = styled.input`
+  padding: 0.65rem 1rem;
+  background: #fff;
+  border: 1px solid #E5E5E5;
+  font-size: 0.85rem;
+  width: 250px;
+  
+  &:focus {
+    outline: none;
+    border-color: #1A1A1A;
   }
 `;
 
 const Filters = styled.div`
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
+  gap: 0.25rem;
+  background: #fff;
+  border: 1px solid #E5E5E5;
+  padding: 0.25rem;
 `;
 
 const FilterButton = styled.button`
-  padding: 0.5rem 1rem;
-  background: ${p => p.$active ? '#fff' : '#111'};
-  color: ${p => p.$active ? '#000' : '#888'};
-  border: 1px solid ${p => p.$active ? '#fff' : '#333'};
-  border-radius: 20px;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.2s;
+  padding: 0.5rem 0.875rem;
+  background: ${p => p.$active ? '#1A1A1A' : 'transparent'};
+  color: ${p => p.$active ? '#fff' : '#666'};
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: all 0.15s;
   
   &:hover {
-    border-color: #fff;
-    color: ${p => p.$active ? '#000' : '#fff'};
-  }
-  
-  span {
-    margin-left: 0.5rem;
-    opacity: 0.6;
+    background: ${p => p.$active ? '#1A1A1A' : '#F5F5F5'};
   }
 `;
 
-const SearchInput = styled.input`
-  padding: 0.75rem 1rem;
-  background: #111;
-  border: 1px solid #333;
-  border-radius: 8px;
-  color: #fff;
-  font-size: 0.9rem;
-  width: 100%;
-  max-width: 300px;
-  margin-bottom: 1.5rem;
-  
-  &:focus {
-    outline: none;
-    border-color: #555;
-  }
-  
-  &::placeholder {
-    color: #555;
-  }
+const Table = styled.div`
+  background: #fff;
+  border: 1px solid #E5E5E5;
 `;
 
-const Grid = styled.div`
+const TableHeader = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: 1fr 120px 120px 100px 120px 80px;
   gap: 1rem;
-`;
-
-const ProjectCard = styled(Link)`
-  background: #111;
-  border: 1px solid #222;
-  border-radius: 12px;
-  padding: 1.5rem;
-  transition: all 0.2s;
+  padding: 0.875rem 1.5rem;
+  background: #FAFAFA;
+  border-bottom: 1px solid #E5E5E5;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #666;
   
-  &:hover {
-    border-color: #444;
-    transform: translateY(-2px);
+  @media (max-width: 1024px) {
+    display: none;
   }
 `;
 
-const CardHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1rem;
+const TableRow = styled(Link)`
+  display: grid;
+  grid-template-columns: 1fr 120px 120px 100px 120px 80px;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #F5F5F5;
+  align-items: center;
+  transition: background 0.15s;
+  
+  &:last-child { border-bottom: none; }
+  &:hover { background: #FAFAFA; }
+  
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr auto;
+    
+    > *:not(:first-child):not(:nth-child(4)) {
+      display: none;
+    }
+  }
 `;
 
-const CoupleNames = styled.div`
-  font-size: 1.1rem;
+const CoupleInfo = styled.div`
+  .name {
+    font-weight: 500;
+    color: #1A1A1A;
+    margin-bottom: 0.15rem;
+  }
+  
+  .meta {
+    font-size: 0.75rem;
+    color: #999;
+    
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      background: #F5F5F5;
+      padding: 0.1rem 0.3rem;
+      margin-right: 0.5rem;
+    }
+  }
+`;
+
+const PackageBadge = styled.span`
+  display: inline-block;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.65rem;
   font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: ${p => p.$popular ? '#1A1A1A' : '#F5F5F5'};
+  color: ${p => p.$popular ? '#fff' : '#666'};
 `;
 
 const StatusBadge = styled.span`
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
+  display: inline-block;
+  padding: 0.3rem 0.6rem;
   font-size: 0.65rem;
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: ${p => {
-    switch(p.$status) {
-      case 'live': return '#22c55e22';
-      case 'std': return '#eab30822';
-      case 'archiv': return '#66666622';
-      default: return '#33333322';
-    }
-  }};
-  color: ${p => {
-    switch(p.$status) {
-      case 'live': return '#22c55e';
-      case 'std': return '#eab308';
-      case 'archiv': return '#666';
-      default: return '#888';
-    }
-  }};
+  text-transform: uppercase;
+  background: ${p => p.$color ? `${p.$color}15` : '#F5F5F5'};
+  color: ${p => p.$color || '#666'};
 `;
 
-const CardInfo = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+const DateCell = styled.div`
   font-size: 0.85rem;
-  color: #888;
+  color: #666;
+`;
+
+const PriceCell = styled.div`
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  color: #1A1A1A;
+`;
+
+const ComponentCount = styled.div`
+  font-size: 0.8rem;
+  color: #666;
   
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  
-  .icon { font-size: 1rem; }
-  
-  code {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: #666;
-    background: #0a0a0a;
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
+  span {
+    font-weight: 600;
+    color: #1A1A1A;
   }
 `;
 
 const EmptyState = styled.div`
   text-align: center;
   padding: 4rem 2rem;
-  color: #666;
   
   h2 {
-    font-size: 1.2rem;
-    color: #888;
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 1.25rem;
+    font-weight: 400;
+    color: #1A1A1A;
     margin-bottom: 0.5rem;
+  }
+  
+  p {
+    color: #666;
+    font-size: 0.9rem;
   }
 `;
 
@@ -210,74 +237,89 @@ export default function ProjectsPage() {
   });
 
   const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('de-DE');
+    if (!dateStr) return '–';
+    return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  };
+
+  const formatPrice = (price) => {
+    if (!price) return '–';
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(price);
   };
 
   if (isLoading) {
-    return <Layout stats={stats}><div style={{ color: '#666' }}>Laden...</div></Layout>;
+    return <Layout stats={stats}><div style={{ color: '#666', padding: '2rem' }}>Laden...</div></Layout>;
   }
 
   return (
     <Layout stats={stats}>
       <Header>
-        <h1>Projekte ({projects.length})</h1>
+        <h1>Projekte</h1>
         <NewButton to="/projects/new">+ Neues Projekt</NewButton>
       </Header>
       
-      <SearchInput
-        placeholder="Suchen nach Namen, Slug, Domain..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      
-      <Filters>
-        <FilterButton $active={filter === 'all'} onClick={() => setFilter('all')}>
-          Alle <span>{projects.length}</span>
-        </FilterButton>
-        <FilterButton $active={filter === 'live'} onClick={() => setFilter('live')}>
-          Live <span>{stats.liveProjects || 0}</span>
-        </FilterButton>
-        <FilterButton $active={filter === 'std'} onClick={() => setFilter('std')}>
-          Save the Date <span>{stats.stdProjects || 0}</span>
-        </FilterButton>
-        <FilterButton $active={filter === 'archiv'} onClick={() => setFilter('archiv')}>
-          Archiv <span>{stats.archivProjects || 0}</span>
-        </FilterButton>
-      </Filters>
+      <Toolbar>
+        <SearchInput
+          placeholder="Suchen..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <Filters>
+          <FilterButton $active={filter === 'all'} onClick={() => setFilter('all')}>
+            Alle ({projects.length})
+          </FilterButton>
+          <FilterButton $active={filter === 'live'} onClick={() => setFilter('live')}>
+            Live
+          </FilterButton>
+          <FilterButton $active={filter === 'std'} onClick={() => setFilter('std')}>
+            STD
+          </FilterButton>
+          <FilterButton $active={filter === 'archiv'} onClick={() => setFilter('archiv')}>
+            Archiv
+          </FilterButton>
+        </Filters>
+      </Toolbar>
       
       {filteredProjects.length > 0 ? (
-        <Grid>
-          {filteredProjects.map(project => (
-            <ProjectCard key={project.id} to={`/projects/${project.id}`}>
-              <CardHeader>
-                <CoupleNames>{project.couple_names || 'Unbenannt'}</CoupleNames>
-                <StatusBadge $status={project.status}>{project.status || 'draft'}</StatusBadge>
-              </CardHeader>
-              <CardInfo>
-                <div className="row">
-                  <span className="icon">🔗</span>
-                  <code>/{project.slug}</code>
-                </div>
-                {project.custom_domain && (
-                  <div className="row">
-                    <span className="icon">🌐</span>
-                    <span>{project.custom_domain}</span>
+        <Table>
+          <TableHeader>
+            <div>Projekt</div>
+            <div>Paket</div>
+            <div>Hochzeit</div>
+            <div>Status</div>
+            <div>Preis</div>
+            <div>Komp.</div>
+          </TableHeader>
+          
+          {filteredProjects.map(project => {
+            const pkg = PACKAGES[project.package_type];
+            const status = PROJECT_STATUS[project.status];
+            const componentCount = project.active_components?.length || 0;
+            
+            return (
+              <TableRow key={project.id} to={`/projects/${project.id}`}>
+                <CoupleInfo>
+                  <div className="name">{project.couple_names || 'Unbenannt'}</div>
+                  <div className="meta">
+                    <code>/{project.slug}</code>
+                    {project.custom_domain && <span>• {project.custom_domain}</span>}
                   </div>
-                )}
-                <div className="row">
-                  <span className="icon">📅</span>
-                  <span>Hochzeit: {formatDate(project.wedding_date)}</span>
-                </div>
-              </CardInfo>
-            </ProjectCard>
-          ))}
-        </Grid>
+                </CoupleInfo>
+                <PackageBadge $popular={pkg?.popular}>{pkg?.name || '–'}</PackageBadge>
+                <DateCell>{formatDate(project.wedding_date)}</DateCell>
+                <StatusBadge $color={status?.color}>{status?.label || project.status || 'Entwurf'}</StatusBadge>
+                <PriceCell>{formatPrice(project.total_price)}</PriceCell>
+                <ComponentCount><span>{componentCount}</span> aktiv</ComponentCount>
+              </TableRow>
+            );
+          })}
+        </Table>
       ) : (
-        <EmptyState>
-          <h2>Keine Projekte gefunden</h2>
-          <p>Erstelle dein erstes Projekt oder passe die Filter an.</p>
-        </EmptyState>
+        <Table>
+          <EmptyState>
+            <h2>Keine Projekte gefunden</h2>
+            <p>Erstelle dein erstes Projekt oder passe die Filter an.</p>
+          </EmptyState>
+        </Table>
       )}
     </Layout>
   );

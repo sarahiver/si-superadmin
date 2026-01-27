@@ -4,14 +4,17 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import Layout from '../components/Layout';
 import { getDashboardStats, getAllProjects } from '../lib/supabase';
+import { PACKAGES, PROJECT_STATUS } from '../lib/constants';
 
 const Header = styled.div`
   margin-bottom: 2rem;
   
   h1 {
-    font-size: 1.75rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 2rem;
+    font-weight: 400;
+    color: #1A1A1A;
+    margin-bottom: 0.25rem;
   }
   
   p {
@@ -22,36 +25,36 @@ const Header = styled.div`
 
 const StatsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 `;
 
 const StatCard = styled.div`
-  background: #111;
-  border: 1px solid #222;
-  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #E5E5E5;
   padding: 1.5rem;
   
-  .value {
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: ${p => p.$color || '#fff'};
-    font-family: 'JetBrains Mono', monospace;
+  .label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #999;
+    margin-bottom: 0.5rem;
   }
   
-  .label {
-    font-size: 0.8rem;
-    color: #666;
-    margin-top: 0.25rem;
+  .value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 2rem;
+    font-weight: 500;
+    color: ${p => p.$color || '#1A1A1A'};
   }
 `;
 
 const Section = styled.div`
-  background: #111;
-  border: 1px solid #222;
-  border-radius: 12px;
-  padding: 1.5rem;
+  background: #fff;
+  border: 1px solid #E5E5E5;
   margin-bottom: 1.5rem;
 `;
 
@@ -59,92 +62,126 @@ const SectionHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #E5E5E5;
   
   h2 {
+    font-family: 'Instrument Serif', Georgia, serif;
     font-size: 1.1rem;
-    font-weight: 600;
+    font-weight: 400;
   }
   
   a {
-    font-size: 0.8rem;
-    color: #888;
+    font-size: 0.75rem;
+    color: #666;
     
-    &:hover { color: #fff; }
+    &:hover { color: #1A1A1A; text-decoration: underline; }
   }
 `;
 
-const ProjectList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-`;
+const ProjectList = styled.div``;
 
 const ProjectRow = styled(Link)`
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 120px 100px 100px;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #F5F5F5;
   align-items: center;
-  justify-content: space-between;
-  padding: 1rem;
-  background: #0a0a0a;
-  border-radius: 8px;
-  transition: all 0.2s;
+  transition: background 0.15s ease;
   
-  &:hover {
-    background: #1a1a1a;
+  &:last-child { border-bottom: none; }
+  &:hover { background: #FAFAFA; }
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr auto;
   }
-  
-  .info {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-  }
-  
+`;
+
+const ProjectInfo = styled.div`
   .name {
     font-weight: 500;
+    color: #1A1A1A;
+    margin-bottom: 0.15rem;
   }
   
   .slug {
-    font-size: 0.8rem;
-    color: #666;
+    font-size: 0.75rem;
+    color: #999;
     font-family: 'JetBrains Mono', monospace;
   }
 `;
 
-const StatusBadge = styled.span`
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.7rem;
+const PackageBadge = styled.span`
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.65rem;
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: ${p => {
-    switch(p.$status) {
-      case 'live': return '#22c55e22';
-      case 'std': return '#eab30822';
-      case 'archiv': return '#66666622';
-      default: return '#33333322';
-    }
-  }};
-  color: ${p => {
-    switch(p.$status) {
-      case 'live': return '#22c55e';
-      case 'std': return '#eab308';
-      case 'archiv': return '#666';
-      default: return '#888';
-    }
-  }};
+  text-transform: uppercase;
+  background: #F5F5F5;
+  color: #666;
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
+`;
+
+const StatusBadge = styled.span`
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: ${p => p.$color ? `${p.$color}15` : '#F5F5F5'};
+  color: ${p => p.$color || '#666'};
+`;
+
+const Price = styled.div`
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  color: #1A1A1A;
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const EmptyState = styled.div`
   text-align: center;
-  padding: 2rem;
+  padding: 3rem 2rem;
   color: #666;
   
+  p { margin-bottom: 1rem; }
+  
   a {
-    color: #fff;
+    color: #1A1A1A;
     text-decoration: underline;
     
     &:hover { text-decoration: none; }
+  }
+`;
+
+const AlertBox = styled.div`
+  background: #FEF3C7;
+  border: 1px solid #FDE68A;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  
+  .text {
+    font-size: 0.9rem;
+    color: #92400E;
+  }
+  
+  a {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #92400E;
+    text-decoration: underline;
   }
 `;
 
@@ -168,8 +205,12 @@ export default function DashboardPage() {
     setIsLoading(false);
   };
 
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(price);
+  };
+
   if (isLoading) {
-    return <Layout><div style={{ color: '#666' }}>Laden...</div></Layout>;
+    return <Layout><div style={{ color: '#666', padding: '2rem' }}>Laden...</div></Layout>;
   }
 
   return (
@@ -179,58 +220,63 @@ export default function DashboardPage() {
         <p>Übersicht aller Hochzeitsprojekte</p>
       </Header>
       
+      {stats.newRequests > 0 && (
+        <AlertBox>
+          <span className="text">⚡ {stats.newRequests} neue Anfrage{stats.newRequests > 1 ? 'n' : ''} wartet auf Bearbeitung</span>
+          <Link to="/requests">Anfragen ansehen →</Link>
+        </AlertBox>
+      )}
+      
       <StatsGrid>
         <StatCard>
-          <div className="value">{stats.totalProjects || 0}</div>
           <div className="label">Projekte gesamt</div>
+          <div className="value">{stats.totalProjects || 0}</div>
         </StatCard>
         <StatCard $color="#22c55e">
-          <div className="value">{stats.liveProjects || 0}</div>
           <div className="label">Live</div>
+          <div className="value">{stats.liveProjects || 0}</div>
         </StatCard>
         <StatCard $color="#eab308">
-          <div className="value">{stats.stdProjects || 0}</div>
           <div className="label">Save the Date</div>
+          <div className="value">{stats.stdProjects || 0}</div>
         </StatCard>
-        <StatCard $color="#ff4444">
-          <div className="value">{stats.newRequests || 0}</div>
-          <div className="label">Neue Anfragen</div>
+        <StatCard $color="#64748b">
+          <div className="label">Archiv</div>
+          <div className="value">{stats.archivProjects || 0}</div>
         </StatCard>
       </StatsGrid>
       
       <Section>
         <SectionHeader>
-          <h2>Neueste Projekte</h2>
+          <h2>Aktuelle Projekte</h2>
           <Link to="/projects">Alle anzeigen →</Link>
         </SectionHeader>
         
         {recentProjects.length > 0 ? (
           <ProjectList>
-            {recentProjects.map(project => (
-              <ProjectRow key={project.id} to={`/projects/${project.id}`}>
-                <div className="info">
-                  <span className="name">{project.couple_names || 'Unbenannt'}</span>
-                  <span className="slug">/{project.slug}</span>
-                </div>
-                <StatusBadge $status={project.status}>{project.status || 'draft'}</StatusBadge>
-              </ProjectRow>
-            ))}
+            {recentProjects.map(project => {
+              const pkg = PACKAGES[project.package_type];
+              const status = PROJECT_STATUS[project.status];
+              return (
+                <ProjectRow key={project.id} to={`/projects/${project.id}`}>
+                  <ProjectInfo>
+                    <div className="name">{project.couple_names || 'Unbenannt'}</div>
+                    <div className="slug">/{project.slug}</div>
+                  </ProjectInfo>
+                  <PackageBadge>{pkg?.name || '–'}</PackageBadge>
+                  <StatusBadge $color={status?.color}>{status?.label || project.status}</StatusBadge>
+                  <Price>{project.total_price ? formatPrice(project.total_price) : '–'}</Price>
+                </ProjectRow>
+              );
+            })}
           </ProjectList>
         ) : (
           <EmptyState>
-            Noch keine Projekte. <Link to="/projects/new">Jetzt erstellen →</Link>
+            <p>Noch keine Projekte vorhanden.</p>
+            <Link to="/projects/new">Erstes Projekt erstellen →</Link>
           </EmptyState>
         )}
       </Section>
-      
-      {stats.newRequests > 0 && (
-        <Section style={{ borderColor: '#ff444444' }}>
-          <SectionHeader>
-            <h2>⚠️ {stats.newRequests} neue Anfragen</h2>
-            <Link to="/requests">Alle anzeigen →</Link>
-          </SectionHeader>
-        </Section>
-      )}
     </Layout>
   );
 }

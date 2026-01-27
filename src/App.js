@@ -2,25 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import styled, { createGlobalStyle } from 'styled-components';
+import styled from 'styled-components';
+import GlobalStyles from './styles/GlobalStyles';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import RequestsPage from './pages/RequestsPage';
 import NewProjectPage from './pages/NewProjectPage';
-
-const GlobalStyles = createGlobalStyle`
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: 'Inter', -apple-system, sans-serif;
-    background: #0a0a0a;
-    color: #fff;
-    min-height: 100vh;
-  }
-  a { color: inherit; text-decoration: none; }
-  button { font-family: inherit; }
-`;
 
 // Auth Context
 const AuthContext = React.createContext(null);
@@ -67,7 +56,7 @@ function App() {
     <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
       <GlobalStyles />
       <Toaster position="top-right" toastOptions={{
-        style: { background: '#1a1a1a', color: '#fff', border: '1px solid #333' }
+        style: { background: '#1A1A1A', color: '#fff', fontFamily: 'Inter, sans-serif', fontSize: '0.85rem' }
       }} />
       <BrowserRouter>
         <Routes>
@@ -102,6 +91,7 @@ const LoadingScreen = styled.div`
   align-items: center;
   justify-content: center;
   color: #666;
+  font-family: 'Inter', sans-serif;
 `;
 
 export default App;

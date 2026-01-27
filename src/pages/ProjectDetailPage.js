@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
 import { getProjectById, updateProject, deleteProject, getDashboardStats } from '../lib/supabase';
+import { PACKAGES, ADDONS, THEMES, PROJECT_STATUS, CORE_COMPONENTS, OPTIONAL_COMPONENTS } from '../lib/constants';
 
 const Header = styled.div`
   display: flex;
@@ -17,16 +18,35 @@ const Header = styled.div`
 
 const BackLink = styled(Link)`
   color: #666;
-  font-size: 0.85rem;
-  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
   display: inline-block;
+  margin-bottom: 0.5rem;
   
-  &:hover { color: #fff; }
+  &:hover { color: #1A1A1A; }
+`;
+
+const TitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
 `;
 
 const Title = styled.h1`
-  font-size: 1.75rem;
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: 2rem;
+  font-weight: 400;
+`;
+
+const StatusBadge = styled.span`
+  display: inline-block;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.65rem;
   font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: ${p => p.$color ? `${p.$color}15` : '#F5F5F5'};
+  color: ${p => p.$color || '#666'};
 `;
 
 const Actions = styled.div`
@@ -35,18 +55,16 @@ const Actions = styled.div`
 `;
 
 const Button = styled.button`
-  padding: 0.75rem 1.25rem;
-  background: ${p => p.$danger ? '#ff4444' : p.$primary ? '#fff' : '#222'};
-  color: ${p => p.$primary ? '#000' : '#fff'};
-  border: 1px solid ${p => p.$danger ? '#ff4444' : p.$primary ? '#fff' : '#333'};
-  border-radius: 8px;
-  font-size: 0.85rem;
+  padding: 0.65rem 1.25rem;
+  background: ${p => p.$danger ? '#fff' : p.$primary ? '#1A1A1A' : '#fff'};
+  color: ${p => p.$danger ? '#DC2626' : p.$primary ? '#fff' : '#1A1A1A'};
+  border: 1px solid ${p => p.$danger ? '#FCA5A5' : p.$primary ? '#1A1A1A' : '#E5E5E5'};
+  font-size: 0.75rem;
   font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
   
   &:hover:not(:disabled) {
-    opacity: 0.9;
+    background: ${p => p.$danger ? '#FEE2E2' : p.$primary ? '#333' : '#F5F5F5'};
   }
   
   &:disabled {
@@ -57,133 +75,128 @@ const Button = styled.button`
 
 const Grid = styled.div`
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  grid-template-columns: 1fr 320px;
+  gap: 2rem;
+  align-items: start;
   
-  @media (max-width: 900px) {
+  @media (max-width: 1024px) {
     grid-template-columns: 1fr;
   }
 `;
 
+const MainColumn = styled.div``;
+
+const Sidebar = styled.div``;
+
 const Section = styled.div`
-  background: #111;
-  border: 1px solid #222;
-  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #E5E5E5;
+  margin-bottom: 1.5rem;
+`;
+
+const SectionHeader = styled.div`
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #E5E5E5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  
+  h2 {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 1.1rem;
+    font-weight: 400;
+  }
+`;
+
+const SectionBody = styled.div`
   padding: 1.5rem;
 `;
 
-const SectionTitle = styled.h2`
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+const FormGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const FormGroup = styled.div`
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
   
   &:last-child { margin-bottom: 0; }
+  
+  &.full-width { grid-column: 1 / -1; }
 `;
 
 const Label = styled.label`
   display: block;
-  font-size: 0.75rem;
-  color: #888;
-  margin-bottom: 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: #666;
+  margin-bottom: 0.5rem;
 `;
 
 const Input = styled.input`
   width: 100%;
-  padding: 0.75rem;
-  background: #0a0a0a;
-  border: 1px solid #333;
-  border-radius: 6px;
-  color: #fff;
+  padding: 0.75rem 1rem;
+  background: #FAFAFA;
+  border: 1px solid #E5E5E5;
   font-size: 0.9rem;
   
   &:focus {
     outline: none;
-    border-color: #555;
+    border-color: #1A1A1A;
+    background: #fff;
   }
   
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.6;
   }
 `;
 
 const Select = styled.select`
   width: 100%;
-  padding: 0.75rem;
-  background: #0a0a0a;
-  border: 1px solid #333;
-  border-radius: 6px;
-  color: #fff;
+  padding: 0.75rem 1rem;
+  background: #FAFAFA;
+  border: 1px solid #E5E5E5;
   font-size: 0.9rem;
   cursor: pointer;
   
   &:focus {
     outline: none;
-    border-color: #555;
+    border-color: #1A1A1A;
   }
 `;
 
-const StatusBadge = styled.span`
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  background: ${p => {
-    switch(p.$status) {
-      case 'live': return '#22c55e22';
-      case 'std': return '#eab30822';
-      case 'archiv': return '#66666622';
-      default: return '#33333322';
-    }
-  }};
-  color: ${p => {
-    switch(p.$status) {
-      case 'live': return '#22c55e';
-      case 'std': return '#eab308';
-      case 'archiv': return '#666';
-      default: return '#888';
-    }
-  }};
-`;
-
 const LinkBox = styled.div`
-  background: #0a0a0a;
-  border: 1px solid #333;
-  border-radius: 6px;
-  padding: 0.75rem;
+  background: #FAFAFA;
+  border: 1px solid #E5E5E5;
+  padding: 0.75rem 1rem;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.85rem;
-  color: #888;
+  font-size: 0.8rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
   
   a {
-    color: #fff;
-    
+    color: #1A1A1A;
     &:hover { text-decoration: underline; }
   }
   
   button {
-    background: #222;
-    border: none;
-    color: #888;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
+    background: #fff;
+    border: 1px solid #E5E5E5;
+    color: #666;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.7rem;
     cursor: pointer;
-    font-size: 0.75rem;
     
-    &:hover { color: #fff; }
+    &:hover { border-color: #1A1A1A; color: #1A1A1A; }
   }
 `;
 
@@ -198,27 +211,93 @@ const ComponentToggle = styled.label`
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  background: ${p => p.$active ? '#22c55e22' : '#0a0a0a'};
-  border: 1px solid ${p => p.$active ? '#22c55e44' : '#333'};
-  border-radius: 6px;
+  background: ${p => p.$active ? '#1A1A1A' : '#FAFAFA'};
+  color: ${p => p.$active ? '#fff' : '#666'};
+  border: 1px solid ${p => p.$active ? '#1A1A1A' : '#E5E5E5'};
   cursor: pointer;
-  font-size: 0.8rem;
-  transition: all 0.2s;
+  font-size: 0.75rem;
+  transition: all 0.15s ease;
   
-  &:hover {
-    border-color: ${p => p.$active ? '#22c55e' : '#555'};
-  }
+  input { display: none; }
   
-  input {
-    accent-color: #22c55e;
+  &:hover { border-color: #1A1A1A; }
+`;
+
+// Sidebar Cards
+const InfoCard = styled.div`
+  background: #fff;
+  border: 1px solid #E5E5E5;
+  margin-bottom: 1rem;
+`;
+
+const InfoHeader = styled.div`
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid #E5E5E5;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #666;
+`;
+
+const InfoBody = styled.div`
+  padding: 1rem;
+`;
+
+const InfoRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  
+  &:last-child { margin-bottom: 0; }
+  
+  .label { color: #666; }
+  .value { 
+    font-weight: 500; 
+    color: #1A1A1A;
+    font-family: ${p => p.$mono ? "'JetBrains Mono', monospace" : 'inherit'};
   }
 `;
 
-const COMPONENTS = [
-  'hero', 'countdown', 'lovestory', 'timeline', 'locations', 'directions',
-  'rsvp', 'dresscode', 'gifts', 'accommodations', 'witnesses', 'gallery',
-  'musicwishes', 'guestbook', 'faq', 'weddingabc', 'photoupload'
-];
+const PriceTotal = styled.div`
+  display: flex;
+  justify-content: space-between;
+  padding-top: 0.75rem;
+  margin-top: 0.75rem;
+  border-top: 1px solid #E5E5E5;
+  font-weight: 600;
+  
+  .value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+  }
+`;
+
+const HostingBar = styled.div`
+  margin-top: 1rem;
+  
+  .bar-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #666;
+    margin-bottom: 0.35rem;
+  }
+  
+  .bar {
+    height: 6px;
+    background: #E5E5E5;
+    border-radius: 3px;
+    overflow: hidden;
+    
+    .fill {
+      height: 100%;
+      background: ${p => p.$expired ? '#DC2626' : '#22c55e'};
+      width: ${p => p.$percent}%;
+    }
+  }
+`;
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
@@ -252,6 +331,7 @@ export default function ProjectDetailPage() {
   };
 
   const handleComponentToggle = (comp) => {
+    if (CORE_COMPONENTS.includes(comp)) return;
     const current = formData.active_components || [];
     const updated = current.includes(comp)
       ? current.filter(c => c !== comp)
@@ -268,14 +348,18 @@ export default function ProjectDetailPage() {
       status: formData.status,
       custom_domain: formData.custom_domain || null,
       theme: formData.theme,
+      package_type: formData.package_type,
       active_components: formData.active_components,
       admin_password: formData.admin_password,
+      addons: formData.addons,
+      extra_hosting_months: formData.extra_hosting_months,
+      total_price: formData.total_price,
     });
     
     if (error) {
       toast.error('Fehler beim Speichern');
     } else {
-      toast.success('Gespeichert! ✓');
+      toast.success('Gespeichert!');
       setProject(formData);
     }
     setIsSaving(false);
@@ -300,15 +384,44 @@ export default function ProjectDetailPage() {
     toast.success('Kopiert!');
   };
 
+  // Hosting calculation
+  const getHostingInfo = () => {
+    if (!formData.wedding_date) return { endDate: null, daysLeft: null, percent: 0 };
+    
+    const weddingDate = new Date(formData.wedding_date);
+    const pkg = PACKAGES[formData.package_type];
+    const baseMonths = pkg?.hostingMonths || 1;
+    const extraMonths = formData.extra_hosting_months || 0;
+    
+    const endDate = new Date(weddingDate);
+    endDate.setMonth(endDate.getMonth() + baseMonths + extraMonths);
+    
+    const now = new Date();
+    const totalDays = Math.ceil((endDate - weddingDate) / (1000 * 60 * 60 * 24));
+    const daysLeft = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+    const percent = Math.max(0, Math.min(100, (daysLeft / totalDays) * 100));
+    
+    return { 
+      endDate: endDate.toLocaleDateString('de-DE'), 
+      daysLeft: daysLeft > 0 ? daysLeft : 0,
+      percent,
+      expired: daysLeft <= 0
+    };
+  };
+
   if (isLoading) {
-    return <Layout stats={stats}><div style={{ color: '#666' }}>Laden...</div></Layout>;
+    return <Layout stats={stats}><div style={{ color: '#666', padding: '2rem' }}>Laden...</div></Layout>;
   }
 
   if (!project) {
-    return <Layout stats={stats}><div>Projekt nicht gefunden</div></Layout>;
+    return <Layout stats={stats}><div style={{ padding: '2rem' }}>Projekt nicht gefunden</div></Layout>;
   }
 
   const baseUrl = formData.custom_domain || `siweddings.de/${formData.slug}`;
+  const pkg = PACKAGES[formData.package_type];
+  const status = PROJECT_STATUS[formData.status];
+  const hosting = getHostingInfo();
+  const componentCount = formData.active_components?.length || 0;
 
   return (
     <Layout stats={stats}>
@@ -316,8 +429,10 @@ export default function ProjectDetailPage() {
       
       <Header>
         <div>
-          <Title>{formData.couple_names || 'Unbenannt'}</Title>
-          <StatusBadge $status={formData.status}>{formData.status || 'draft'}</StatusBadge>
+          <TitleRow>
+            <Title>{formData.couple_names || 'Unbenannt'}</Title>
+            <StatusBadge $color={status?.color}>{status?.label || formData.status}</StatusBadge>
+          </TitleRow>
         </div>
         <Actions>
           <Button $danger onClick={handleDelete}>Löschen</Button>
@@ -328,129 +443,217 @@ export default function ProjectDetailPage() {
       </Header>
       
       <Grid>
-        <Section>
-          <SectionTitle>📋 Grunddaten</SectionTitle>
+        <MainColumn>
+          {/* Basic Info */}
+          <Section>
+            <SectionHeader>
+              <h2>Grunddaten</h2>
+            </SectionHeader>
+            <SectionBody>
+              <FormGrid>
+                <FormGroup>
+                  <Label>Paarname</Label>
+                  <Input
+                    value={formData.couple_names || ''}
+                    onChange={(e) => handleChange('couple_names', e.target.value)}
+                  />
+                </FormGroup>
+                <FormGroup>
+                  <Label>Slug (URL)</Label>
+                  <Input
+                    value={formData.slug || ''}
+                    onChange={(e) => handleChange('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  />
+                </FormGroup>
+                <FormGroup>
+                  <Label>Hochzeitsdatum</Label>
+                  <Input
+                    type="date"
+                    value={formData.wedding_date?.split('T')[0] || ''}
+                    onChange={(e) => handleChange('wedding_date', e.target.value)}
+                  />
+                </FormGroup>
+                <FormGroup>
+                  <Label>Theme</Label>
+                  <Select
+                    value={formData.theme || 'editorial'}
+                    onChange={(e) => handleChange('theme', e.target.value)}
+                  >
+                    {Object.values(THEMES).map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </Select>
+                </FormGroup>
+                <FormGroup>
+                  <Label>Status</Label>
+                  <Select
+                    value={formData.status || 'draft'}
+                    onChange={(e) => handleChange('status', e.target.value)}
+                  >
+                    {Object.entries(PROJECT_STATUS).map(([key, val]) => (
+                      <option key={key} value={key}>{val.label}</option>
+                    ))}
+                  </Select>
+                </FormGroup>
+                <FormGroup>
+                  <Label>Admin Passwort</Label>
+                  <Input
+                    value={formData.admin_password || ''}
+                    onChange={(e) => handleChange('admin_password', e.target.value)}
+                  />
+                </FormGroup>
+                <FormGroup className="full-width">
+                  <Label>Custom Domain</Label>
+                  <Input
+                    value={formData.custom_domain || ''}
+                    onChange={(e) => handleChange('custom_domain', e.target.value.toLowerCase())}
+                    placeholder="z.B. sarah-iver.de"
+                  />
+                </FormGroup>
+              </FormGrid>
+            </SectionBody>
+          </Section>
           
-          <FormGroup>
-            <Label>Paarname</Label>
-            <Input
-              value={formData.couple_names || ''}
-              onChange={(e) => handleChange('couple_names', e.target.value)}
-              placeholder="z.B. Sarah & Iver"
-            />
-          </FormGroup>
+          {/* Links */}
+          <Section>
+            <SectionHeader>
+              <h2>Links</h2>
+            </SectionHeader>
+            <SectionBody>
+              <FormGroup>
+                <Label>Hochzeitsseite</Label>
+                <LinkBox>
+                  <a href={`https://${baseUrl}`} target="_blank" rel="noopener noreferrer">{baseUrl}</a>
+                  <button onClick={() => copyToClipboard(`https://${baseUrl}`)}>Kopieren</button>
+                </LinkBox>
+              </FormGroup>
+              <FormGroup>
+                <Label>Kunden-Dashboard</Label>
+                <LinkBox>
+                  <a href={`https://${baseUrl}/admin`} target="_blank" rel="noopener noreferrer">{baseUrl}/admin</a>
+                  <button onClick={() => copyToClipboard(`https://${baseUrl}/admin`)}>Kopieren</button>
+                </LinkBox>
+              </FormGroup>
+            </SectionBody>
+          </Section>
           
-          <FormGroup>
-            <Label>Slug (URL-Pfad)</Label>
-            <Input
-              value={formData.slug || ''}
-              onChange={(e) => handleChange('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-              placeholder="z.B. sarah-iver"
-            />
-          </FormGroup>
-          
-          <FormGroup>
-            <Label>Hochzeitsdatum</Label>
-            <Input
-              type="date"
-              value={formData.wedding_date?.split('T')[0] || ''}
-              onChange={(e) => handleChange('wedding_date', e.target.value)}
-            />
-          </FormGroup>
-          
-          <FormGroup>
-            <Label>Theme</Label>
-            <Select
-              value={formData.theme || 'editorial'}
-              onChange={(e) => handleChange('theme', e.target.value)}
-            >
-              <option value="editorial">Editorial</option>
-              <option value="video">Video</option>
-              <option value="botanical">Botanical</option>
-              <option value="contemporary">Contemporary</option>
-              <option value="luxe">Luxe</option>
-            </Select>
-          </FormGroup>
-        </Section>
+          {/* Components */}
+          <Section>
+            <SectionHeader>
+              <h2>Komponenten ({componentCount} aktiv)</h2>
+            </SectionHeader>
+            <SectionBody>
+              <ComponentsGrid>
+                {[...CORE_COMPONENTS, ...OPTIONAL_COMPONENTS.map(c => c.id)].map(comp => {
+                  const isCore = CORE_COMPONENTS.includes(comp);
+                  const isActive = formData.active_components?.includes(comp);
+                  const label = OPTIONAL_COMPONENTS.find(c => c.id === comp)?.name || comp;
+                  
+                  return (
+                    <ComponentToggle 
+                      key={comp} 
+                      $active={isActive || isCore}
+                      onClick={() => !isCore && handleComponentToggle(comp)}
+                      style={isCore ? { opacity: 0.6, cursor: 'default' } : {}}
+                    >
+                      <input type="checkbox" checked={isActive || isCore} onChange={() => {}} />
+                      {label}
+                    </ComponentToggle>
+                  );
+                })}
+              </ComponentsGrid>
+            </SectionBody>
+          </Section>
+        </MainColumn>
         
-        <Section>
-          <SectionTitle>🌐 Domain & Status</SectionTitle>
+        {/* Sidebar */}
+        <Sidebar>
+          {/* Package Info */}
+          <InfoCard>
+            <InfoHeader>Paket & Preis</InfoHeader>
+            <InfoBody>
+              <InfoRow>
+                <span className="label">Paket</span>
+                <span className="value">{pkg?.name || '–'}</span>
+              </InfoRow>
+              <InfoRow $mono>
+                <span className="label">Paketpreis</span>
+                <span className="value">{pkg?.price?.toLocaleString('de-DE')} €</span>
+              </InfoRow>
+              {formData.addons?.length > 0 && formData.addons.map(addonId => (
+                <InfoRow key={addonId} $mono>
+                  <span className="label">{ADDONS[addonId]?.name}</span>
+                  <span className="value">+{ADDONS[addonId]?.price} €</span>
+                </InfoRow>
+              ))}
+              {formData.extra_hosting_months > 0 && (
+                <InfoRow $mono>
+                  <span className="label">+{formData.extra_hosting_months} Mon. Hosting</span>
+                  <span className="value">+{formData.extra_hosting_months * 25} €</span>
+                </InfoRow>
+              )}
+              <PriceTotal>
+                <span>Gesamt</span>
+                <span className="value">{formData.total_price?.toLocaleString('de-DE') || '–'} €</span>
+              </PriceTotal>
+            </InfoBody>
+          </InfoCard>
           
-          <FormGroup>
-            <Label>Status</Label>
-            <Select
-              value={formData.status || 'draft'}
-              onChange={(e) => handleChange('status', e.target.value)}
-            >
-              <option value="draft">Entwurf</option>
-              <option value="std">Save the Date</option>
-              <option value="live">Live</option>
-              <option value="archiv">Archiv</option>
-            </Select>
-          </FormGroup>
+          {/* Hosting Info */}
+          <InfoCard>
+            <InfoHeader>Hosting</InfoHeader>
+            <InfoBody>
+              <InfoRow>
+                <span className="label">Basis</span>
+                <span className="value">{pkg?.hostingMonths || 1} Monate</span>
+              </InfoRow>
+              {formData.extra_hosting_months > 0 && (
+                <InfoRow>
+                  <span className="label">Extra</span>
+                  <span className="value">+{formData.extra_hosting_months} Monate</span>
+                </InfoRow>
+              )}
+              <InfoRow>
+                <span className="label">Enddatum</span>
+                <span className="value">{hosting.endDate || '–'}</span>
+              </InfoRow>
+              
+              {hosting.endDate && (
+                <HostingBar $percent={hosting.percent} $expired={hosting.expired}>
+                  <div className="bar-label">
+                    <span>{hosting.expired ? 'Abgelaufen' : `${hosting.daysLeft} Tage übrig`}</span>
+                  </div>
+                  <div className="bar">
+                    <div className="fill" />
+                  </div>
+                </HostingBar>
+              )}
+            </InfoBody>
+          </InfoCard>
           
-          <FormGroup>
-            <Label>Custom Domain (optional)</Label>
-            <Input
-              value={formData.custom_domain || ''}
-              onChange={(e) => handleChange('custom_domain', e.target.value.toLowerCase())}
-              placeholder="z.B. sarah-iver.de"
-            />
-          </FormGroup>
-          
-          <FormGroup>
-            <Label>Admin Passwort (Kunden-Dashboard)</Label>
-            <Input
-              value={formData.admin_password || ''}
-              onChange={(e) => handleChange('admin_password', e.target.value)}
-              placeholder="Passwort für /{slug}/admin"
-            />
-          </FormGroup>
-        </Section>
-        
-        <Section style={{ gridColumn: '1 / -1' }}>
-          <SectionTitle>🔗 Links</SectionTitle>
-          
-          <FormGroup>
-            <Label>Hochzeitsseite</Label>
-            <LinkBox>
-              <a href={`https://${baseUrl}`} target="_blank" rel="noopener noreferrer">
-                {baseUrl}
-              </a>
-              <button onClick={() => copyToClipboard(`https://${baseUrl}`)}>Kopieren</button>
-            </LinkBox>
-          </FormGroup>
-          
-          <FormGroup>
-            <Label>Kunden-Dashboard</Label>
-            <LinkBox>
-              <a href={`https://${baseUrl}/admin`} target="_blank" rel="noopener noreferrer">
-                {baseUrl}/admin
-              </a>
-              <button onClick={() => copyToClipboard(`https://${baseUrl}/admin`)}>Kopieren</button>
-            </LinkBox>
-          </FormGroup>
-        </Section>
-        
-        <Section style={{ gridColumn: '1 / -1' }}>
-          <SectionTitle>🧩 Aktive Komponenten</SectionTitle>
-          
-          <ComponentsGrid>
-            {COMPONENTS.map(comp => (
-              <ComponentToggle 
-                key={comp} 
-                $active={formData.active_components?.includes(comp)}
-              >
-                <input
-                  type="checkbox"
-                  checked={formData.active_components?.includes(comp) || false}
-                  onChange={() => handleComponentToggle(comp)}
-                />
-                {comp}
-              </ComponentToggle>
-            ))}
-          </ComponentsGrid>
-        </Section>
+          {/* Features */}
+          <InfoCard>
+            <InfoHeader>Features</InfoHeader>
+            <InfoBody>
+              <InfoRow>
+                <span className="label">Save the Date</span>
+                <span className="value">{formData.includes_std || pkg?.includesSTD ? '✓' : '–'}</span>
+              </InfoRow>
+              <InfoRow>
+                <span className="label">Archiv-Seite</span>
+                <span className="value">{formData.includes_archive || pkg?.includesArchive ? '✓' : '–'}</span>
+              </InfoRow>
+              <InfoRow>
+                <span className="label">Max. Komponenten</span>
+                <span className="value">{pkg?.maxOptionalComponents === 999 ? '∞' : pkg?.maxOptionalComponents}</span>
+              </InfoRow>
+              <InfoRow>
+                <span className="label">Feedback-Runden</span>
+                <span className="value">{pkg?.feedbackRounds === 999 ? '∞' : pkg?.feedbackRounds}</span>
+              </InfoRow>
+            </InfoBody>
+          </InfoCard>
+        </Sidebar>
       </Grid>
     </Layout>
   );

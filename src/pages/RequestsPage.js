@@ -10,105 +10,121 @@ const Header = styled.div`
   margin-bottom: 2rem;
   
   h1 {
-    font-size: 1.75rem;
-    font-weight: 600;
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 2rem;
+    font-weight: 400;
   }
 `;
 
 const Filters = styled.div`
   display: flex;
-  gap: 0.5rem;
+  gap: 0.25rem;
   margin-bottom: 1.5rem;
-  flex-wrap: wrap;
+  background: #fff;
+  border: 1px solid #E5E5E5;
+  padding: 0.25rem;
+  width: fit-content;
 `;
 
 const FilterButton = styled.button`
   padding: 0.5rem 1rem;
-  background: ${p => p.$active ? '#fff' : '#111'};
-  color: ${p => p.$active ? '#000' : '#888'};
-  border: 1px solid ${p => p.$active ? '#fff' : '#333'};
-  border-radius: 20px;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.2s;
+  background: ${p => p.$active ? '#1A1A1A' : 'transparent'};
+  color: ${p => p.$active ? '#fff' : '#666'};
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: all 0.15s;
   
   &:hover {
-    border-color: #fff;
-    color: ${p => p.$active ? '#000' : '#fff'};
+    background: ${p => p.$active ? '#1A1A1A' : '#F5F5F5'};
   }
 `;
 
 const Table = styled.div`
-  background: #111;
-  border: 1px solid #222;
-  border-radius: 12px;
-  overflow: hidden;
+  background: #fff;
+  border: 1px solid #E5E5E5;
+`;
+
+const TableHeader = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr 100px 100px 100px;
+  gap: 1rem;
+  padding: 0.875rem 1.5rem;
+  background: #FAFAFA;
+  border-bottom: 1px solid #E5E5E5;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #666;
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const TableRow = styled.div`
   display: grid;
-  grid-template-columns: 1fr 1fr 120px 100px 140px;
+  grid-template-columns: 1fr 1fr 100px 100px 100px;
   gap: 1rem;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #222;
+  border-bottom: 1px solid #F5F5F5;
   align-items: center;
   
   &:last-child { border-bottom: none; }
+  &:hover { background: #FAFAFA; }
   
-  &:hover { background: #1a1a1a; }
-  
-  @media (max-width: 900px) {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr auto;
   }
-`;
-
-const TableHeader = styled(TableRow)`
-  background: #0a0a0a;
-  font-size: 0.7rem;
-  color: #666;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  
-  &:hover { background: #0a0a0a; }
 `;
 
 const Name = styled.div`
   font-weight: 500;
+  color: #1A1A1A;
 `;
 
 const Email = styled.div`
-  color: #888;
+  color: #666;
   font-size: 0.85rem;
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
-const Date = styled.div`
+const DateCell = styled.div`
   font-size: 0.8rem;
   color: #666;
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const StatusBadge = styled.span`
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
   font-size: 0.65rem;
   font-weight: 600;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   background: ${p => {
     switch(p.$status) {
-      case 'new': return '#ff444422';
-      case 'contacted': return '#eab30822';
-      case 'converted': return '#22c55e22';
-      case 'archived': return '#66666622';
-      default: return '#ff444422';
+      case 'new': return '#FEE2E2';
+      case 'contacted': return '#FEF3C7';
+      case 'converted': return '#D1FAE5';
+      case 'archived': return '#F5F5F5';
+      default: return '#FEE2E2';
     }
   }};
   color: ${p => {
     switch(p.$status) {
-      case 'new': return '#ff4444';
-      case 'contacted': return '#eab308';
-      case 'converted': return '#22c55e';
+      case 'new': return '#DC2626';
+      case 'contacted': return '#D97706';
+      case 'converted': return '#059669';
       case 'archived': return '#666';
-      default: return '#ff4444';
+      default: return '#DC2626';
     }
   }};
 `;
@@ -119,25 +135,38 @@ const Actions = styled.div`
 `;
 
 const ActionButton = styled.button`
-  padding: 0.4rem 0.75rem;
-  background: ${p => p.$danger ? 'transparent' : '#222'};
-  color: ${p => p.$danger ? '#ff4444' : '#888'};
-  border: 1px solid ${p => p.$danger ? '#ff444444' : '#333'};
-  border-radius: 6px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s;
+  padding: 0.35rem 0.65rem;
+  background: #fff;
+  color: ${p => p.$danger ? '#DC2626' : '#666'};
+  border: 1px solid ${p => p.$danger ? '#FCA5A5' : '#E5E5E5'};
+  font-size: 0.7rem;
+  transition: all 0.15s;
   
   &:hover {
-    background: ${p => p.$danger ? '#ff444422' : '#333'};
-    color: ${p => p.$danger ? '#ff4444' : '#fff'};
+    background: ${p => p.$danger ? '#FEE2E2' : '#F5F5F5'};
+    border-color: ${p => p.$danger ? '#DC2626' : '#ccc'};
   }
 `;
 
-const Modal = styled.div`
+const EmptyState = styled.div`
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #666;
+  
+  h2 {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 1.25rem;
+    font-weight: 400;
+    color: #1A1A1A;
+    margin-bottom: 0.5rem;
+  }
+`;
+
+// Modal
+const ModalOverlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.8);
+  background: rgba(0,0,0,0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -145,10 +174,9 @@ const Modal = styled.div`
   padding: 1rem;
 `;
 
-const ModalContent = styled.div`
-  background: #111;
-  border: 1px solid #333;
-  border-radius: 12px;
+const Modal = styled.div`
+  background: #fff;
+  border: 1px solid #E5E5E5;
   max-width: 500px;
   width: 100%;
   max-height: 90vh;
@@ -156,25 +184,26 @@ const ModalContent = styled.div`
 `;
 
 const ModalHeader = styled.div`
-  padding: 1.5rem;
-  border-bottom: 1px solid #222;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #E5E5E5;
   display: flex;
   justify-content: space-between;
   align-items: center;
   
   h2 {
-    font-size: 1.1rem;
-    font-weight: 600;
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 1.25rem;
+    font-weight: 400;
   }
   
   button {
     background: none;
     border: none;
     color: #666;
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     cursor: pointer;
     
-    &:hover { color: #fff; }
+    &:hover { color: #1A1A1A; }
   }
 `;
 
@@ -186,59 +215,56 @@ const DetailRow = styled.div`
   margin-bottom: 1.25rem;
   
   .label {
-    font-size: 0.7rem;
-    color: #666;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 0.25rem;
+    color: #666;
+    margin-bottom: 0.35rem;
   }
   
   .value {
-    color: #fff;
+    color: #1A1A1A;
+    font-size: 0.9rem;
   }
 `;
 
 const Select = styled.select`
   width: 100%;
-  padding: 0.75rem;
-  background: #0a0a0a;
-  border: 1px solid #333;
-  border-radius: 6px;
-  color: #fff;
+  padding: 0.75rem 1rem;
+  background: #FAFAFA;
+  border: 1px solid #E5E5E5;
   font-size: 0.9rem;
   cursor: pointer;
   margin-top: 1rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #1A1A1A;
+  }
 `;
 
 const ModalActions = styled.div`
   display: flex;
-  gap: 0.5rem;
+  gap: 0.75rem;
   margin-top: 1.5rem;
   padding-top: 1.5rem;
-  border-top: 1px solid #222;
+  border-top: 1px solid #E5E5E5;
 `;
 
 const Button = styled.button`
   flex: 1;
   padding: 0.75rem;
-  background: ${p => p.$primary ? '#fff' : 'transparent'};
-  color: ${p => p.$primary ? '#000' : '#888'};
-  border: 1px solid ${p => p.$primary ? '#fff' : '#333'};
-  border-radius: 8px;
-  font-size: 0.85rem;
+  background: ${p => p.$primary ? '#1A1A1A' : '#fff'};
+  color: ${p => p.$primary ? '#fff' : '#666'};
+  border: 1px solid ${p => p.$primary ? '#1A1A1A' : '#E5E5E5'};
+  font-size: 0.75rem;
   font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
   
   &:hover {
-    background: ${p => p.$primary ? '#eee' : '#222'};
+    background: ${p => p.$primary ? '#333' : '#F5F5F5'};
   }
-`;
-
-const EmptyState = styled.div`
-  text-align: center;
-  padding: 4rem 2rem;
-  color: #666;
 `;
 
 export default function RequestsPage() {
@@ -288,7 +314,6 @@ export default function RequestsPage() {
   };
 
   const handleCreateProject = (request) => {
-    // Navigate to new project page with pre-filled data
     navigate('/projects/new', { state: { fromRequest: request } });
   };
 
@@ -298,12 +323,12 @@ export default function RequestsPage() {
   });
 
   const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
+    if (!dateStr) return '–';
     return new Date(dateStr).toLocaleDateString('de-DE');
   };
 
   if (isLoading) {
-    return <Layout stats={stats}><div style={{ color: '#666' }}>Laden...</div></Layout>;
+    return <Layout stats={stats}><div style={{ color: '#666', padding: '2rem' }}>Laden...</div></Layout>;
   }
 
   const newCount = requests.filter(r => !r.status || r.status === 'new').length;
@@ -313,7 +338,7 @@ export default function RequestsPage() {
   return (
     <Layout stats={stats}>
       <Header>
-        <h1>Kontaktanfragen ({requests.length})</h1>
+        <h1>Kontaktanfragen</h1>
       </Header>
       
       <Filters>
@@ -343,12 +368,12 @@ export default function RequestsPage() {
           
           {filteredRequests.map(request => (
             <TableRow key={request.id}>
-              <Name>{request.name}</Name>
+              <n>{request.name}</n>
               <Email>{request.email}</Email>
-              <Date>{formatDate(request.created_at)}</Date>
+              <DateCell>{formatDate(request.created_at)}</DateCell>
               <div>
                 <StatusBadge $status={request.status || 'new'}>
-                  {request.status || 'new'}
+                  {request.status || 'neu'}
                 </StatusBadge>
               </div>
               <Actions>
@@ -363,14 +388,18 @@ export default function RequestsPage() {
           ))}
         </Table>
       ) : (
-        <EmptyState>
-          <p>Keine Anfragen gefunden</p>
-        </EmptyState>
+        <Table>
+          <EmptyState>
+            <h2>Keine Anfragen</h2>
+            <p>Aktuell liegen keine Kontaktanfragen vor.</p>
+          </EmptyState>
+        </Table>
       )}
       
+      {/* Detail Modal */}
       {selectedRequest && (
-        <Modal onClick={() => setSelectedRequest(null)}>
-          <ModalContent onClick={(e) => e.stopPropagation()}>
+        <ModalOverlay onClick={() => setSelectedRequest(null)}>
+          <Modal onClick={(e) => e.stopPropagation()}>
             <ModalHeader>
               <h2>Anfrage Details</h2>
               <button onClick={() => setSelectedRequest(null)}>×</button>
@@ -420,12 +449,12 @@ export default function RequestsPage() {
               <ModalActions>
                 <Button onClick={() => setSelectedRequest(null)}>Schließen</Button>
                 <Button $primary onClick={() => handleCreateProject(selectedRequest)}>
-                  → Projekt erstellen
+                  Projekt erstellen →
                 </Button>
               </ModalActions>
             </ModalBody>
-          </ModalContent>
-        </Modal>
+          </Modal>
+        </ModalOverlay>
       )}
     </Layout>
   );

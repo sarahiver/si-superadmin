@@ -11,34 +11,35 @@ const Container = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+  background: #FAFAFA;
   padding: 2rem;
 `;
 
 const Card = styled.div`
-  background: #111;
-  border: 1px solid #222;
+  background: #fff;
+  border: 1px solid #E5E5E5;
   padding: 3rem;
   width: 100%;
-  max-width: 400px;
-  border-radius: 12px;
+  max-width: 380px;
 `;
 
 const Logo = styled.div`
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
   
   h1 {
-    font-size: 2rem;
-    font-weight: 600;
-    color: #fff;
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 1.75rem;
+    font-weight: 400;
+    color: #1A1A1A;
     margin-bottom: 0.5rem;
   }
   
   p {
-    font-size: 0.75rem;
-    color: #666;
-    letter-spacing: 0.15em;
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: #999;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
   }
 `;
@@ -49,38 +50,53 @@ const Form = styled.form`
   gap: 1rem;
 `;
 
+const FormGroup = styled.div``;
+
+const Label = styled.label`
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 0.5rem;
+`;
+
 const Input = styled.input`
-  padding: 1rem;
-  background: #0a0a0a;
-  border: 1px solid #333;
-  border-radius: 8px;
-  color: #fff;
-  font-size: 1rem;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: #FAFAFA;
+  border: 1px solid #E5E5E5;
+  color: #1A1A1A;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
   
   &:focus {
     outline: none;
-    border-color: #555;
+    border-color: #1A1A1A;
+    background: #fff;
   }
   
   &::placeholder {
-    color: #555;
+    color: #999;
   }
 `;
 
 const Button = styled.button`
+  width: 100%;
   padding: 1rem;
-  background: #fff;
-  color: #000;
+  background: #1A1A1A;
+  color: #fff;
   border: none;
-  border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  cursor: pointer;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
   margin-top: 0.5rem;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   
   &:hover:not(:disabled) {
-    background: #eee;
+    background: #333;
   }
   
   &:disabled {
@@ -90,9 +106,12 @@ const Button = styled.button`
 `;
 
 const Error = styled.div`
-  color: #ff4444;
-  font-size: 0.85rem;
+  color: #DC2626;
+  font-size: 0.8rem;
   text-align: center;
+  padding: 0.75rem;
+  background: #FEE2E2;
+  border: 1px solid #FECACA;
 `;
 
 export default function LoginPage() {
@@ -112,7 +131,7 @@ export default function LoginPage() {
 
     if (result.success) {
       login();
-      toast.success('Willkommen! 👋');
+      toast.success('Willkommen!');
       navigate('/');
     } else {
       setError(result.error || 'Login fehlgeschlagen');
@@ -125,26 +144,30 @@ export default function LoginPage() {
     <Container>
       <Card>
         <Logo>
-          <h1>S&I Wedding</h1>
+          <h1>S & I Wedding</h1>
           <p>SuperAdmin</p>
         </Logo>
         
         <Form onSubmit={handleSubmit}>
-          <Input
-            type="text"
-            placeholder="Benutzername"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            autoFocus
-          />
-          <Input
-            type="password"
-            placeholder="Passwort"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+          <FormGroup>
+            <Label>Benutzername</Label>
+            <Input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              autoFocus
+            />
+          </FormGroup>
+          <FormGroup>
+            <Label>Passwort</Label>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </FormGroup>
           {error && <Error>{error}</Error>}
           <Button type="submit" disabled={isLoading}>
             {isLoading ? 'Wird geprüft...' : 'Anmelden'}

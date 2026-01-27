@@ -10,10 +10,10 @@ const Container = styled.div`
 `;
 
 const Sidebar = styled.aside`
-  width: 260px;
-  background: #111;
-  border-right: 1px solid #222;
-  padding: 1.5rem;
+  width: 240px;
+  background: #fff;
+  border-right: 1px solid #E5E5E5;
+  padding: 2rem 1.5rem;
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -27,26 +27,21 @@ const Sidebar = styled.aside`
 `;
 
 const Logo = styled.div`
+  font-family: 'Instrument Serif', Georgia, serif;
   font-size: 1.5rem;
-  font-weight: 600;
-  color: #fff;
-  margin-bottom: 0.5rem;
-  
-  span { 
-    color: #666; 
-    font-weight: 400;
-    font-size: 0.9rem;
-  }
+  color: #1A1A1A;
+  margin-bottom: 0.25rem;
 `;
 
 const LogoSubtitle = styled.div`
-  font-size: 0.7rem;
-  color: #666;
-  letter-spacing: 0.1em;
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: #999;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
   padding-bottom: 1.5rem;
-  border-bottom: 1px solid #222;
+  border-bottom: 1px solid #E5E5E5;
 `;
 
 const NavSection = styled.div`
@@ -54,11 +49,11 @@ const NavSection = styled.div`
 `;
 
 const NavLabel = styled.div`
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #555;
+  color: #999;
   margin-bottom: 0.75rem;
   padding-left: 0.75rem;
 `;
@@ -67,24 +62,30 @@ const NavItem = styled(Link)`
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem;
-  border-radius: 8px;
-  color: ${p => p.$active ? '#fff' : '#888'};
-  background: ${p => p.$active ? '#1a1a1a' : 'transparent'};
+  padding: 0.65rem 0.75rem;
+  border-radius: 6px;
+  color: ${p => p.$active ? '#1A1A1A' : '#666'};
+  background: ${p => p.$active ? '#F5F5F5' : 'transparent'};
+  font-size: 0.85rem;
+  font-weight: ${p => p.$active ? '500' : '400'};
   margin-bottom: 0.25rem;
-  font-size: 0.9rem;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
   
   &:hover {
-    background: #1a1a1a;
-    color: #fff;
+    background: #F5F5F5;
+    color: #1A1A1A;
   }
   
-  .icon { font-size: 1.1rem; }
+  .icon { 
+    font-size: 1rem;
+    width: 20px;
+    text-align: center;
+  }
+  
   .badge {
     margin-left: auto;
-    background: ${p => p.$warning ? '#ff4444' : '#333'};
-    color: ${p => p.$warning ? '#fff' : '#888'};
+    background: ${p => p.$warning ? '#FEE2E2' : '#F5F5F5'};
+    color: ${p => p.$warning ? '#DC2626' : '#666'};
     padding: 0.15rem 0.5rem;
     border-radius: 10px;
     font-size: 0.7rem;
@@ -98,30 +99,30 @@ const Spacer = styled.div`
 
 const UserSection = styled.div`
   padding-top: 1rem;
-  border-top: 1px solid #222;
+  border-top: 1px solid #E5E5E5;
 `;
 
 const LogoutButton = styled.button`
   width: 100%;
-  padding: 0.75rem;
+  padding: 0.65rem 0.75rem;
   background: transparent;
-  border: 1px solid #333;
-  color: #888;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: all 0.2s;
+  border: 1px solid #E5E5E5;
+  color: #666;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  transition: all 0.15s ease;
   
   &:hover {
-    border-color: #ff4444;
-    color: #ff4444;
+    border-color: #1A1A1A;
+    color: #1A1A1A;
   }
 `;
 
 const Main = styled.main`
   flex: 1;
-  margin-left: 260px;
-  padding: 2rem;
+  margin-left: 240px;
+  padding: 2rem 3rem;
+  max-width: 1400px;
   
   @media (max-width: 768px) {
     margin-left: 0;
@@ -131,9 +132,9 @@ const Main = styled.main`
 
 const MobileHeader = styled.div`
   display: none;
-  padding: 1rem;
-  background: #111;
-  border-bottom: 1px solid #222;
+  padding: 1rem 1.5rem;
+  background: #fff;
+  border-bottom: 1px solid #E5E5E5;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -163,26 +164,26 @@ export default function Layout({ children, stats = {} }) {
   return (
     <Container>
       <Sidebar>
-        <Logo>S&I <span>Wedding</span></Logo>
+        <Logo>S & I Wedding</Logo>
         <LogoSubtitle>SuperAdmin</LogoSubtitle>
         
         <NavSection>
           <NavLabel>Übersicht</NavLabel>
           <NavItem to="/" $active={isActive('/')}>
-            <span className="icon">📊</span>
+            <span className="icon">◫</span>
             Dashboard
           </NavItem>
         </NavSection>
         
         <NavSection>
           <NavLabel>Verwaltung</NavLabel>
-          <NavItem to="/projects" $active={isActive('/projects')}>
-            <span className="icon">💒</span>
+          <NavItem to="/projects" $active={isActive('/projects') && !location.pathname.includes('/new')}>
+            <span className="icon">◈</span>
             Projekte
             {stats.totalProjects > 0 && <span className="badge">{stats.totalProjects}</span>}
           </NavItem>
           <NavItem to="/requests" $active={isActive('/requests')} $warning={stats.newRequests > 0}>
-            <span className="icon">📨</span>
+            <span className="icon">◉</span>
             Anfragen
             {stats.newRequests > 0 && <span className="badge">{stats.newRequests}</span>}
           </NavItem>
@@ -190,8 +191,8 @@ export default function Layout({ children, stats = {} }) {
         
         <NavSection>
           <NavLabel>Aktionen</NavLabel>
-          <NavItem to="/projects/new" $active={isActive('/projects/new')}>
-            <span className="icon">➕</span>
+          <NavItem to="/projects/new" $active={location.pathname === '/projects/new'}>
+            <span className="icon">+</span>
             Neues Projekt
           </NavItem>
         </NavSection>
@@ -207,7 +208,7 @@ export default function Layout({ children, stats = {} }) {
       
       <Main>
         <MobileHeader>
-          <Logo style={{ marginBottom: 0 }}>S&I</Logo>
+          <Logo style={{ marginBottom: 0, fontSize: '1.25rem' }}>S & I</Logo>
           <LogoutButton onClick={handleLogout} style={{ width: 'auto', padding: '0.5rem 1rem' }}>
             Logout
           </LogoutButton>
