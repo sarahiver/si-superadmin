@@ -2,7 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://wikxhpvikelfgzdgndlf.supabase.co';
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indpa3hocHZpa2VsZmd6ZGduZGxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY2MDYyNTMsImV4cCI6MjA1MjE4MjI1M30.lMkKN6R7BBLJMqNVQqTs2PNY6cRxyb6WLBpCuLwNSJc';
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'sb_publishable_20ivv0vDLuEfx9sJzKiCxw_iYmFdZDa';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -18,11 +18,17 @@ export async function verifyAdminLogin(username, password) {
       .single();
 
     if (error || !data) {
+      console.log('DB error or no user found:', error);
       return { success: false, error: 'Ungültige Anmeldedaten' };
     }
 
+    // Calculate hash of input password
     const inputHash = await hashPassword(password);
-    const isValid = inputHash === data.password_hash;
+    console.log('Input hash:', inputHash);
+    console.log('Stored hash:', data.password_hash);
+    
+    // Check both hashed and plain text (for easy setup)
+    const isValid = inputHash === data.password_hash || password === data.password_hash;
 
     return { success: isValid, error: isValid ? null : 'Ungültige Anmeldedaten' };
   } catch (err) {
