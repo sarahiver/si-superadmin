@@ -15,7 +15,7 @@ export const PACKAGES = {
     price: 1490,
     description: "Perfekter Einstieg",
     hostingMonths: 1, // nach Hochzeit
-    maxOptionalComponents: 2,
+    maxOptionalComponents: 4,
     feedbackRounds: 1,
     includesSTD: false,
     includesArchive: false,
@@ -26,7 +26,7 @@ export const PACKAGES = {
     price: 2190,
     description: "Unser Bestseller",
     hostingMonths: 3,
-    maxOptionalComponents: 5,
+    maxOptionalComponents: 8,
     feedbackRounds: 2,
     includesSTD: false,
     includesArchive: false,
@@ -56,7 +56,7 @@ export const ADDONS = {
   guestManagement: { id: "guestManagement", name: "Erweiterte Gästeverwaltung", price: 290, description: "Tischplan, Menüauswahl, etc." },
 };
 
-// Core components - always included
+// Core components - always included (4 Basis-Komponenten)
 export const CORE_COMPONENTS = [
   "hero", "countdown", "rsvp", "lovestory"
 ];

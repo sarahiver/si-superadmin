@@ -417,7 +417,7 @@ export default function ProjectDetailPage() {
     return <Layout stats={stats}><div style={{ padding: '2rem' }}>Projekt nicht gefunden</div></Layout>;
   }
 
-  const baseUrl = formData.custom_domain || `siweddings.de/${formData.slug}`;
+  const baseUrl = formData.custom_domain || `siwedding.de/${formData.slug}`;
   const pkg = PACKAGES[formData.package_type];
   const status = PROJECT_STATUS[formData.status];
   const hosting = getHostingInfo();

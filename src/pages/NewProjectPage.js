@@ -250,7 +250,7 @@ const ComponentsGrid = styled.div`
   gap: 0.5rem;
 `;
 
-const ComponentToggle = styled.label`
+const ComponentToggle = styled.div`
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -258,16 +258,27 @@ const ComponentToggle = styled.label`
   background: ${p => p.$active ? '#1A1A1A' : '#FAFAFA'};
   color: ${p => p.$active ? '#fff' : '#666'};
   border: 1px solid ${p => p.$active ? '#1A1A1A' : '#E5E5E5'};
-  cursor: ${p => p.$disabled ? 'not-allowed' : 'pointer'};
-  opacity: ${p => p.$disabled ? 0.5 : 1};
+  cursor: ${p => p.$core ? 'not-allowed' : 'pointer'};
+  opacity: ${p => p.$core ? 0.6 : 1};
   font-size: 0.8rem;
   transition: all 0.15s ease;
-  
-  input { display: none; }
+  user-select: none;
   
   &:hover {
-    border-color: #1A1A1A;
+    border-color: ${p => p.$core ? '#E5E5E5' : '#1A1A1A'};
   }
+`;
+
+const WarningBanner = styled.div`
+  background: #FEF3C7;
+  border: 1px solid #FDE68A;
+  color: #92400E;
+  padding: 0.75rem 1rem;
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 `;
 
 const PriceSummary = styled.div`
@@ -318,13 +329,6 @@ const PriceTotal = styled.div`
     font-family: 'JetBrains Mono', monospace;
     font-size: 1.25rem;
   }
-`;
-
-const PriceTax = styled.div`
-  text-align: right;
-  font-size: 0.75rem;
-  color: #999;
-  margin-top: 0.25rem;
 `;
 
 const SubmitButton = styled.button`
@@ -386,8 +390,9 @@ export default function NewProjectPage() {
     );
   };
 
+  // Toggle component - always allowed, just show warning
   const toggleComponent = (compId) => {
-    if (CORE_COMPONENTS.includes(compId)) return;
+    if (CORE_COMPONENTS.includes(compId)) return; // Can't disable core
     setActiveComponents(prev =>
       prev.includes(compId)
         ? prev.filter(id => id !== compId)
@@ -400,12 +405,25 @@ export default function NewProjectPage() {
   const hostingPrice = extraHostingMonths * 25;
   const totalPrice = packagePrice + addonsPrice + hostingPrice;
 
+  // Component count check
+  const maxComponents = PACKAGES[selectedPackage]?.maxOptionalComponents || 4;
+  const optionalCount = activeComponents.filter(c => !CORE_COMPONENTS.includes(c)).length;
+  const isOverLimit = maxComponents !== 999 && optionalCount > maxComponents;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!coupleNames || !slug) {
       toast.error('Bitte Paarname und Slug eingeben');
       return;
+    }
+    
+    // Warning if over limit
+    if (isOverLimit) {
+      const confirmed = window.confirm(
+        `Achtung: Du hast ${optionalCount} optionale Komponenten gewählt, aber das ${PACKAGES[selectedPackage]?.name}-Paket enthält nur ${maxComponents}.\n\nTrotzdem fortfahren?`
+      );
+      if (!confirmed) return;
     }
     
     setIsSubmitting(true);
@@ -439,11 +457,8 @@ export default function NewProjectPage() {
 
   const stdIncluded = PACKAGES[selectedPackage]?.includesSTD;
   const archiveIncluded = PACKAGES[selectedPackage]?.includesArchive;
-  const maxComponents = PACKAGES[selectedPackage]?.maxOptionalComponents || 2;
-  const optionalCount = activeComponents.filter(c => !CORE_COMPONENTS.includes(c)).length;
   const baseHostingMonths = PACKAGES[selectedPackage]?.hostingMonths || 1;
 
-  // Calculate hosting end date
   const getHostingEndDate = () => {
     if (!weddingDate) return null;
     const date = new Date(weddingDate);
@@ -484,7 +499,7 @@ export default function NewProjectPage() {
                     placeholder="sarah-iver"
                     required
                   />
-                  <Hint>siweddings.de/{slug || 'slug'}</Hint>
+                  <Hint>siwedding.de/{slug || 'slug'}</Hint>
                 </FormGroup>
                 <FormGroup>
                   <Label>Hochzeitsdatum</Label>
@@ -533,7 +548,7 @@ export default function NewProjectPage() {
                     <div className="name">{pkg.name}</div>
                     <div className="price">{pkg.price.toLocaleString('de-DE')} €</div>
                     <div className="features">
-                      {pkg.maxOptionalComponents === 999 ? '∞' : pkg.maxOptionalComponents} optionale Komp.<br/>
+                      4 Basis + {pkg.maxOptionalComponents === 999 ? '∞' : pkg.maxOptionalComponents} optionale<br/>
                       {pkg.hostingMonths} Mon. Hosting<br/>
                       {pkg.feedbackRounds === 999 ? '∞' : pkg.feedbackRounds} Feedback-Runden
                       {pkg.includesSTD && <><br/>✓ Save the Date</>}
@@ -605,46 +620,41 @@ export default function NewProjectPage() {
             <SectionHeader>
               <h2>Komponenten</h2>
               <p>
-                {maxComponents === 999 
-                  ? 'Alle Komponenten verfügbar' 
-                  : `${optionalCount} von ${maxComponents} optionalen Komponenten gewählt`
-                }
+                {optionalCount} von {maxComponents === 999 ? '∞' : maxComponents} optionalen Komponenten gewählt
               </p>
             </SectionHeader>
             <SectionBody>
               <Label style={{ marginBottom: '0.75rem' }}>Basis (immer inklusive)</Label>
               <ComponentsGrid style={{ marginBottom: '1.5rem' }}>
                 {CORE_COMPONENTS.map(compId => (
-                  <ComponentToggle key={compId} $active $disabled>
-                    <input type="checkbox" checked disabled />
+                  <ComponentToggle key={compId} $active $core>
                     {compId}
                   </ComponentToggle>
                 ))}
               </ComponentsGrid>
               
-              <Label style={{ marginBottom: '0.75rem' }}>Optional</Label>
+              <Label style={{ marginBottom: '0.75rem' }}>Optional (zum An-/Abwählen klicken)</Label>
               <ComponentsGrid>
                 {OPTIONAL_COMPONENTS.map(comp => {
                   const isActive = activeComponents.includes(comp.id);
-                  const canAdd = maxComponents === 999 || optionalCount < maxComponents || isActive;
                   
                   return (
                     <ComponentToggle 
                       key={comp.id} 
                       $active={isActive}
-                      $disabled={!canAdd && !isActive}
-                      onClick={() => canAdd && toggleComponent(comp.id)}
+                      onClick={() => toggleComponent(comp.id)}
                     >
-                      <input 
-                        type="checkbox" 
-                        checked={isActive}
-                        onChange={() => {}}
-                      />
                       {comp.name}
                     </ComponentToggle>
                   );
                 })}
               </ComponentsGrid>
+              
+              {isOverLimit && (
+                <WarningBanner>
+                  ⚠️ Du hast mehr Komponenten gewählt ({optionalCount}) als im {PACKAGES[selectedPackage]?.name}-Paket enthalten ({maxComponents}).
+                </WarningBanner>
+              )}
             </SectionBody>
           </Section>
         </MainColumn>
@@ -676,12 +686,9 @@ export default function NewProjectPage() {
               )}
               
               <PriceTotal>
-                <span className="label">Gesamt (netto)</span>
+                <span className="label">Gesamt</span>
                 <span className="value">{totalPrice.toLocaleString('de-DE')} €</span>
               </PriceTotal>
-              <PriceTax>
-                inkl. MwSt: {(totalPrice * 1.19).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €
-              </PriceTax>
               
               <SubmitButton type="submit" disabled={isSubmitting}>
                 {isSubmitting ? 'Wird erstellt...' : 'Projekt erstellen'}

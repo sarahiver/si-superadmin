@@ -261,7 +261,7 @@ export default function DashboardPage() {
                 <ProjectRow key={project.id} to={`/projects/${project.id}`}>
                   <ProjectInfo>
                     <div className="name">{project.couple_names || 'Unbenannt'}</div>
-                    <div className="slug">/{project.slug}</div>
+                    <div className="slug">siwedding.de/{project.slug}</div>
                   </ProjectInfo>
                   <PackageBadge>{pkg?.name || '–'}</PackageBadge>
                   <StatusBadge $color={status?.color}>{status?.label || project.status}</StatusBadge>

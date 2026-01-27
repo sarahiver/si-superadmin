@@ -300,7 +300,7 @@ export default function ProjectsPage() {
                 <CoupleInfo>
                   <div className="name">{project.couple_names || 'Unbenannt'}</div>
                   <div className="meta">
-                    <code>/{project.slug}</code>
+                    <code>siwedding.de/{project.slug}</code>
                     {project.custom_domain && <span>• {project.custom_domain}</span>}
                   </div>
                 </CoupleInfo>
