@@ -6,6 +6,7 @@ export const THEMES = {
   botanical: { id: "botanical", name: "Botanical", description: "Natürlich organisch mit Grüntönen" },
   contemporary: { id: "contemporary", name: "Contemporary", description: "Modern & bunt mit klaren Linien" },
   luxe: { id: "luxe", name: "Luxe", description: "Opulent & raffiniert mit Gold-Akzenten" },
+  neon: { id: "neon", name: "Neon", description: "Bold & modern mit Neon-Akzenten" },
 };
 
 export const PACKAGES = {
