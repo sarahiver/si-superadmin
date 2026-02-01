@@ -1,6 +1,10 @@
 // src/lib/constants.js
 // Ohne Preislogik - wird später erweitert
 
+// Leere Exports für Abwärtskompatibilität (werden später wieder befüllt)
+export const PACKAGES = {};
+export const ADDONS = {};
+
 export const THEMES = {
   botanical: { id: "botanical", name: "Botanical", description: "Natürlich organisch mit Grüntönen" },
   editorial: { id: "editorial", name: "Editorial", description: "Minimalistisch modern in Schwarz/Weiß" },
