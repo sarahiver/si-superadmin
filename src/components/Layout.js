@@ -1,220 +1,113 @@
 // src/components/Layout.js
-import React from 'react';
+// Editorial Design - Navigation & Layout
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { useAuth } from '../App';
+import { useAuth } from '../context/AuthContext';
 
-const Container = styled.div`
-  display: flex;
-  min-height: 100vh;
+const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
+
+const Container = styled.div`min-height: 100vh; background: ${colors.background};`;
+
+const Nav = styled.nav`
+  background: ${colors.black}; padding: 0 2rem; display: flex; justify-content: space-between; align-items: center;
+  position: sticky; top: 0; z-index: 100;
 `;
 
-const Sidebar = styled.aside`
-  width: 240px;
-  background: #fff;
-  border-right: 1px solid #E5E5E5;
-  padding: 2rem 1.5rem;
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  
-  @media (max-width: 768px) {
-    display: none;
+const Logo = styled(Link)`
+  font-family: 'Oswald', sans-serif; font-size: 1.5rem; font-weight: 700; color: ${colors.white};
+  text-decoration: none; text-transform: uppercase; letter-spacing: 0.05em; padding: 1rem 0;
+  span { color: ${colors.red}; }
+`;
+
+const NavLinks = styled.div`display: flex; gap: 0;`;
+
+const NavLink = styled(Link)`
+  font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.1em;
+  text-transform: uppercase; color: ${p => p.$active ? colors.white : colors.gray};
+  text-decoration: none; padding: 1.25rem 1.5rem; position: relative; transition: color 0.2s ease;
+  &:hover { color: ${colors.white}; }
+  &::after {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+    background: ${p => p.$active ? colors.red : 'transparent'}; transition: background 0.2s ease;
   }
+  &:hover::after { background: ${p => p.$active ? colors.red : colors.gray}; }
 `;
 
-const Logo = styled.div`
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-size: 1.5rem;
-  color: #1A1A1A;
-  margin-bottom: 0.25rem;
-`;
+const NavRight = styled.div`display: flex; align-items: center; gap: 1.5rem;`;
 
-const LogoSubtitle = styled.div`
-  font-size: 0.65rem;
-  font-weight: 500;
-  color: #999;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  margin-bottom: 2.5rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid #E5E5E5;
-`;
-
-const NavSection = styled.div`
-  margin-bottom: 1.5rem;
-`;
-
-const NavLabel = styled.div`
-  font-size: 0.6rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #999;
-  margin-bottom: 0.75rem;
-  padding-left: 0.75rem;
-`;
-
-const NavItem = styled(Link)`
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem 0.75rem;
-  border-radius: 6px;
-  color: ${p => p.$active ? '#1A1A1A' : '#666'};
-  background: ${p => p.$active ? '#F5F5F5' : 'transparent'};
-  font-size: 0.85rem;
-  font-weight: ${p => p.$active ? '500' : '400'};
-  margin-bottom: 0.25rem;
-  transition: all 0.15s ease;
-  
-  &:hover {
-    background: #F5F5F5;
-    color: #1A1A1A;
-  }
-  
-  .icon { 
-    font-size: 1rem;
-    width: 20px;
-    text-align: center;
-  }
-  
-  .badge {
-    margin-left: auto;
-    background: ${p => p.$warning ? '#FEE2E2' : '#F5F5F5'};
-    color: ${p => p.$warning ? '#DC2626' : '#666'};
-    padding: 0.15rem 0.5rem;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    font-weight: 600;
-  }
-`;
-
-const Spacer = styled.div`
-  flex: 1;
-`;
-
-const UserSection = styled.div`
-  padding-top: 1rem;
-  border-top: 1px solid #E5E5E5;
+const UserInfo = styled.div`
+  font-family: 'Inter', sans-serif; font-size: 0.75rem; color: ${colors.gray};
+  span { color: ${colors.white}; font-weight: 500; }
 `;
 
 const LogoutButton = styled.button`
-  width: 100%;
-  padding: 0.65rem 0.75rem;
-  background: transparent;
-  border: 1px solid #E5E5E5;
-  color: #666;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  transition: all 0.15s ease;
-  
-  &:hover {
-    border-color: #1A1A1A;
-    color: #1A1A1A;
-  }
+  font-family: 'Oswald', sans-serif; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.1em;
+  text-transform: uppercase; color: ${colors.gray}; background: transparent; border: 1px solid ${colors.gray};
+  padding: 0.5rem 1rem; cursor: pointer; transition: all 0.2s ease;
+  &:hover { color: ${colors.white}; border-color: ${colors.white}; }
 `;
 
-const Main = styled.main`
-  flex: 1;
-  margin-left: 240px;
-  padding: 2rem 3rem;
-  max-width: 1400px;
-  
-  @media (max-width: 768px) {
-    margin-left: 0;
-    padding: 1rem;
-  }
+const Main = styled.main`padding: 2rem; max-width: 1400px; margin: 0 auto;`;
+
+const MobileMenuButton = styled.button`
+  display: none; background: none; border: none; color: ${colors.white}; font-size: 1.5rem; cursor: pointer;
+  @media (max-width: 768px) { display: block; }
 `;
 
-const MobileHeader = styled.div`
+const MobileMenu = styled.div`
   display: none;
-  padding: 1rem 1.5rem;
-  background: #fff;
-  border-bottom: 1px solid #E5E5E5;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  
   @media (max-width: 768px) {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    display: ${p => p.$open ? 'flex' : 'none'}; flex-direction: column;
+    position: absolute; top: 100%; left: 0; right: 0; background: ${colors.black};
+    padding: 1rem 0; border-top: 1px solid ${colors.gray};
   }
 `;
 
-export default function Layout({ children, stats = {} }) {
+const DesktopNav = styled.div`
+  display: flex; align-items: center; gap: 2rem;
+  @media (max-width: 768px) { display: none; }
+`;
+
+export default function Layout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
-  
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+  const { user, logout } = useAuth();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const isActive = (path) => {
-    if (path === '/') return location.pathname === '/';
-    return location.pathname.startsWith(path);
-  };
+  const handleLogout = () => { logout(); navigate('/login'); };
+
+  const navItems = [
+    { path: '/', label: 'Dashboard' },
+    { path: '/projects', label: 'Projekte' },
+    { path: '/projects/new', label: 'Neues Projekt' },
+  ];
 
   return (
     <Container>
-      <Sidebar>
-        <Logo>S & I Wedding</Logo>
-        <LogoSubtitle>SuperAdmin</LogoSubtitle>
-        
-        <NavSection>
-          <NavLabel>Übersicht</NavLabel>
-          <NavItem to="/" $active={isActive('/')}>
-            <span className="icon">◫</span>
-            Dashboard
-          </NavItem>
-        </NavSection>
-        
-        <NavSection>
-          <NavLabel>Verwaltung</NavLabel>
-          <NavItem to="/projects" $active={isActive('/projects') && !location.pathname.includes('/new')}>
-            <span className="icon">◈</span>
-            Projekte
-            {stats.totalProjects > 0 && <span className="badge">{stats.totalProjects}</span>}
-          </NavItem>
-          <NavItem to="/requests" $active={isActive('/requests')} $warning={stats.newRequests > 0}>
-            <span className="icon">◉</span>
-            Anfragen
-            {stats.newRequests > 0 && <span className="badge">{stats.newRequests}</span>}
-          </NavItem>
-        </NavSection>
-        
-        <NavSection>
-          <NavLabel>Aktionen</NavLabel>
-          <NavItem to="/projects/new" $active={location.pathname === '/projects/new'}>
-            <span className="icon">+</span>
-            Neues Projekt
-          </NavItem>
-        </NavSection>
-        
-        <Spacer />
-        
-        <UserSection>
-          <LogoutButton onClick={handleLogout}>
-            Abmelden
-          </LogoutButton>
-        </UserSection>
-      </Sidebar>
-      
-      <Main>
-        <MobileHeader>
-          <Logo style={{ marginBottom: 0, fontSize: '1.25rem' }}>S & I</Logo>
-          <LogoutButton onClick={handleLogout} style={{ width: 'auto', padding: '0.5rem 1rem' }}>
-            Logout
-          </LogoutButton>
-        </MobileHeader>
-        {children}
-      </Main>
+      <Nav>
+        <Logo to="/">Iver<span>Lasting</span></Logo>
+        <DesktopNav>
+          <NavLinks>
+            {navItems.map(item => (
+              <NavLink key={item.path} to={item.path} $active={location.pathname === item.path}>{item.label}</NavLink>
+            ))}
+          </NavLinks>
+          <NavRight>
+            <UserInfo>Eingeloggt als <span>{user?.email || 'Admin'}</span></UserInfo>
+            <LogoutButton onClick={handleLogout}>Logout</LogoutButton>
+          </NavRight>
+        </DesktopNav>
+        <MobileMenuButton onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? '✕' : '☰'}</MobileMenuButton>
+      </Nav>
+      <MobileMenu $open={mobileOpen}>
+        {navItems.map(item => (
+          <NavLink key={item.path} to={item.path} $active={location.pathname === item.path}
+            onClick={() => setMobileOpen(false)} style={{ padding: '1rem 2rem' }}>{item.label}</NavLink>
+        ))}
+        <LogoutButton onClick={handleLogout} style={{ margin: '1rem 2rem' }}>Logout</LogoutButton>
+      </MobileMenu>
+      <Main>{children}</Main>
     </Container>
   );
 }

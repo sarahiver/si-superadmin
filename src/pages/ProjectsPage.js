@@ -1,325 +1,225 @@
 // src/pages/ProjectsPage.js
+// Editorial Design - Projects List
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import Layout from '../components/Layout';
-import { getAllProjects, getDashboardStats } from '../lib/supabase';
-import { PACKAGES, PROJECT_STATUS } from '../lib/constants';
+import { getProjects } from '../lib/supabase';
+import { PACKAGES, PROJECT_STATUS, THEMES, formatPrice } from '../lib/constants';
+
+const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
 const Header = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
-  gap: 1rem;
-  
-  h1 {
-    font-family: 'Instrument Serif', Georgia, serif;
-    font-size: 2rem;
-    font-weight: 400;
-  }
+  display: flex; justify-content: space-between; align-items: flex-end;
+  margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 3px solid ${colors.black};
+  flex-wrap: wrap; gap: 1rem;
 `;
+
+const Title = styled.h1`
+  font-family: 'Oswald', sans-serif; font-size: 2.5rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: -0.02em; color: ${colors.black}; line-height: 1;
+`;
+
+const HeaderRight = styled.div`display: flex; gap: 1rem; align-items: center;`;
 
 const NewButton = styled(Link)`
-  padding: 0.75rem 1.5rem;
-  background: #1A1A1A;
-  color: #fff;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  transition: background 0.2s;
-  
-  &:hover { background: #333; }
+  font-family: 'Oswald', sans-serif; font-size: 0.8rem; font-weight: 500; letter-spacing: 0.1em;
+  text-transform: uppercase; background: ${colors.red}; color: ${colors.white}; text-decoration: none;
+  padding: 0.875rem 1.5rem; border: 2px solid ${colors.red}; transition: all 0.2s ease;
+  &:hover { background: ${colors.black}; border-color: ${colors.black}; }
 `;
 
-const Toolbar = styled.div`
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  align-items: center;
-`;
-
-const SearchInput = styled.input`
-  padding: 0.65rem 1rem;
-  background: #fff;
-  border: 1px solid #E5E5E5;
-  font-size: 0.85rem;
-  width: 250px;
-  
-  &:focus {
-    outline: none;
-    border-color: #1A1A1A;
-  }
-`;
-
-const Filters = styled.div`
-  display: flex;
-  gap: 0.25rem;
-  background: #fff;
-  border: 1px solid #E5E5E5;
-  padding: 0.25rem;
+const FilterBar = styled.div`
+  display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap;
 `;
 
 const FilterButton = styled.button`
-  padding: 0.5rem 0.875rem;
-  background: ${p => p.$active ? '#1A1A1A' : 'transparent'};
-  color: ${p => p.$active ? '#fff' : '#666'};
-  border: none;
-  font-size: 0.75rem;
-  font-weight: 500;
-  transition: all 0.15s;
-  
-  &:hover {
-    background: ${p => p.$active ? '#1A1A1A' : '#F5F5F5'};
-  }
+  font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.05em;
+  text-transform: uppercase; padding: 0.625rem 1rem; cursor: pointer; transition: all 0.2s ease;
+  background: ${p => p.$active ? colors.black : colors.white};
+  color: ${p => p.$active ? colors.white : colors.black};
+  border: 2px solid ${colors.black};
+  &:hover { background: ${p => p.$active ? colors.black : colors.background}; }
 `;
 
-const Table = styled.div`
-  background: #fff;
-  border: 1px solid #E5E5E5;
+const SearchInput = styled.input`
+  font-family: 'Inter', sans-serif; font-size: 0.9rem; padding: 0.625rem 1rem;
+  border: 2px solid ${colors.lightGray}; background: ${colors.white}; min-width: 250px;
+  &:focus { outline: none; border-color: ${colors.black}; }
+  &::placeholder { color: ${colors.gray}; }
 `;
+
+const Table = styled.div`border: 2px solid ${colors.black}; background: ${colors.white};`;
 
 const TableHeader = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 120px 120px 100px 120px 80px;
-  gap: 1rem;
-  padding: 0.875rem 1.5rem;
-  background: #FAFAFA;
-  border-bottom: 1px solid #E5E5E5;
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #666;
-  
-  @media (max-width: 1024px) {
-    display: none;
-  }
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 100px;
+  background: ${colors.black}; color: ${colors.white}; padding: 1rem 1.25rem;
+  font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  @media (max-width: 900px) { display: none; }
 `;
 
 const TableRow = styled(Link)`
-  display: grid;
-  grid-template-columns: 1fr 120px 120px 100px 120px 80px;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #F5F5F5;
-  align-items: center;
-  transition: background 0.15s;
-  
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 100px;
+  padding: 1rem 1.25rem; border-bottom: 1px solid ${colors.lightGray};
+  text-decoration: none; color: ${colors.black}; transition: all 0.15s ease;
   &:last-child { border-bottom: none; }
-  &:hover { background: #FAFAFA; }
+  &:hover { background: ${colors.background}; }
   
-  @media (max-width: 1024px) {
-    grid-template-columns: 1fr auto;
-    
-    > *:not(:first-child):not(:nth-child(4)) {
-      display: none;
-    }
+  @media (max-width: 900px) {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    &::before { content: attr(data-couple); font-family: 'Oswald', sans-serif; font-size: 1.1rem;
+      font-weight: 600; text-transform: uppercase; }
   }
 `;
 
-const CoupleInfo = styled.div`
-  .name {
-    font-weight: 500;
-    color: #1A1A1A;
-    margin-bottom: 0.15rem;
-  }
+const Cell = styled.div`
+  font-family: 'Inter', sans-serif; font-size: 0.9rem; display: flex; align-items: center;
+  &.couple { font-family: 'Oswald', sans-serif; font-size: 1rem; font-weight: 600; text-transform: uppercase; }
+  &.price { font-weight: 600; color: ${colors.red}; }
   
-  .meta {
-    font-size: 0.75rem;
-    color: #999;
-    
-    code {
-      font-family: 'JetBrains Mono', monospace;
-      background: #F5F5F5;
-      padding: 0.1rem 0.3rem;
-      margin-right: 0.5rem;
-    }
+  @media (max-width: 900px) {
+    &.couple { display: none; }
+    &::before { content: attr(data-label); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; color: ${colors.gray}; margin-right: 0.5rem; min-width: 80px; }
   }
-`;
-
-const PackageBadge = styled.span`
-  display: inline-block;
-  padding: 0.3rem 0.6rem;
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  background: ${p => p.$popular ? '#1A1A1A' : '#F5F5F5'};
-  color: ${p => p.$popular ? '#fff' : '#666'};
 `;
 
 const StatusBadge = styled.span`
-  display: inline-block;
-  padding: 0.3rem 0.6rem;
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  background: ${p => p.$color ? `${p.$color}15` : '#F5F5F5'};
-  color: ${p => p.$color || '#666'};
+  font-family: 'Inter', sans-serif; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; padding: 0.3rem 0.6rem;
+  background: ${p => p.$color ? `${p.$color}20` : colors.background};
+  color: ${p => p.$color || colors.gray};
 `;
 
-const DateCell = styled.div`
-  font-size: 0.85rem;
-  color: #666;
-`;
-
-const PriceCell = styled.div`
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.85rem;
-  color: #1A1A1A;
-`;
-
-const ComponentCount = styled.div`
-  font-size: 0.8rem;
-  color: #666;
-  
-  span {
-    font-weight: 600;
-    color: #1A1A1A;
-  }
+const ActionButton = styled.span`
+  font-family: 'Oswald', sans-serif; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.1em;
+  text-transform: uppercase; color: ${colors.red};
 `;
 
 const EmptyState = styled.div`
-  text-align: center;
-  padding: 4rem 2rem;
-  
-  h2 {
-    font-family: 'Instrument Serif', Georgia, serif;
-    font-size: 1.25rem;
-    font-weight: 400;
-    color: #1A1A1A;
-    margin-bottom: 0.5rem;
-  }
-  
-  p {
-    color: #666;
-    font-size: 0.9rem;
-  }
+  text-align: center; padding: 4rem 2rem;
+  .icon { font-size: 3rem; margin-bottom: 1rem; }
+  .title { font-family: 'Oswald', sans-serif; font-size: 1.25rem; font-weight: 600;
+    text-transform: uppercase; margin-bottom: 0.5rem; }
+  .text { font-family: 'Inter', sans-serif; font-size: 0.9rem; color: ${colors.gray}; }
+`;
+
+const Pagination = styled.div`
+  display: flex; justify-content: center; gap: 0.5rem; margin-top: 2rem;
+`;
+
+const PageButton = styled.button`
+  font-family: 'Inter', sans-serif; font-size: 0.85rem; padding: 0.5rem 1rem;
+  background: ${p => p.$active ? colors.black : colors.white};
+  color: ${p => p.$active ? colors.white : colors.black};
+  border: 2px solid ${colors.black}; cursor: pointer;
+  &:hover { background: ${p => p.$active ? colors.black : colors.background}; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState([]);
-  const [stats, setStats] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const perPage = 10;
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadProjects(); }, []);
 
-  const loadData = async () => {
-    const [projectsRes, statsRes] = await Promise.all([
-      getAllProjects(),
-      getDashboardStats(),
-    ]);
-    setProjects(projectsRes.data || []);
-    setStats(statsRes);
+  const loadProjects = async () => {
+    const { data } = await getProjects();
+    setProjects(data || []);
     setIsLoading(false);
   };
 
-  const filteredProjects = projects.filter(p => {
-    if (filter !== 'all' && p.status !== filter) return false;
-    if (search) {
-      const s = search.toLowerCase();
-      return (
-        p.couple_names?.toLowerCase().includes(s) ||
-        p.slug?.toLowerCase().includes(s) ||
-        p.custom_domain?.toLowerCase().includes(s)
-      );
-    }
-    return true;
-  });
+  const filteredProjects = projects
+    .filter(p => filter === 'all' || p.status === filter)
+    .filter(p => !search || 
+      (p.couple_names || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.client_name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.slug || '').toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '–';
-    return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  const totalPages = Math.ceil(filteredProjects.length / perPage);
+  const paginatedProjects = filteredProjects.slice((page - 1) * perPage, page * perPage);
+
+  const statusCounts = {
+    all: projects.length,
+    draft: projects.filter(p => p.status === 'draft').length,
+    inquiry: projects.filter(p => p.status === 'inquiry').length,
+    in_progress: projects.filter(p => p.status === 'in_progress').length,
+    live: projects.filter(p => p.status === 'live').length,
+    archive: projects.filter(p => p.status === 'archive').length,
   };
 
-  const formatPrice = (price) => {
-    if (!price) return '–';
-    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(price);
-  };
-
-  if (isLoading) {
-    return <Layout stats={stats}><div style={{ color: '#666', padding: '2rem' }}>Laden...</div></Layout>;
-  }
+  if (isLoading) return <Layout><div style={{ padding: '2rem', color: colors.gray }}>Laden...</div></Layout>;
 
   return (
-    <Layout stats={stats}>
+    <Layout>
       <Header>
-        <h1>Projekte</h1>
-        <NewButton to="/projects/new">+ Neues Projekt</NewButton>
+        <Title>Projekte</Title>
+        <HeaderRight>
+          <SearchInput placeholder="Suchen..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
+          <NewButton to="/projects/new">+ Neues Projekt</NewButton>
+        </HeaderRight>
       </Header>
-      
-      <Toolbar>
-        <SearchInput
-          placeholder="Suchen..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <Filters>
-          <FilterButton $active={filter === 'all'} onClick={() => setFilter('all')}>
-            Alle ({projects.length})
+
+      <FilterBar>
+        <FilterButton $active={filter === 'all'} onClick={() => { setFilter('all'); setPage(1); }}>
+          Alle ({statusCounts.all})
+        </FilterButton>
+        {Object.entries(PROJECT_STATUS).map(([key, val]) => (
+          <FilterButton key={key} $active={filter === key} onClick={() => { setFilter(key); setPage(1); }}>
+            {val.label} ({statusCounts[key] || 0})
           </FilterButton>
-          <FilterButton $active={filter === 'live'} onClick={() => setFilter('live')}>
-            Live
-          </FilterButton>
-          <FilterButton $active={filter === 'std'} onClick={() => setFilter('std')}>
-            STD
-          </FilterButton>
-          <FilterButton $active={filter === 'archiv'} onClick={() => setFilter('archiv')}>
-            Archiv
-          </FilterButton>
-        </Filters>
-      </Toolbar>
-      
-      {filteredProjects.length > 0 ? (
-        <Table>
-          <TableHeader>
-            <div>Projekt</div>
-            <div>Paket</div>
-            <div>Hochzeit</div>
-            <div>Status</div>
-            <div>Preis</div>
-            <div>Komp.</div>
-          </TableHeader>
-          
-          {filteredProjects.map(project => {
-            const pkg = PACKAGES[project.package_type];
+        ))}
+      </FilterBar>
+
+      <Table>
+        <TableHeader>
+          <div>Paar</div>
+          <div>Datum</div>
+          <div>Paket</div>
+          <div>Status</div>
+          <div>Preis</div>
+          <div></div>
+        </TableHeader>
+
+        {paginatedProjects.length === 0 ? (
+          <EmptyState>
+            <div className="icon">🔍</div>
+            <div className="title">Keine Projekte gefunden</div>
+            <div className="text">{search ? 'Versuche eine andere Suche' : 'Erstelle dein erstes Projekt!'}</div>
+          </EmptyState>
+        ) : (
+          paginatedProjects.map(project => {
             const status = PROJECT_STATUS[project.status];
-            const componentCount = project.active_components?.length || 0;
-            
+            const pkg = PACKAGES[project.package];
             return (
-              <TableRow key={project.id} to={`/projects/${project.id}`}>
-                <CoupleInfo>
-                  <div className="name">{project.couple_names || 'Unbenannt'}</div>
-                  <div className="meta">
-                    <code>siwedding.de/{project.slug}</code>
-                    {project.custom_domain && <span>• {project.custom_domain}</span>}
-                  </div>
-                </CoupleInfo>
-                <PackageBadge $popular={pkg?.popular}>{pkg?.name || '–'}</PackageBadge>
-                <DateCell>{formatDate(project.wedding_date)}</DateCell>
-                <StatusBadge $color={status?.color}>{status?.label || project.status || 'Entwurf'}</StatusBadge>
-                <PriceCell>{formatPrice(project.total_price)}</PriceCell>
-                <ComponentCount><span>{componentCount}</span> aktiv</ComponentCount>
+              <TableRow key={project.id} to={`/projects/${project.id}`} data-couple={project.couple_names || 'Unbenannt'}>
+                <Cell className="couple">{project.couple_names || 'Unbenannt'}</Cell>
+                <Cell data-label="Datum">{project.wedding_date ? new Date(project.wedding_date).toLocaleDateString('de-DE') : '–'}</Cell>
+                <Cell data-label="Paket">{pkg?.name || 'Starter'}</Cell>
+                <Cell data-label="Status"><StatusBadge $color={status?.color}>{status?.label || 'Entwurf'}</StatusBadge></Cell>
+                <Cell className="price" data-label="Preis">{formatPrice(project.total_price || pkg?.price || 0)}</Cell>
+                <Cell><ActionButton>Öffnen →</ActionButton></Cell>
               </TableRow>
             );
-          })}
-        </Table>
-      ) : (
-        <Table>
-          <EmptyState>
-            <h2>Keine Projekte gefunden</h2>
-            <p>Erstelle dein erstes Projekt oder passe die Filter an.</p>
-          </EmptyState>
-        </Table>
+          })
+        )}
+      </Table>
+
+      {totalPages > 1 && (
+        <Pagination>
+          <PageButton onClick={() => setPage(p => p - 1)} disabled={page === 1}>←</PageButton>
+          {[...Array(totalPages)].map((_, i) => (
+            <PageButton key={i} $active={page === i + 1} onClick={() => setPage(i + 1)}>{i + 1}</PageButton>
+          ))}
+          <PageButton onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>→</PageButton>
+        </Pagination>
       )}
     </Layout>
   );
