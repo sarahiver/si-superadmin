@@ -1,6 +1,6 @@
 // src/pages/ProjectDetailPage.js
-// SuperAdmin - Project Detail with Pricing & Contract PDF Generation
-// WICHTIG: npm install jspdf
+// SuperAdmin - Project Detail with Pricing & Contract PDF
+// npm install jspdf
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -9,16 +9,16 @@ import toast from 'react-hot-toast';
 import { jsPDF } from 'jspdf';
 import Layout from '../components/Layout';
 import { getProjectById, updateProject, deleteProject } from '../lib/supabase';
-import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS, PACKAGES, ADDONS, isFeatureIncluded, formatPrice } from '../lib/constants';
+import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS, PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from '../lib/constants';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
-// Styled Components
+// Styled Components (kompakt)
 const Header = styled.div`display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 3px solid ${colors.black}; flex-wrap: wrap; gap: 1rem;`;
 const HeaderLeft = styled.div``;
 const BackLink = styled(Link)`font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: ${colors.gray}; text-decoration: none; display: inline-block; margin-bottom: 0.75rem; &:hover { color: ${colors.black}; }`;
 const TitleRow = styled.div`display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;`;
-const Title = styled.h1`font-family: 'Oswald', sans-serif; font-size: clamp(2rem, 4vw, 2.5rem); font-weight: 600; text-transform: uppercase; letter-spacing: -0.02em; color: ${colors.black}; line-height: 1;`;
+const Title = styled.h1`font-family: 'Oswald', sans-serif; font-size: clamp(2rem, 4vw, 2.5rem); font-weight: 600; text-transform: uppercase; color: ${colors.black}; line-height: 1;`;
 const StatusBadge = styled.span`font-family: 'Inter', sans-serif; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.35rem 0.75rem; background: ${p => p.$color ? `${p.$color}20` : colors.background}; color: ${p => p.$color || colors.gray}; border: 1px solid ${p => p.$color || colors.lightGray};`;
 const Actions = styled.div`display: flex; gap: 0.75rem; flex-wrap: wrap;`;
 const Button = styled.button`padding: 0.75rem 1.5rem; font-family: 'Oswald', sans-serif; font-size: 0.8rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s ease; ${p => p.$danger && `background: transparent; color: ${colors.red}; border: 2px solid ${colors.red}; &:hover { background: ${colors.red}; color: ${colors.white}; }`} ${p => p.$primary && `background: ${colors.red}; color: ${colors.white}; border: 2px solid ${colors.red}; &:hover:not(:disabled) { background: ${colors.black}; border-color: ${colors.black}; }`} ${p => p.$secondary && `background: ${colors.black}; color: ${colors.white}; border: 2px solid ${colors.black}; &:hover { background: ${colors.gray}; }`} ${p => !p.$danger && !p.$primary && !p.$secondary && `background: transparent; color: ${colors.black}; border: 2px solid ${colors.black}; &:hover { background: ${colors.black}; color: ${colors.white}; }`} &:disabled { opacity: 0.5; cursor: not-allowed; }`;
@@ -56,7 +56,6 @@ const InfoHeader = styled.div`padding: 0.75rem 1rem; background: ${colors.black}
 const InfoBody = styled.div`padding: 1rem;`;
 const InfoRow = styled.div`display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.75rem; &:last-child { margin-bottom: 0; } .label { color: ${colors.gray}; } .value { font-weight: 500; text-align: right; } a { color: ${colors.red}; text-decoration: none; &:hover { text-decoration: underline; } }`;
 
-// Collapsible Section
 function CollapsibleSection({ number, title, badge, defaultOpen = false, children }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   return (
@@ -80,22 +79,19 @@ function generateContractPDF(data, pricing) {
   let y = 20;
   const newPage = (n = 30) => { if (y > 270 - n) { doc.addPage(); y = 20; } };
 
-  // Header
   doc.setFontSize(24); doc.setFont('helvetica', 'bold');
   doc.text('IVERLASTING', pw / 2, y, { align: 'center' }); y += 8;
   doc.setFontSize(12); doc.setFont('helvetica', 'normal'); doc.setTextColor(100);
   doc.text('Wedding Websites', pw / 2, y, { align: 'center' }); y += 15; doc.setTextColor(0);
 
-  // Title
   doc.setFontSize(18); doc.setFont('helvetica', 'bold');
   doc.text('VERTRAG', pw / 2, y, { align: 'center' }); y += 8;
   const cNum = `IVL-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
   doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(100);
   doc.text(`Vertragsnummer: ${cNum}`, pw / 2, y, { align: 'center' }); y += 15; doc.setTextColor(0);
 
-  // §1
   doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-  doc.text('§1 Vertragsparteien', m, y); y += 8;
+  doc.text('Vertragsparteien', m, y); y += 8;
   doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.text('Zwischen', m, y); y += 6;
   doc.setFont('helvetica', 'normal');
   doc.text('IverLasting - Iver Arntzen | hello@siwedding.de', m, y); y += 5;
@@ -109,10 +105,9 @@ function generateContractPDF(data, pricing) {
   doc.setFont('helvetica', 'italic'); doc.setTextColor(100);
   doc.text('(nachfolgend "Auftraggeber")', m, y); y += 12; doc.setTextColor(0);
 
-  // §2
   newPage();
   doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-  doc.text('§2 Vertragsgegenstand', m, y); y += 8;
+  doc.text('Vertragsgegenstand', m, y); y += 8;
   doc.setFontSize(10); doc.setFont('helvetica', 'normal');
   const couple = `${data.partner1_name || 'Partner 1'} & ${data.partner2_name || 'Partner 2'}`;
   const wDate = data.wedding_date ? new Date(data.wedding_date).toLocaleDateString('de-DE') : '[DATUM]';
@@ -121,10 +116,9 @@ function generateContractPDF(data, pricing) {
   doc.text(`Hochzeitsdatum: ${wDate}`, m, y); y += 5;
   doc.text(`Website: https://${url}`, m, y); y += 12;
 
-  // §3
   newPage(60);
   doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-  doc.text('§3 Leistungsumfang', m, y); y += 8;
+  doc.text('Leistungsumfang', m, y); y += 8;
   const pkg = PACKAGES[data.package] || PACKAGES.starter;
   doc.setFontSize(10); doc.setFont('helvetica', 'bold');
   doc.text(`Paket: ${pkg.name}`, m, y); y += 6;
@@ -134,29 +128,36 @@ function generateContractPDF(data, pricing) {
     y += 2; doc.text('Zusatzoptionen:', m, y); y += 5;
     data.addons.forEach(id => {
       const a = ADDONS[id];
-      if (a && !isFeatureIncluded(data.package, id)) { doc.text(`- ${a.name} (+${formatPrice(a.price)})`, m, y); y += 5; }
+      if (a && !isFeatureIncluded(data.package, id)) {
+        const price = getAddonPrice(id, data.package);
+        doc.text(`- ${a.name} (+${formatPrice(price)})`, m, y); y += 5;
+      }
     });
   }
   y += 8;
 
-  // §4
   newPage(50);
   doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-  doc.text('§4 Verguetung', m, y); y += 8;
+  doc.text('Verguetung', m, y); y += 8;
   doc.setFontSize(10); doc.setFont('helvetica', 'normal');
   const px = pw - m - 30;
-  doc.text(`Paket ${pkg.name}`, m, y); doc.text(formatPrice(pricing.packagePrice), px, y, { align: 'right' }); y += 6;
-  if (pricing.addonsPrice > 0) { doc.text('Zusatzoptionen', m, y); doc.text(`+${formatPrice(pricing.addonsPrice)}`, px, y, { align: 'right' }); y += 6; }
-  if (pricing.extraComponentsPrice > 0) { doc.text('Extra-Komponenten', m, y); doc.text(`+${formatPrice(pricing.extraComponentsPrice)}`, px, y, { align: 'right' }); y += 6; }
-  if (pricing.discount > 0) { doc.setTextColor(16, 185, 129); doc.text('Rabatt', m, y); doc.text(`-${formatPrice(pricing.discount)}`, px, y, { align: 'right' }); y += 6; doc.setTextColor(0); }
+  
+  if (data.package === 'individual') {
+    doc.text('Individual-Paket', m, y);
+    doc.text(formatPrice(pricing.total), px, y, { align: 'right' }); y += 6;
+  } else {
+    doc.text(`Paket ${pkg.name}`, m, y); doc.text(formatPrice(pricing.packagePrice), px, y, { align: 'right' }); y += 6;
+    if (pricing.addonsPrice > 0) { doc.text('Zusatzoptionen', m, y); doc.text(`+${formatPrice(pricing.addonsPrice)}`, px, y, { align: 'right' }); y += 6; }
+    if (pricing.extraComponentsPrice > 0) { doc.text('Extra-Komponenten', m, y); doc.text(`+${formatPrice(pricing.extraComponentsPrice)}`, px, y, { align: 'right' }); y += 6; }
+    if (pricing.discount > 0) { doc.setTextColor(16, 185, 129); doc.text('Rabatt', m, y); doc.text(`-${formatPrice(pricing.discount)}`, px, y, { align: 'right' }); y += 6; doc.setTextColor(0); }
+  }
   doc.line(m, y, pw - m, y); y += 5;
   doc.setFont('helvetica', 'bold');
   doc.text('GESAMT (inkl. MwSt.)', m, y); doc.text(formatPrice(pricing.total), px, y, { align: 'right' }); y += 12;
 
-  // §5
   newPage(35);
   doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-  doc.text('§5 Zahlungsbedingungen', m, y); y += 8;
+  doc.text('Zahlungsbedingungen', m, y); y += 8;
   doc.setFontSize(10); doc.setFont('helvetica', 'normal');
   doc.text('Zahlung in zwei Raten:', m, y); y += 6;
   doc.setFont('helvetica', 'bold');
@@ -165,22 +166,13 @@ function generateContractPDF(data, pricing) {
   doc.setFont('helvetica', 'normal');
   doc.text('Bank: IverLasting | IBAN: DE XX XXXX XXXX XXXX XXXX XX', m, y); y += 12;
 
-  // §6-9
-  newPage(60);
-  doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.text('§6 Zeitplan', m, y); y += 6;
+  newPage(50);
   doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-  doc.text('Fertigstellung: 14 Werktage nach Erhalt aller Inhalte.', m, y); y += 10;
-  doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.text('§7 Nutzungsrechte', m, y); y += 6;
-  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-  doc.text('Nutzungsrecht fuer Hosting-Zeitraum. Design verbleibt beim Auftragnehmer.', m, y); y += 10;
-  doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.text('§8 Stornierung', m, y); y += 6;
-  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-  doc.text('Bis 30 Tage vor Hochzeit: 50% | Unter 30 Tage: 100%', m, y); y += 10;
-  doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.text('§9 Schlussbestimmungen', m, y); y += 6;
-  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+  doc.text('Zeitplan: Fertigstellung 14 Werktage nach Erhalt aller Inhalte.', m, y); y += 6;
+  doc.text('Nutzungsrechte: Fuer Hosting-Zeitraum. Design verbleibt beim Auftragnehmer.', m, y); y += 6;
+  doc.text('Stornierung: Bis 30 Tage vor Hochzeit 50%, danach 100%.', m, y); y += 6;
   doc.text('Es gilt deutsches Recht. Gerichtsstand: Hamburg.', m, y); y += 20;
 
-  // Signatures
   newPage(35);
   doc.text(`Hamburg, den ${new Date().toLocaleDateString('de-DE')}`, m, y); y += 25;
   doc.line(m, y, m + 60, y); doc.line(pw - m - 60, y, pw - m, y); y += 5;
@@ -193,7 +185,6 @@ function generateContractPDF(data, pricing) {
   return fn;
 }
 
-// Main Component
 export default function ProjectDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -215,6 +206,7 @@ export default function ProjectDetailPage() {
         addons: data.addons || [],
         extra_components_count: data.extra_components_count || 0,
         discount: data.discount || 0,
+        custom_price: data.custom_price || 0,
         component_order: data.component_order || DEFAULT_COMPONENT_ORDER,
         active_components: data.active_components || [...CORE_COMPONENTS],
       });
@@ -224,21 +216,40 @@ export default function ProjectDetailPage() {
 
   const handleChange = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
   const selectedPackage = PACKAGES[formData.package] || PACKAGES.starter;
+  const isIndividual = formData.package === 'individual';
 
   const pricing = useMemo(() => {
     const pkg = PACKAGES[formData.package] || PACKAGES.starter;
+    
+    // Bei Individual: custom_price ist der Gesamtpreis
+    if (formData.package === 'individual') {
+      return {
+        packagePrice: 0,
+        addonsPrice: 0,
+        extraComponentsPrice: 0,
+        discount: 0,
+        total: formData.custom_price || 0,
+      };
+    }
+    
     const addons = formData.addons || [];
     const extraCount = formData.extra_components_count || 0;
     const discount = formData.discount || 0;
     let packagePrice = pkg.price;
     let addonsPrice = 0;
+    
     addons.forEach(addonId => {
-      if (ADDONS[addonId] && !isFeatureIncluded(formData.package, addonId)) addonsPrice += ADDONS[addonId].price;
+      if (!isFeatureIncluded(formData.package, addonId)) {
+        addonsPrice += getAddonPrice(addonId, formData.package);
+      }
     });
-    const extraComponentsPrice = extraCount * ADDONS.extra_component.price;
+    
+    const extraOverLimit = Math.max(0, extraCount - pkg.extraComponentsIncluded);
+    const extraComponentsPrice = extraOverLimit * (ADDONS.extra_component?.price || 50);
     const total = Math.max(0, packagePrice + addonsPrice + extraComponentsPrice - discount);
+    
     return { packagePrice, addonsPrice, extraComponentsPrice, discount, total };
-  }, [formData.package, formData.addons, formData.extra_components_count, formData.discount]);
+  }, [formData.package, formData.addons, formData.extra_components_count, formData.discount, formData.custom_price]);
 
   const toggleAddon = (addonId) => {
     if (isFeatureIncluded(formData.package, addonId)) return;
@@ -284,9 +295,10 @@ export default function ProjectDetailPage() {
       wedding_date: formData.wedding_date, slug: formData.slug, location: formData.location,
       hashtag: formData.hashtag, display_email: formData.display_email, display_phone: formData.display_phone,
       package: formData.package, addons: formData.addons, extra_components_count: formData.extra_components_count,
-      discount: formData.discount, total_price: pricing.total, theme: formData.theme, status: formData.status,
-      admin_password: formData.admin_password, custom_domain: formData.custom_domain,
-      active_components: formData.active_components, component_order: formData.component_order,
+      discount: formData.discount, custom_price: formData.custom_price, total_price: pricing.total,
+      theme: formData.theme, status: formData.status, admin_password: formData.admin_password,
+      custom_domain: formData.custom_domain, active_components: formData.active_components,
+      component_order: formData.component_order,
     });
     if (error) { toast.error('Fehler'); console.error(error); }
     else { toast.success('Gespeichert!'); setProject(formData); }
@@ -331,7 +343,6 @@ export default function ProjectDetailPage() {
 
       <Grid>
         <MainColumn>
-          {/* 01 Kundendaten */}
           <CollapsibleSection number="01" title="Kundendaten" badge="Intern" defaultOpen={false}>
             <FormGrid>
               <FormGroup className="full-width"><Label>Kundenname</Label><Input value={formData.client_name || ''} onChange={e => handleChange('client_name', e.target.value)} /></FormGroup>
@@ -342,7 +353,6 @@ export default function ProjectDetailPage() {
             </FormGrid>
           </CollapsibleSection>
 
-          {/* 02 Website */}
           <CollapsibleSection number="02" title="Hochzeits-Website" defaultOpen={true}>
             <FormGrid>
               <FormGroup><Label>Partner 1</Label><Input value={formData.partner1_name || ''} onChange={e => handleChange('partner1_name', e.target.value)} /></FormGroup>
@@ -356,54 +366,84 @@ export default function ProjectDetailPage() {
             </FormGrid>
           </CollapsibleSection>
 
-          {/* 03 Paket & Einstellungen */}
           <CollapsibleSection number="03" title="Paket & Einstellungen" defaultOpen={true}>
             <Label>Paket</Label>
             <PackageSelector>
               {Object.values(PACKAGES).map(p => (
                 <PackageCard key={p.id} $selected={formData.package === p.id} onClick={() => handleChange('package', p.id)}>
                   <div className="name">{p.name}</div>
-                  <div className="price">{p.price > 0 ? formatPrice(p.price) : 'Anfrage'}</div>
-                  <div className="price-note">{p.extraComponentsIncluded < 999 ? `+${p.extraComponentsIncluded} Extra` : 'Alle'}</div>
+                  <div className="price">{p.price > 0 ? formatPrice(p.price) : 'Individuell'}</div>
+                  <div className="price-note">{p.hosting}</div>
                 </PackageCard>
               ))}
             </PackageSelector>
+            
             <FeatureList><div className="title">Enthalten</div><ul>{selectedPackage.features.map((f, i) => <li key={i}>{f}</li>)}</ul></FeatureList>
-            <AddonsSection>
-              <div className="title">Zusatzoptionen</div>
-              <AddonItem $included={isFeatureIncluded(formData.package, 'save_the_date')} $selected={(formData.addons || []).includes('save_the_date')} onClick={() => toggleAddon('save_the_date')}>
-                <div className="checkbox">{(isFeatureIncluded(formData.package, 'save_the_date') || (formData.addons || []).includes('save_the_date')) && '✓'}</div>
-                <div className="info"><div className="name">{ADDONS.save_the_date.name}</div><div className="description">{ADDONS.save_the_date.description}</div></div>
-                {isFeatureIncluded(formData.package, 'save_the_date') ? <span className="included-badge">Im Paket</span> : <div className="price">+{formatPrice(ADDONS.save_the_date.price)}</div>}
-              </AddonItem>
-              <AddonItem $included={isFeatureIncluded(formData.package, 'archive')} $selected={(formData.addons || []).includes('archive')} onClick={() => toggleAddon('archive')}>
-                <div className="checkbox">{(isFeatureIncluded(formData.package, 'archive') || (formData.addons || []).includes('archive')) && '✓'}</div>
-                <div className="info"><div className="name">{ADDONS.archive.name}</div><div className="description">{ADDONS.archive.description}</div></div>
-                {isFeatureIncluded(formData.package, 'archive') ? <span className="included-badge">Im Paket</span> : <div className="price">+{formatPrice(ADDONS.archive.price)}</div>}
-              </AddonItem>
-              <ExtraComponentsRow>
-                <div className="info"><div className="name">Extra Komponenten</div><div className="description">{selectedPackage.extraComponentsIncluded < 999 ? `${selectedPackage.extraComponentsIncluded} inkl.` : 'Alle inkl.'}</div></div>
-                {selectedPackage.extraComponentsIncluded < 999 && <>
-                  <div className="counter">
-                    <button onClick={() => handleChange('extra_components_count', Math.max(0, (formData.extra_components_count || 0) - 1))} disabled={!formData.extra_components_count}>−</button>
-                    <span>{formData.extra_components_count || 0}</span>
-                    <button onClick={() => handleChange('extra_components_count', (formData.extra_components_count || 0) + 1)}>+</button>
-                  </div>
-                  <div className="price">+{formatPrice((formData.extra_components_count || 0) * ADDONS.extra_component.price)}</div>
-                </>}
-              </ExtraComponentsRow>
-              <ExtraComponentsRow>
-                <div className="info"><div className="name">Rabatt</div></div>
-                <Input type="number" value={formData.discount || 0} onChange={e => handleChange('discount', parseFloat(e.target.value) || 0)} style={{ width: '100px', textAlign: 'right' }} />
-              </ExtraComponentsRow>
-            </AddonsSection>
+            
+            {!isIndividual && (
+              <AddonsSection>
+                <div className="title">Zusatzoptionen</div>
+                <AddonItem $included={isFeatureIncluded(formData.package, 'save_the_date')} $selected={(formData.addons || []).includes('save_the_date')} onClick={() => toggleAddon('save_the_date')}>
+                  <div className="checkbox">{(isFeatureIncluded(formData.package, 'save_the_date') || (formData.addons || []).includes('save_the_date')) && '✓'}</div>
+                  <div className="info"><div className="name">{ADDONS.save_the_date.name}</div><div className="description">{ADDONS.save_the_date.description}</div></div>
+                  {isFeatureIncluded(formData.package, 'save_the_date') ? <span className="included-badge">Im Paket</span> : <div className="price">+{formatPrice(getAddonPrice('save_the_date', formData.package))}</div>}
+                </AddonItem>
+                <AddonItem $included={isFeatureIncluded(formData.package, 'archive')} $selected={(formData.addons || []).includes('archive')} onClick={() => toggleAddon('archive')}>
+                  <div className="checkbox">{(isFeatureIncluded(formData.package, 'archive') || (formData.addons || []).includes('archive')) && '✓'}</div>
+                  <div className="info"><div className="name">{ADDONS.archive.name}</div><div className="description">{ADDONS.archive.description}</div></div>
+                  {isFeatureIncluded(formData.package, 'archive') ? <span className="included-badge">Im Paket</span> : <div className="price">+{formatPrice(getAddonPrice('archive', formData.package))}</div>}
+                </AddonItem>
+                <AddonItem $included={isFeatureIncluded(formData.package, 'qr_code')} $selected={(formData.addons || []).includes('qr_code')} onClick={() => toggleAddon('qr_code')}>
+                  <div className="checkbox">{(isFeatureIncluded(formData.package, 'qr_code') || (formData.addons || []).includes('qr_code')) && '✓'}</div>
+                  <div className="info"><div className="name">{ADDONS.qr_code.name}</div><div className="description">{ADDONS.qr_code.description}</div></div>
+                  {isFeatureIncluded(formData.package, 'qr_code') ? <span className="included-badge">Im Paket</span> : <div className="price">+{formatPrice(getAddonPrice('qr_code', formData.package))}</div>}
+                </AddonItem>
+                <AddonItem $selected={(formData.addons || []).includes('invitation_design')} onClick={() => toggleAddon('invitation_design')}>
+                  <div className="checkbox">{(formData.addons || []).includes('invitation_design') && '✓'}</div>
+                  <div className="info"><div className="name">{ADDONS.invitation_design.name}</div><div className="description">{ADDONS.invitation_design.description}</div></div>
+                  <div className="price">+{formatPrice(getAddonPrice('invitation_design', formData.package))}</div>
+                </AddonItem>
+                
+                {selectedPackage.extraComponentsIncluded < 999 && (
+                  <ExtraComponentsRow>
+                    <div className="info"><div className="name">Extra Komponenten</div><div className="description">{selectedPackage.extraComponentsIncluded} inkl., weitere je {formatPrice(50)}</div></div>
+                    <div className="counter">
+                      <button onClick={() => handleChange('extra_components_count', Math.max(0, (formData.extra_components_count || 0) - 1))} disabled={!formData.extra_components_count}>−</button>
+                      <span>{formData.extra_components_count || 0}</span>
+                      <button onClick={() => handleChange('extra_components_count', (formData.extra_components_count || 0) + 1)}>+</button>
+                    </div>
+                    <div className="price">+{formatPrice(Math.max(0, (formData.extra_components_count || 0) - selectedPackage.extraComponentsIncluded) * 50)}</div>
+                  </ExtraComponentsRow>
+                )}
+                
+                <ExtraComponentsRow>
+                  <div className="info"><div className="name">Rabatt</div></div>
+                  <Input type="number" value={formData.discount || 0} onChange={e => handleChange('discount', parseFloat(e.target.value) || 0)} style={{ width: '120px', textAlign: 'right' }} />
+                </ExtraComponentsRow>
+              </AddonsSection>
+            )}
+            
+            {isIndividual && (
+              <AddonsSection>
+                <div className="title">Individueller Preis</div>
+                <ExtraComponentsRow>
+                  <div className="info"><div className="name">Gesamtpreis</div><div className="description">Dieser Preis wird im Vertrag verwendet</div></div>
+                  <Input type="number" value={formData.custom_price || 0} onChange={e => handleChange('custom_price', parseFloat(e.target.value) || 0)} style={{ width: '150px', textAlign: 'right', fontSize: '1.2rem', fontWeight: 'bold' }} />
+                </ExtraComponentsRow>
+              </AddonsSection>
+            )}
+            
             <PriceSummary>
-              <div className="row"><span className="label">Paket ({selectedPackage.name})</span><span>{formatPrice(pricing.packagePrice)}</span></div>
-              {pricing.addonsPrice > 0 && <div className="row"><span className="label">Zusatzoptionen</span><span>+{formatPrice(pricing.addonsPrice)}</span></div>}
-              {pricing.extraComponentsPrice > 0 && <div className="row"><span className="label">Extra Komponenten</span><span>+{formatPrice(pricing.extraComponentsPrice)}</span></div>}
-              {pricing.discount > 0 && <div className="row discount"><span className="label">Rabatt</span><span>-{formatPrice(pricing.discount)}</span></div>}
+              {!isIndividual && <>
+                <div className="row"><span className="label">Paket ({selectedPackage.name})</span><span>{formatPrice(pricing.packagePrice)}</span></div>
+                {pricing.addonsPrice > 0 && <div className="row"><span className="label">Zusatzoptionen</span><span>+{formatPrice(pricing.addonsPrice)}</span></div>}
+                {pricing.extraComponentsPrice > 0 && <div className="row"><span className="label">Extra Komponenten</span><span>+{formatPrice(pricing.extraComponentsPrice)}</span></div>}
+                {pricing.discount > 0 && <div className="row discount"><span className="label">Rabatt</span><span>-{formatPrice(pricing.discount)}</span></div>}
+              </>}
+              {isIndividual && <div className="row"><span className="label">Individual-Paket</span><span>{formatPrice(pricing.total)}</span></div>}
               <div className="row total"><span className="label">Gesamt</span><span>{formatPrice(pricing.total)}</span></div>
             </PriceSummary>
+            
             <SettingsGrid>
               <FormGroup><Label>Theme</Label><Select value={formData.theme || 'botanical'} onChange={e => handleChange('theme', e.target.value)}>{Object.values(THEMES).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</Select></FormGroup>
               <FormGroup><Label>Status</Label><Select value={formData.status || 'draft'} onChange={e => handleChange('status', e.target.value)}>{Object.entries(PROJECT_STATUS).map(([k, v]) => <option key={k} value={k} disabled={!canUseStatus(k)}>{v.label}{!canUseStatus(k) && ' (nicht gebucht)'}</option>)}</Select></FormGroup>
@@ -412,13 +452,11 @@ export default function ProjectDetailPage() {
             </SettingsGrid>
           </CollapsibleSection>
 
-          {/* 04 Links */}
           <CollapsibleSection number="04" title="Links" defaultOpen={true}>
             <LinkBox><a href={`https://${baseUrl}`} target="_blank" rel="noopener noreferrer">{baseUrl}</a><button onClick={() => copyToClipboard(`https://${baseUrl}`)}>Copy</button></LinkBox>
             <LinkBox><a href={`https://${baseUrl}/admin`} target="_blank" rel="noopener noreferrer">{baseUrl}/admin</a><button onClick={() => copyToClipboard(`https://${baseUrl}/admin`)}>Copy</button></LinkBox>
           </CollapsibleSection>
 
-          {/* 05 Komponenten */}
           <CollapsibleSection number="05" title="Komponenten" defaultOpen={false}>
             {isOverLimit && <ComponentWarning>⚠️ <strong>{activeExtraCount}</strong> Extra aktiv, nur <strong>{allowedExtraCount}</strong> gebucht!</ComponentWarning>}
             <ComponentListContainer>

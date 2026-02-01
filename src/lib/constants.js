@@ -19,22 +19,20 @@ export const THEMES = {
 // ============================================
 
 export const PROJECT_STATUS = {
-  draft: { label: 'Entwurf', color: '#666666' },
-  inquiry: { label: 'Anfrage', color: '#F59E0B' },
-  in_progress: { label: 'In Bearbeitung', color: '#3B82F6' },
-  std: { label: 'Save the Date', color: '#8B5CF6' },
-  live: { label: 'Live', color: '#10B981' },
-  archive: { label: 'Archiv', color: '#6B7280' },
+  draft: { id: 'draft', label: 'Entwurf', color: '#666666' },
+  inquiry: { id: 'inquiry', label: 'Anfrage', color: '#F59E0B' },
+  in_progress: { id: 'in_progress', label: 'In Bearbeitung', color: '#3B82F6' },
+  std: { id: 'std', label: 'Save the Date', color: '#8B5CF6' },
+  live: { id: 'live', label: 'Live', color: '#10B981' },
+  archive: { id: 'archive', label: 'Archiv', color: '#6B7280' },
 };
 
 // ============================================
 // COMPONENTS
 // ============================================
 
-// Basis-Komponenten (in allen Paketen enthalten)
 export const CORE_COMPONENTS = ['hero', 'countdown', 'lovestory', 'rsvp'];
 
-// Alle verfügbaren Komponenten
 export const ALL_COMPONENTS = [
   { id: 'hero', name: 'Hero', core: true },
   { id: 'countdown', name: 'Countdown', core: true },
@@ -56,7 +54,6 @@ export const ALL_COMPONENTS = [
   { id: 'contact', name: 'Kontakt', core: false },
 ];
 
-// Standard-Reihenfolge
 export const DEFAULT_COMPONENT_ORDER = [
   'hero', 'countdown', 'lovestory', 'timeline', 'locations',
   'directions', 'accommodations', 'dresscode', 'rsvp', 'gallery',
@@ -64,11 +61,8 @@ export const DEFAULT_COMPONENT_ORDER = [
   'faq', 'weddingabc', 'contact'
 ];
 
-// Zusatz-Komponenten (nicht core)
-export const EXTRA_COMPONENTS = ALL_COMPONENTS.filter(c => !c.core);
-
 // ============================================
-// PACKAGES / PREISGESTALTUNG
+// PACKAGES - Korrigierte Werte aus Tabelle
 // ============================================
 
 export const PACKAGES = {
@@ -76,79 +70,83 @@ export const PACKAGES = {
     id: 'starter',
     name: 'Starter',
     price: 1290,
+    hosting: '6 Monate',
     extraComponentsIncluded: 0,
     features: [
       'Custom URL (siwedding.de/name)',
       'RSVP mit Download',
-      '12 Monate Hosting',
-      '4 Basis-Komponenten',
+      '6 Monate Hosting',
+      '4 Basis-Komponenten (Hero, Countdown, Love Story, RSVP)',
+      'Dateneingabe durch Kunde',
+      '1 Revision vorher / 1 nachher',
     ],
     includesSaveTheDate: false,
     includesArchive: false,
     includesDataEntry: false,
     includesQRCode: false,
-    revisions: 1,
   },
   standard: {
     id: 'standard',
     name: 'Standard',
     price: 1490,
+    hosting: '8 Monate',
     extraComponentsIncluded: 3,
     features: [
       'Custom URL (siwedding.de/name)',
       'RSVP mit Download',
-      '12 Monate Hosting',
-      '4 Basis-Komponenten',
+      '8 Monate Hosting',
+      '4 Basis-Komponenten (Hero, Countdown, Love Story, RSVP)',
       '3 zusätzliche Komponenten',
+      'Dateneingabe durch Kunde',
+      '2 Revisionen vorher / 2 nachher',
     ],
     includesSaveTheDate: false,
     includesArchive: false,
     includesDataEntry: false,
     includesQRCode: false,
-    revisions: 2,
   },
   premium: {
     id: 'premium',
     name: 'Premium',
     price: 1990,
-    extraComponentsIncluded: 999, // unlimited
+    hosting: '12 Monate',
+    extraComponentsIncluded: 6,
     features: [
       'Custom URL (siwedding.de/name)',
       'RSVP mit Download',
-      '18 Monate Hosting',
-      '4 Basis-Komponenten',
-      'Alle zusätzlichen Komponenten',
-      'Save the Date Seite (2 Monate)',
+      '12 Monate Hosting',
+      '4 Basis-Komponenten (Hero, Countdown, Love Story, RSVP)',
+      '6 zusätzliche Komponenten',
+      'Save the Date Seite (bis 2 Monate)',
       'Archiv-Seite (3 Monate)',
-      'Dateneingabe durch uns',
+      'Dateneingabe durch IverLasting',
       'QR-Code Erstellung',
+      'Unbegrenzte Revisionen',
     ],
     includesSaveTheDate: true,
     includesArchive: true,
     includesDataEntry: true,
     includesQRCode: true,
-    revisions: 3,
   },
   individual: {
     id: 'individual',
     name: 'Individual',
-    price: 0, // Auf Anfrage
+    price: 0, // Preis wird manuell eingegeben (custom_price Feld)
+    hosting: 'Nach Vereinbarung',
     extraComponentsIncluded: 999,
     features: [
       'Individuelle Anpassungen',
-      'Eigenes Theme möglich',
-      'Preis auf Anfrage',
+      'Preis nach Vereinbarung',
     ],
     includesSaveTheDate: true,
     includesArchive: true,
     includesDataEntry: true,
     includesQRCode: true,
-    revisions: 999,
   },
 };
 
 // ============================================
-// ADDONS / ZUSATZOPTIONEN
+// ADDONS - Mit paketspezifischen Preisen
 // ============================================
 
 export const ADDONS = {
@@ -156,43 +154,31 @@ export const ADDONS = {
     id: 'save_the_date',
     name: 'Save the Date Seite',
     description: 'Bis 2 Monate vor der Hochzeit',
-    price: 149,
+    prices: { starter: 150, standard: 75, premium: 0, individual: 0 },
   },
   archive: {
     id: 'archive',
     name: 'Archiv-Seite',
-    description: '3 Monate nach der Hochzeit',
-    price: 99,
+    description: '3 Monate (Hero, Danke, Galerie, Bilder-Upload)',
+    prices: { starter: 150, standard: 75, premium: 0, individual: 0 },
   },
   extra_component: {
     id: 'extra_component',
     name: 'Zusätzliche Komponente',
-    description: 'Pro Komponente',
+    description: 'Pro Stück',
     price: 50,
-  },
-  custom_domain: {
-    id: 'custom_domain',
-    name: 'Eigene Domain',
-    description: 'z.B. anna-max.de',
-    price: 99,
-  },
-  data_entry: {
-    id: 'data_entry',
-    name: 'Dateneingabe',
-    description: 'Wir pflegen die Inhalte ein',
-    price: 199,
-  },
-  qr_code: {
-    id: 'qr_code',
-    name: 'QR-Code Erstellung',
-    description: 'Für Einladungen',
-    price: 29,
   },
   invitation_design: {
     id: 'invitation_design',
     name: 'Einladungs-Design',
     description: 'Passend zum Website-Theme',
-    price: 299,
+    prices: { starter: 400, standard: 300, premium: 200, individual: 200 },
+  },
+  qr_code: {
+    id: 'qr_code',
+    name: 'QR-Code Erstellung',
+    description: 'Für Einladungen',
+    prices: { starter: 35, standard: 35, premium: 0, individual: 0 },
   },
 };
 
@@ -200,32 +186,16 @@ export const ADDONS = {
 // HELPER FUNCTIONS
 // ============================================
 
-// Berechne Gesamtpreis
-export function calculateTotalPrice(packageId, addons = [], extraComponents = 0) {
-  const pkg = PACKAGES[packageId];
-  if (!pkg) return 0;
-  
-  let total = pkg.price;
-  
-  // Addons
-  addons.forEach(addonId => {
-    if (ADDONS[addonId]) {
-      total += ADDONS[addonId].price;
-    }
-  });
-  
-  // Extra Komponenten über Paket-Limit
-  const extraOverLimit = Math.max(0, extraComponents - pkg.extraComponentsIncluded);
-  total += extraOverLimit * ADDONS.extra_component.price;
-  
-  return total;
+export function getAddonPrice(addonId, packageId) {
+  const addon = ADDONS[addonId];
+  if (!addon) return 0;
+  if (addon.prices) return addon.prices[packageId] || 0;
+  return addon.price || 0;
 }
 
-// Prüfe ob Feature im Paket enthalten
 export function isFeatureIncluded(packageId, feature) {
   const pkg = PACKAGES[packageId];
   if (!pkg) return false;
-  
   switch (feature) {
     case 'save_the_date': return pkg.includesSaveTheDate;
     case 'archive': return pkg.includesArchive;
@@ -235,24 +205,6 @@ export function isFeatureIncluded(packageId, feature) {
   }
 }
 
-// Anzahl erlaubter Extra-Komponenten
-export function getAllowedExtraComponents(packageId, addons = []) {
-  const pkg = PACKAGES[packageId];
-  if (!pkg) return 0;
-  
-  let allowed = pkg.extraComponentsIncluded;
-  
-  // Zähle zusätzlich gebuchte Komponenten
-  const extraComponentAddons = addons.filter(a => a === 'extra_component').length;
-  allowed += extraComponentAddons;
-  
-  return allowed;
-}
-
-// Formatiere Preis
 export function formatPrice(amount) {
-  return new Intl.NumberFormat('de-DE', {
-    style: 'currency',
-    currency: 'EUR',
-  }).format(amount);
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
 }
