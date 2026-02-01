@@ -1,5 +1,5 @@
 // src/pages/ProjectDetailPage.js
-// Editorial Design - Minimalistisch, Bold Typography
+// Editorial Design - Mit zuklappbaren Sections
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
@@ -149,45 +149,71 @@ const Grid = styled.div`
 const MainColumn = styled.div``;
 const Sidebar = styled.div``;
 
+// ============================================
+// COLLAPSIBLE SECTION
+// ============================================
+
 const Section = styled.section`
-  margin-bottom: 2.5rem;
+  margin-bottom: 1rem;
+  border: 2px solid ${colors.black};
 `;
 
 const SectionHeader = styled.div`
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 1rem;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid ${colors.lightGray};
-  padding-bottom: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: ${p => p.$isOpen ? colors.black : colors.white};
+  color: ${p => p.$isOpen ? colors.white : colors.black};
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: ${p => p.$isOpen ? colors.black : colors.background};
+  }
 `;
 
 const SectionNumber = styled.span`
   font-family: 'Oswald', sans-serif;
   font-size: 0.875rem;
   font-weight: 600;
-  color: ${colors.red};
+  color: ${p => p.$isOpen ? colors.white : colors.red};
+  min-width: 24px;
 `;
 
 const SectionTitle = styled.h2`
   font-family: 'Oswald', sans-serif;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: ${colors.black};
+  flex: 1;
 `;
 
 const SectionBadge = styled.span`
   font-family: 'Inter', sans-serif;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: ${colors.gray};
-  background: ${colors.background};
+  color: ${p => p.$isOpen ? colors.gray : colors.gray};
+  background: ${p => p.$isOpen ? 'rgba(255,255,255,0.1)' : colors.background};
   padding: 0.25rem 0.5rem;
-  margin-left: auto;
+`;
+
+const CollapseIcon = styled.span`
+  font-size: 1.25rem;
+  transition: transform 0.2s ease;
+  transform: ${p => p.$isOpen ? 'rotate(180deg)' : 'rotate(0deg)'};
+`;
+
+const SectionBody = styled.div`
+  padding: ${p => p.$isOpen ? '1.5rem' : '0'};
+  max-height: ${p => p.$isOpen ? '2000px' : '0'};
+  overflow: hidden;
+  transition: all 0.3s ease;
+  border-top: ${p => p.$isOpen ? `1px solid ${colors.lightGray}` : 'none'};
 `;
 
 const FormGrid = styled.div`
@@ -272,6 +298,8 @@ const LinkBox = styled.div`
   gap: 1rem;
   margin-bottom: 1rem;
   
+  &:last-child { margin-bottom: 0; }
+  
   a {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
@@ -299,20 +327,20 @@ const LinkBox = styled.div`
 
 // Component List
 const ComponentListContainer = styled.div`
-  border: 2px solid ${colors.black};
+  border: 2px solid ${colors.lightGray};
 `;
 
 const ComponentListHeader = styled.div`
   display: flex;
   justify-content: space-between;
   padding: 0.75rem 1rem;
-  background: ${colors.black};
-  color: ${colors.white};
+  background: ${colors.background};
   
   .count {
     font-family: 'Oswald', sans-serif;
     font-size: 0.9rem;
     font-weight: 500;
+    color: ${colors.black};
   }
   
   .hint {
@@ -423,6 +451,28 @@ const InfoRow = styled.div`
     &:hover { text-decoration: underline; }
   }
 `;
+
+// ============================================
+// COLLAPSIBLE SECTION COMPONENT
+// ============================================
+
+function CollapsibleSection({ number, title, badge, defaultOpen = false, children }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  
+  return (
+    <Section>
+      <SectionHeader $isOpen={isOpen} onClick={() => setIsOpen(!isOpen)}>
+        <SectionNumber $isOpen={isOpen}>{number}</SectionNumber>
+        <SectionTitle>{title}</SectionTitle>
+        {badge && <SectionBadge $isOpen={isOpen}>{badge}</SectionBadge>}
+        <CollapseIcon $isOpen={isOpen}>▼</CollapseIcon>
+      </SectionHeader>
+      <SectionBody $isOpen={isOpen}>
+        {children}
+      </SectionBody>
+    </Section>
+  );
+}
 
 // ============================================
 // MAIN COMPONENT
@@ -572,12 +622,7 @@ export default function ProjectDetailPage() {
       <Grid>
         <MainColumn>
           {/* 01 - CRM */}
-          <Section>
-            <SectionHeader>
-              <SectionNumber>01</SectionNumber>
-              <SectionTitle>Kundendaten</SectionTitle>
-              <SectionBadge>Intern</SectionBadge>
-            </SectionHeader>
+          <CollapsibleSection number="01" title="Kundendaten" badge="Intern" defaultOpen={false}>
             <FormGrid>
               <FormGroup className="full-width">
                 <Label>Kundenname</Label>
@@ -600,14 +645,10 @@ export default function ProjectDetailPage() {
                 <TextArea value={formData.client_notes || ''} onChange={(e) => handleChange('client_notes', e.target.value)} />
               </FormGroup>
             </FormGrid>
-          </Section>
+          </CollapsibleSection>
           
           {/* 02 - Website */}
-          <Section>
-            <SectionHeader>
-              <SectionNumber>02</SectionNumber>
-              <SectionTitle>Hochzeits-Website</SectionTitle>
-            </SectionHeader>
+          <CollapsibleSection number="02" title="Hochzeits-Website" defaultOpen={true}>
             <FormGrid>
               <FormGroup>
                 <Label>Partner 1</Label>
@@ -642,14 +683,10 @@ export default function ProjectDetailPage() {
                 <Input value={formData.display_phone || ''} onChange={(e) => handleChange('display_phone', e.target.value)} />
               </FormGroup>
             </FormGrid>
-          </Section>
+          </CollapsibleSection>
           
           {/* 03 - Einstellungen */}
-          <Section>
-            <SectionHeader>
-              <SectionNumber>03</SectionNumber>
-              <SectionTitle>Einstellungen</SectionTitle>
-            </SectionHeader>
+          <CollapsibleSection number="03" title="Einstellungen" defaultOpen={false}>
             <FormGrid>
               <FormGroup>
                 <Label>Theme</Label>
@@ -672,14 +709,10 @@ export default function ProjectDetailPage() {
                 <Input value={formData.custom_domain || ''} onChange={(e) => handleChange('custom_domain', e.target.value.toLowerCase())} placeholder="anna-max.de" />
               </FormGroup>
             </FormGrid>
-          </Section>
+          </CollapsibleSection>
           
           {/* 04 - Links */}
-          <Section>
-            <SectionHeader>
-              <SectionNumber>04</SectionNumber>
-              <SectionTitle>Links</SectionTitle>
-            </SectionHeader>
+          <CollapsibleSection number="04" title="Links" defaultOpen={true}>
             <LinkBox>
               <a href={`https://${baseUrl}`} target="_blank" rel="noopener noreferrer">{baseUrl}</a>
               <button onClick={() => copyToClipboard(`https://${baseUrl}`)}>Kopieren</button>
@@ -688,14 +721,10 @@ export default function ProjectDetailPage() {
               <a href={`https://${baseUrl}/admin`} target="_blank" rel="noopener noreferrer">{baseUrl}/admin</a>
               <button onClick={() => copyToClipboard(`https://${baseUrl}/admin`)}>Kopieren</button>
             </LinkBox>
-          </Section>
+          </CollapsibleSection>
           
           {/* 05 - Komponenten */}
-          <Section>
-            <SectionHeader>
-              <SectionNumber>05</SectionNumber>
-              <SectionTitle>Komponenten</SectionTitle>
-            </SectionHeader>
+          <CollapsibleSection number="05" title="Komponenten" defaultOpen={false}>
             <ComponentListContainer>
               <ComponentListHeader>
                 <span className="count">{activeCount} AKTIV</span>
@@ -725,7 +754,7 @@ export default function ProjectDetailPage() {
                 );
               })}
             </ComponentListContainer>
-          </Section>
+          </CollapsibleSection>
         </MainColumn>
         
         <Sidebar>
