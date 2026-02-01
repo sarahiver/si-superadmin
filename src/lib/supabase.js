@@ -1,10 +1,16 @@
 // src/lib/supabase.js
+// SECURE VERSION - keine hardcoded Keys
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://wikxhpvikelfgzdgndlf.supabase.co';
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'sb_publishable_20ivv0vDLuEfx9sJzKiCxw_iYmFdZDa';
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Warnung wenn nicht konfiguriert
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('⚠️ Supabase nicht konfiguriert! Setze REACT_APP_SUPABASE_URL und REACT_APP_SUPABASE_ANON_KEY');
+}
+
+export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 // ============================================
 // AUTH
@@ -18,17 +24,12 @@ export async function verifyAdminLogin(username, password) {
       .single();
 
     if (error || !data) {
-      console.log('DB error or no user found:', error);
       return { success: false, error: 'Ungültige Anmeldedaten' };
     }
 
-    // Calculate hash of input password
+    // Nur gehashte Passwörter akzeptieren!
     const inputHash = await hashPassword(password);
-    console.log('Input hash:', inputHash);
-    console.log('Stored hash:', data.password_hash);
-    
-    // Check both hashed and plain text (for easy setup)
-    const isValid = inputHash === data.password_hash || password === data.password_hash;
+    const isValid = inputHash === data.password_hash;
 
     return { success: isValid, error: isValid ? null : 'Ungültige Anmeldedaten' };
   } catch (err) {
