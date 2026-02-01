@@ -1,111 +1,121 @@
 // src/pages/NewProjectPage.js
-// Komplett neu gebaut mit CRM-Trennung und Drag & Drop Komponenten
-import React, { useState, useCallback } from 'react';
+// Editorial Design - Minimalistisch, Bold Typography
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
 import { createProject } from '../lib/supabase';
-import { THEMES } from '../lib/constants';
+import { THEMES, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS } from '../lib/constants';
 
 // ============================================
-// KOMPONENTEN DEFINITION
+// EDITORIAL DESIGN TOKENS
 // ============================================
 
-const ALL_COMPONENTS = [
-  // Core (immer aktiv, nicht abwählbar)
-  { id: 'hero', name: 'Hero', core: true },
-  { id: 'countdown', name: 'Countdown', core: true },
-  { id: 'lovestory', name: 'Love Story', core: true },
-  { id: 'rsvp', name: 'RSVP', core: true },
-  // Optional
-  { id: 'timeline', name: 'Tagesablauf', core: false },
-  { id: 'locations', name: 'Locations', core: false },
-  { id: 'directions', name: 'Anfahrt', core: false },
-  { id: 'accommodations', name: 'Unterkünfte', core: false },
-  { id: 'dresscode', name: 'Dresscode', core: false },
-  { id: 'gallery', name: 'Galerie', core: false },
-  { id: 'photoupload', name: 'Foto-Upload', core: false },
-  { id: 'guestbook', name: 'Gästebuch', core: false },
-  { id: 'musicwishes', name: 'Musikwünsche', core: false },
-  { id: 'gifts', name: 'Geschenke', core: false },
-  { id: 'witnesses', name: 'Trauzeugen', core: false },
-  { id: 'faq', name: 'FAQ', core: false },
-  { id: 'weddingabc', name: 'Hochzeits-ABC', core: false },
-  { id: 'contact', name: 'Kontakt', core: false },
-];
-
-const DEFAULT_ORDER = ALL_COMPONENTS.map(c => c.id);
+const colors = {
+  black: '#0A0A0A',
+  white: '#FAFAFA',
+  red: '#C41E3A',
+  gray: '#666666',
+  lightGray: '#E5E5E5',
+  background: '#F5F5F5',
+};
 
 // ============================================
-// STYLED COMPONENTS
+// STYLED COMPONENTS - EDITORIAL STYLE
 // ============================================
 
 const Header = styled.div`
-  margin-bottom: 2rem;
+  margin-bottom: 3rem;
+  border-bottom: 3px solid ${colors.black};
+  padding-bottom: 1.5rem;
 `;
 
 const BackLink = styled(Link)`
-  color: #666;
-  font-size: 0.8rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: ${colors.gray};
+  text-decoration: none;
   display: inline-block;
-  margin-bottom: 0.5rem;
-  &:hover { color: #1A1A1A; }
+  margin-bottom: 1rem;
+  
+  &:hover { 
+    color: ${colors.black}; 
+  }
 `;
 
 const Title = styled.h1`
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-size: 2rem;
-  font-weight: 400;
+  font-family: 'Oswald', 'Arial Narrow', sans-serif;
+  font-size: clamp(2.5rem, 5vw, 3.5rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  color: ${colors.black};
+  line-height: 1;
 `;
 
 const Form = styled.form`
-  max-width: 800px;
+  max-width: 900px;
 `;
 
-const Section = styled.div`
-  background: #fff;
-  border: 1px solid #E5E5E5;
-  margin-bottom: 1.5rem;
+const Section = styled.section`
+  margin-bottom: 3rem;
 `;
 
 const SectionHeader = styled.div`
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #E5E5E5;
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  
-  .icon {
-    font-size: 1.25rem;
-  }
-  
-  h2 {
-    font-family: 'Instrument Serif', Georgia, serif;
-    font-size: 1.1rem;
-    font-weight: 400;
-    flex: 1;
-  }
-  
-  .badge {
-    font-size: 0.65rem;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 0.25rem 0.5rem;
-    background: #F5F5F5;
-    color: #666;
-  }
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid ${colors.lightGray};
+  padding-bottom: 0.75rem;
 `;
 
-const SectionBody = styled.div`
-  padding: 1.5rem;
+const SectionNumber = styled.span`
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: ${colors.red};
+  letter-spacing: 0.05em;
+`;
+
+const SectionTitle = styled.h2`
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${colors.black};
+`;
+
+const SectionBadge = styled.span`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: ${colors.gray};
+  background: ${colors.background};
+  padding: 0.25rem 0.5rem;
+  margin-left: auto;
+`;
+
+const SectionHint = styled.p`
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: ${colors.gray};
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
 `;
 
 const FormGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: 1.5rem;
   
   @media (max-width: 600px) {
     grid-template-columns: 1fr;
@@ -120,25 +130,28 @@ const FormGroup = styled.div`
 
 const Label = styled.label`
   display: block;
-  font-size: 0.65rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: #666;
+  color: ${colors.black};
   margin-bottom: 0.5rem;
 `;
 
 const Input = styled.input`
   width: 100%;
-  padding: 0.75rem 1rem;
-  background: #FAFAFA;
-  border: 1px solid #E5E5E5;
-  font-size: 0.9rem;
+  padding: 0.875rem 1rem;
+  background: ${colors.white};
+  border: 2px solid ${colors.lightGray};
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: ${colors.black};
+  transition: border-color 0.2s ease;
   
   &:focus {
     outline: none;
-    border-color: #1A1A1A;
-    background: #fff;
+    border-color: ${colors.black};
   }
   
   &::placeholder {
@@ -148,85 +161,136 @@ const Input = styled.input`
 
 const TextArea = styled.textarea`
   width: 100%;
-  padding: 0.75rem 1rem;
-  background: #FAFAFA;
-  border: 1px solid #E5E5E5;
-  font-size: 0.9rem;
-  font-family: inherit;
+  padding: 0.875rem 1rem;
+  background: ${colors.white};
+  border: 2px solid ${colors.lightGray};
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: ${colors.black};
   resize: vertical;
-  min-height: 80px;
+  min-height: 100px;
+  transition: border-color 0.2s ease;
   
   &:focus {
     outline: none;
-    border-color: #1A1A1A;
-    background: #fff;
+    border-color: ${colors.black};
   }
 `;
 
 const Select = styled.select`
   width: 100%;
-  padding: 0.75rem 1rem;
-  background: #FAFAFA;
-  border: 1px solid #E5E5E5;
-  font-size: 0.9rem;
+  padding: 0.875rem 1rem;
+  background: ${colors.white};
+  border: 2px solid ${colors.lightGray};
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: ${colors.black};
   cursor: pointer;
+  transition: border-color 0.2s ease;
   
   &:focus {
     outline: none;
-    border-color: #1A1A1A;
+    border-color: ${colors.black};
   }
 `;
 
 const Hint = styled.div`
+  font-family: 'Inter', sans-serif;
   font-size: 0.75rem;
-  color: #999;
-  margin-top: 0.35rem;
-`;
-
-const GeneratedValue = styled.div`
-  font-size: 0.8rem;
-  color: #1A1A1A;
-  background: #F0F0F0;
-  padding: 0.5rem 0.75rem;
+  color: ${colors.gray};
   margin-top: 0.5rem;
-  font-family: 'JetBrains Mono', monospace;
+`;
+
+const GeneratedPreview = styled.div`
+  margin-top: 1rem;
+  padding: 1rem;
+  background: ${colors.black};
+  color: ${colors.white};
+  
+  .label {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: ${colors.gray};
+    margin-bottom: 0.25rem;
+  }
+  
+  .value {
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  
+  .url {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: ${colors.red};
+    margin-top: 0.5rem;
+  }
 `;
 
 // ============================================
-// DRAG & DROP KOMPONENTEN
+// COMPONENT LIST - EDITORIAL STYLE
 // ============================================
 
-const ComponentList = styled.div`
+const ComponentListContainer = styled.div`
+  border: 2px solid ${colors.black};
+`;
+
+const ComponentListHeader = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: ${colors.black};
+  color: ${colors.white};
+  
+  .count {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+  }
+  
+  .hint {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.7rem;
+    color: ${colors.gray};
+  }
 `;
 
 const ComponentItem = styled.div`
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  background: ${p => p.$active ? '#1A1A1A' : '#FAFAFA'};
-  color: ${p => p.$active ? '#fff' : '#333'};
-  border: 1px solid ${p => p.$active ? '#1A1A1A' : '#E5E5E5'};
+  gap: 1rem;
+  padding: 0.875rem 1rem;
+  background: ${p => p.$active ? colors.black : colors.white};
+  color: ${p => p.$active ? colors.white : colors.black};
+  border-bottom: 1px solid ${colors.lightGray};
   cursor: ${p => p.$core ? 'grab' : 'pointer'};
   user-select: none;
   transition: all 0.15s ease;
   
+  &:last-child {
+    border-bottom: none;
+  }
+  
   ${p => p.$dragging && `
     opacity: 0.5;
-    transform: scale(1.02);
+    background: ${colors.background};
   `}
   
   &:hover {
-    border-color: #1A1A1A;
+    background: ${p => p.$active ? colors.black : colors.background};
   }
   
   .drag-handle {
+    font-size: 1.1rem;
+    color: ${p => p.$active ? colors.gray : colors.lightGray};
     cursor: grab;
-    color: ${p => p.$active ? 'rgba(255,255,255,0.5)' : '#999'};
-    font-size: 1rem;
     
     &:active {
       cursor: grabbing;
@@ -234,72 +298,64 @@ const ComponentItem = styled.div`
   }
   
   .checkbox {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid ${p => p.$active ? '#fff' : '#ccc'};
-    background: ${p => p.$active ? '#fff' : 'transparent'};
-    color: #1A1A1A;
-    font-size: 0.7rem;
+    border: 2px solid ${p => p.$active ? colors.white : colors.black};
+    background: ${p => p.$active ? colors.white : 'transparent'};
+    color: ${colors.black};
+    font-size: 0.75rem;
+    font-weight: 700;
     flex-shrink: 0;
     
     ${p => p.$core && `
-      opacity: 0.5;
+      border-style: dashed;
+      opacity: 0.6;
     `}
   }
   
   .name {
     flex: 1;
-    font-size: 0.85rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
     font-weight: 500;
   }
   
   .badge {
+    font-family: 'Inter', sans-serif;
     font-size: 0.6rem;
     font-weight: 600;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    padding: 0.15rem 0.4rem;
-    background: ${p => p.$active ? 'rgba(255,255,255,0.2)' : '#E5E5E5'};
-    color: ${p => p.$active ? '#fff' : '#666'};
-  }
-`;
-
-const ComponentInfo = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  background: #F5F5F5;
-  margin-bottom: 1rem;
-  font-size: 0.8rem;
-  color: #666;
-  
-  strong {
-    color: #1A1A1A;
+    padding: 0.2rem 0.5rem;
+    background: ${p => p.$active ? colors.red : colors.background};
+    color: ${p => p.$active ? colors.white : colors.gray};
   }
 `;
 
 // ============================================
-// SUBMIT BUTTON
+// SUBMIT BUTTON - EDITORIAL STYLE
 // ============================================
 
 const SubmitButton = styled.button`
   width: 100%;
-  padding: 1rem 2rem;
-  background: #1A1A1A;
-  color: #fff;
+  padding: 1.25rem 2rem;
+  background: ${colors.red};
+  color: ${colors.white};
   border: none;
-  font-size: 0.9rem;
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  margin-top: 2rem;
   
   &:hover:not(:disabled) {
-    background: #333;
+    background: ${colors.black};
   }
   
   &:disabled {
@@ -309,12 +365,15 @@ const SubmitButton = styled.button`
 `;
 
 const RequiredNote = styled.div`
-  font-size: 0.75rem;
-  color: #999;
-  margin-bottom: 1.5rem;
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: ${colors.gray};
+  margin-bottom: 2rem;
   
   span {
-    color: #DC2626;
+    color: ${colors.red};
+    font-weight: 600;
   }
 `;
 
@@ -328,7 +387,7 @@ const generateSlug = (name1, name2) => {
   return combined
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Umlaute entfernen
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
@@ -349,7 +408,7 @@ export default function NewProjectPage() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // CRM Daten (intern)
+  // CRM Daten
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -375,16 +434,13 @@ export default function NewProjectPage() {
   const [adminPassword, setAdminPassword] = useState('');
   const [customDomain, setCustomDomain] = useState('');
   
-  // Komponenten (Order + Active in einem)
-  const [componentOrder, setComponentOrder] = useState(DEFAULT_ORDER);
-  const [activeComponents, setActiveComponents] = useState(
-    ALL_COMPONENTS.filter(c => c.core).map(c => c.id)
-  );
+  // Komponenten
+  const [componentOrder, setComponentOrder] = useState(DEFAULT_COMPONENT_ORDER);
+  const [activeComponents, setActiveComponents] = useState([...CORE_COMPONENTS]);
   
   // Drag State
   const [draggedItem, setDraggedItem] = useState(null);
 
-  // Auto-generate slug when names change
   const handlePartner1Change = (value) => {
     setPartner1Name(value);
     if (!slugManuallyEdited) {
@@ -415,10 +471,9 @@ export default function NewProjectPage() {
     setHashtag(value);
   };
 
-  // Component toggle
   const toggleComponent = (compId) => {
     const comp = ALL_COMPONENTS.find(c => c.id === compId);
-    if (comp?.core) return; // Core components can't be toggled
+    if (comp?.core) return;
     
     setActiveComponents(prev => 
       prev.includes(compId) 
@@ -427,7 +482,6 @@ export default function NewProjectPage() {
     );
   };
 
-  // Drag and Drop
   const handleDragStart = (e, compId) => {
     setDraggedItem(compId);
     e.dataTransfer.effectAllowed = 'move';
@@ -451,7 +505,6 @@ export default function NewProjectPage() {
     setDraggedItem(null);
   };
 
-  // Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -465,33 +518,24 @@ export default function NewProjectPage() {
     const coupleNames = `${partner1Name} & ${partner2Name}`;
     
     const projectData = {
-      // CRM
       client_name: clientName || null,
       client_email: clientEmail || null,
       client_phone: clientPhone || null,
       client_address: clientAddress || null,
       client_notes: clientNotes || null,
-      
-      // Website Pflicht
       partner1_name: partner1Name,
       partner2_name: partner2Name,
       couple_names: coupleNames,
       wedding_date: weddingDate,
       slug: slug,
-      
-      // Website Optional
       location: location || null,
       hashtag: hashtag || null,
       display_email: displayEmail || null,
       display_phone: displayPhone || null,
-      
-      // System
       theme: theme,
       status: 'draft',
       admin_password: adminPassword || 'wedding2025',
       custom_domain: customDomain || null,
-      
-      // Komponenten
       active_components: activeComponents,
       component_order: componentOrder,
     };
@@ -512,14 +556,13 @@ export default function NewProjectPage() {
     : '';
     
   const activeCount = activeComponents.length;
-  const coreCount = ALL_COMPONENTS.filter(c => c.core).length;
-  const optionalActiveCount = activeCount - coreCount;
+  const coreCount = CORE_COMPONENTS.length;
 
   return (
     <Layout>
       <Header>
         <BackLink to="/projects">← Zurück zu Projekte</BackLink>
-        <Title>Neues Projekt anlegen</Title>
+        <Title>Neues Projekt</Title>
       </Header>
       
       <RequiredNote>
@@ -528,273 +571,252 @@ export default function NewProjectPage() {
       
       <Form onSubmit={handleSubmit}>
         
-        {/* ============================================ */}
-        {/* CRM DATEN */}
-        {/* ============================================ */}
+        {/* 01 - CRM */}
         <Section>
           <SectionHeader>
-            <span className="icon">👤</span>
-            <h2>Kundendaten</h2>
-            <span className="badge">Intern / CRM</span>
+            <SectionNumber>01</SectionNumber>
+            <SectionTitle>Kundendaten</SectionTitle>
+            <SectionBadge>Intern / CRM</SectionBadge>
           </SectionHeader>
-          <SectionBody>
-            <Hint style={{ marginBottom: '1rem', marginTop: '-0.5rem' }}>
-              Diese Daten sind nur für dich sichtbar und werden nicht auf der Website angezeigt.
-            </Hint>
-            <FormGrid>
-              <FormGroup className="full-width">
-                <Label>Kundenname</Label>
-                <Input
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  placeholder="z.B. Anna Müller & Max Schmidt"
-                />
-              </FormGroup>
-              <FormGroup>
-                <Label>E-Mail (privat)</Label>
-                <Input
-                  type="email"
-                  value={clientEmail}
-                  onChange={(e) => setClientEmail(e.target.value)}
-                  placeholder="anna.mueller@gmail.com"
-                />
-              </FormGroup>
-              <FormGroup>
-                <Label>Telefon (privat)</Label>
-                <Input
-                  value={clientPhone}
-                  onChange={(e) => setClientPhone(e.target.value)}
-                  placeholder="+49 171 1234567"
-                />
-              </FormGroup>
-              <FormGroup className="full-width">
-                <Label>Adresse</Label>
-                <Input
-                  value={clientAddress}
-                  onChange={(e) => setClientAddress(e.target.value)}
-                  placeholder="Musterstraße 1, 20095 Hamburg"
-                />
-              </FormGroup>
-              <FormGroup className="full-width">
-                <Label>Notizen</Label>
-                <TextArea
-                  value={clientNotes}
-                  onChange={(e) => setClientNotes(e.target.value)}
-                  placeholder="Interne Notizen zum Projekt..."
-                />
-              </FormGroup>
-            </FormGrid>
-          </SectionBody>
+          <SectionHint>
+            Diese Daten sind nur für dich sichtbar und werden nicht auf der Website angezeigt.
+          </SectionHint>
+          <FormGrid>
+            <FormGroup className="full-width">
+              <Label>Kundenname</Label>
+              <Input
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                placeholder="z.B. Anna Müller & Max Schmidt"
+              />
+            </FormGroup>
+            <FormGroup>
+              <Label>E-Mail (privat)</Label>
+              <Input
+                type="email"
+                value={clientEmail}
+                onChange={(e) => setClientEmail(e.target.value)}
+                placeholder="anna.mueller@gmail.com"
+              />
+            </FormGroup>
+            <FormGroup>
+              <Label>Telefon (privat)</Label>
+              <Input
+                value={clientPhone}
+                onChange={(e) => setClientPhone(e.target.value)}
+                placeholder="+49 171 1234567"
+              />
+            </FormGroup>
+            <FormGroup className="full-width">
+              <Label>Adresse</Label>
+              <Input
+                value={clientAddress}
+                onChange={(e) => setClientAddress(e.target.value)}
+                placeholder="Musterstraße 1, 20095 Hamburg"
+              />
+            </FormGroup>
+            <FormGroup className="full-width">
+              <Label>Notizen</Label>
+              <TextArea
+                value={clientNotes}
+                onChange={(e) => setClientNotes(e.target.value)}
+                placeholder="Interne Notizen zum Projekt..."
+              />
+            </FormGroup>
+          </FormGrid>
         </Section>
         
-        {/* ============================================ */}
-        {/* WEBSITE DATEN - PFLICHT */}
-        {/* ============================================ */}
+        {/* 02 - Website Pflicht */}
         <Section>
           <SectionHeader>
-            <span className="icon">💒</span>
-            <h2>Hochzeits-Website</h2>
-            <span className="badge">Öffentlich</span>
+            <SectionNumber>02</SectionNumber>
+            <SectionTitle>Hochzeits-Website</SectionTitle>
+            <SectionBadge>Öffentlich</SectionBadge>
           </SectionHeader>
-          <SectionBody>
-            <FormGrid>
-              <FormGroup>
-                <Label>Partner 1 * (Vorname)</Label>
-                <Input
-                  value={partner1Name}
-                  onChange={(e) => handlePartner1Change(e.target.value)}
-                  placeholder="Anna"
-                  required
-                />
-              </FormGroup>
-              <FormGroup>
-                <Label>Partner 2 * (Vorname)</Label>
-                <Input
-                  value={partner2Name}
-                  onChange={(e) => handlePartner2Change(e.target.value)}
-                  placeholder="Max"
-                  required
-                />
-              </FormGroup>
-              
-              {coupleNames && (
-                <FormGroup className="full-width">
-                  <Label>Anzeigename (generiert)</Label>
-                  <GeneratedValue>{coupleNames}</GeneratedValue>
-                </FormGroup>
-              )}
-              
-              <FormGroup>
-                <Label>Hochzeitsdatum *</Label>
-                <Input
-                  type="date"
-                  value={weddingDate}
-                  onChange={(e) => setWeddingDate(e.target.value)}
-                  required
-                />
-                <Hint>Wird für Countdown verwendet</Hint>
-              </FormGroup>
-              <FormGroup>
-                <Label>URL-Slug *</Label>
-                <Input
-                  value={slug}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="anna-max"
-                  required
-                />
-                <Hint>siwedding.de/{slug || 'slug'}</Hint>
-              </FormGroup>
-            </FormGrid>
-          </SectionBody>
-        </Section>
-        
-        {/* ============================================ */}
-        {/* WEBSITE DATEN - OPTIONAL */}
-        {/* ============================================ */}
-        <Section>
-          <SectionHeader>
-            <span className="icon">✨</span>
-            <h2>Zusätzliche Website-Infos</h2>
-            <span className="badge">Optional</span>
-          </SectionHeader>
-          <SectionBody>
-            <Hint style={{ marginBottom: '1rem', marginTop: '-0.5rem' }}>
-              Diese Felder können später auch vom Paar im Admin-Dashboard geändert werden.
-            </Hint>
-            <FormGrid>
-              <FormGroup>
-                <Label>Location</Label>
-                <Input
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Hamburg"
-                />
-                <Hint>Wird im Hero angezeigt</Hint>
-              </FormGroup>
-              <FormGroup>
-                <Label>Hashtag</Label>
-                <Input
-                  value={hashtag}
-                  onChange={(e) => handleHashtagChange(e.target.value)}
-                  placeholder="#AnnaUndMax"
-                />
-                <Hint>Wird im Footer angezeigt</Hint>
-              </FormGroup>
-              <FormGroup>
-                <Label>Kontakt-E-Mail (für Gäste)</Label>
-                <Input
-                  type="email"
-                  value={displayEmail}
-                  onChange={(e) => setDisplayEmail(e.target.value)}
-                  placeholder="hochzeit@anna-max.de"
-                />
-                <Hint>Für die Kontakt-Sektion</Hint>
-              </FormGroup>
-              <FormGroup>
-                <Label>Kontakt-Telefon (für Gäste)</Label>
-                <Input
-                  value={displayPhone}
-                  onChange={(e) => setDisplayPhone(e.target.value)}
-                  placeholder="+49 123 456789"
-                />
-                <Hint>Für die Kontakt-Sektion</Hint>
-              </FormGroup>
-            </FormGrid>
-          </SectionBody>
-        </Section>
-        
-        {/* ============================================ */}
-        {/* SYSTEM */}
-        {/* ============================================ */}
-        <Section>
-          <SectionHeader>
-            <span className="icon">⚙️</span>
-            <h2>Einstellungen</h2>
-          </SectionHeader>
-          <SectionBody>
-            <FormGrid>
-              <FormGroup>
-                <Label>Theme *</Label>
-                <Select value={theme} onChange={(e) => setTheme(e.target.value)}>
-                  {Object.values(THEMES).map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </Select>
-              </FormGroup>
-              <FormGroup>
-                <Label>Admin Passwort</Label>
-                <Input
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  placeholder="wedding2025"
-                />
-                <Hint>Für /{slug || 'slug'}/admin</Hint>
-              </FormGroup>
-              <FormGroup className="full-width">
-                <Label>Custom Domain</Label>
-                <Input
-                  value={customDomain}
-                  onChange={(e) => setCustomDomain(e.target.value.toLowerCase())}
-                  placeholder="anna-max.de"
-                />
-                <Hint>Optional: Eigene Domain statt siwedding.de/{slug}</Hint>
-              </FormGroup>
-            </FormGrid>
-          </SectionBody>
-        </Section>
-        
-        {/* ============================================ */}
-        {/* KOMPONENTEN */}
-        {/* ============================================ */}
-        <Section>
-          <SectionHeader>
-            <span className="icon">📑</span>
-            <h2>Komponenten</h2>
-          </SectionHeader>
-          <SectionBody>
-            <ComponentInfo>
-              <span>
-                <strong>{activeCount}</strong> aktiv ({coreCount} Basis + {optionalActiveCount} optional)
-              </span>
-              <span>☰ Ziehen zum Sortieren</span>
-            </ComponentInfo>
+          <FormGrid>
+            <FormGroup>
+              <Label>Partner 1 * (Vorname)</Label>
+              <Input
+                value={partner1Name}
+                onChange={(e) => handlePartner1Change(e.target.value)}
+                placeholder="Anna"
+                required
+              />
+            </FormGroup>
+            <FormGroup>
+              <Label>Partner 2 * (Vorname)</Label>
+              <Input
+                value={partner2Name}
+                onChange={(e) => handlePartner2Change(e.target.value)}
+                placeholder="Max"
+                required
+              />
+            </FormGroup>
             
-            <ComponentList>
-              {componentOrder.map((compId) => {
-                const comp = ALL_COMPONENTS.find(c => c.id === compId);
-                if (!comp) return null;
-                
-                const isActive = activeComponents.includes(compId);
-                const isDragging = draggedItem === compId;
-                
-                return (
-                  <ComponentItem
-                    key={compId}
-                    $active={isActive}
-                    $core={comp.core}
-                    $dragging={isDragging}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, compId)}
-                    onDragOver={(e) => handleDragOver(e, compId)}
-                    onDragEnd={handleDragEnd}
-                    onClick={() => toggleComponent(compId)}
-                  >
-                    <span className="drag-handle">☰</span>
-                    <span className="checkbox">
-                      {isActive && '✓'}
-                    </span>
-                    <span className="name">{comp.name}</span>
-                    {comp.core && <span className="badge">Basis</span>}
-                  </ComponentItem>
-                );
-              })}
-            </ComponentList>
-          </SectionBody>
+            {coupleNames && (
+              <FormGroup className="full-width">
+                <GeneratedPreview>
+                  <div className="label">Anzeigename</div>
+                  <div className="value">{coupleNames}</div>
+                  <div className="url">siwedding.de/{slug || '...'}</div>
+                </GeneratedPreview>
+              </FormGroup>
+            )}
+            
+            <FormGroup>
+              <Label>Hochzeitsdatum *</Label>
+              <Input
+                type="date"
+                value={weddingDate}
+                onChange={(e) => setWeddingDate(e.target.value)}
+                required
+              />
+              <Hint>Wird für Countdown verwendet</Hint>
+            </FormGroup>
+            <FormGroup>
+              <Label>URL-Slug *</Label>
+              <Input
+                value={slug}
+                onChange={(e) => handleSlugChange(e.target.value)}
+                placeholder="anna-max"
+                required
+              />
+            </FormGroup>
+          </FormGrid>
         </Section>
         
-        {/* ============================================ */}
-        {/* SUBMIT */}
-        {/* ============================================ */}
+        {/* 03 - Website Optional */}
+        <Section>
+          <SectionHeader>
+            <SectionNumber>03</SectionNumber>
+            <SectionTitle>Zusätzliche Infos</SectionTitle>
+            <SectionBadge>Optional</SectionBadge>
+          </SectionHeader>
+          <SectionHint>
+            Diese Felder können später auch vom Paar im Admin-Dashboard geändert werden.
+          </SectionHint>
+          <FormGrid>
+            <FormGroup>
+              <Label>Location</Label>
+              <Input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Hamburg"
+              />
+              <Hint>Wird im Hero angezeigt</Hint>
+            </FormGroup>
+            <FormGroup>
+              <Label>Hashtag</Label>
+              <Input
+                value={hashtag}
+                onChange={(e) => handleHashtagChange(e.target.value)}
+                placeholder="#AnnaUndMax"
+              />
+              <Hint>Wird im Footer angezeigt</Hint>
+            </FormGroup>
+            <FormGroup>
+              <Label>Kontakt-E-Mail (für Gäste)</Label>
+              <Input
+                type="email"
+                value={displayEmail}
+                onChange={(e) => setDisplayEmail(e.target.value)}
+                placeholder="hochzeit@anna-max.de"
+              />
+            </FormGroup>
+            <FormGroup>
+              <Label>Kontakt-Telefon (für Gäste)</Label>
+              <Input
+                value={displayPhone}
+                onChange={(e) => setDisplayPhone(e.target.value)}
+                placeholder="+49 123 456789"
+              />
+            </FormGroup>
+          </FormGrid>
+        </Section>
+        
+        {/* 04 - System */}
+        <Section>
+          <SectionHeader>
+            <SectionNumber>04</SectionNumber>
+            <SectionTitle>Einstellungen</SectionTitle>
+          </SectionHeader>
+          <FormGrid>
+            <FormGroup>
+              <Label>Theme *</Label>
+              <Select value={theme} onChange={(e) => setTheme(e.target.value)}>
+                {Object.values(THEMES).map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </Select>
+            </FormGroup>
+            <FormGroup>
+              <Label>Admin Passwort</Label>
+              <Input
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                placeholder="wedding2025"
+              />
+              <Hint>Für /{slug || 'slug'}/admin</Hint>
+            </FormGroup>
+            <FormGroup className="full-width">
+              <Label>Custom Domain</Label>
+              <Input
+                value={customDomain}
+                onChange={(e) => setCustomDomain(e.target.value.toLowerCase())}
+                placeholder="anna-max.de"
+              />
+              <Hint>Optional: Eigene Domain statt siwedding.de/{slug}</Hint>
+            </FormGroup>
+          </FormGrid>
+        </Section>
+        
+        {/* 05 - Komponenten */}
+        <Section>
+          <SectionHeader>
+            <SectionNumber>05</SectionNumber>
+            <SectionTitle>Komponenten</SectionTitle>
+          </SectionHeader>
+          <SectionHint>
+            Klicken zum An-/Abwählen, Ziehen zum Sortieren der Reihenfolge.
+          </SectionHint>
+          
+          <ComponentListContainer>
+            <ComponentListHeader>
+              <span className="count">{activeCount} AKTIV ({coreCount} BASIS + {activeCount - coreCount} OPTIONAL)</span>
+              <span className="hint">☰ Drag to reorder</span>
+            </ComponentListHeader>
+            
+            {componentOrder.map((compId) => {
+              const comp = ALL_COMPONENTS.find(c => c.id === compId);
+              if (!comp) return null;
+              
+              const isActive = activeComponents.includes(compId);
+              const isDragging = draggedItem === compId;
+              
+              return (
+                <ComponentItem
+                  key={compId}
+                  $active={isActive}
+                  $core={comp.core}
+                  $dragging={isDragging}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, compId)}
+                  onDragOver={(e) => handleDragOver(e, compId)}
+                  onDragEnd={handleDragEnd}
+                  onClick={() => toggleComponent(compId)}
+                >
+                  <span className="drag-handle">☰</span>
+                  <span className="checkbox">
+                    {isActive && '✓'}
+                  </span>
+                  <span className="name">{comp.name}</span>
+                  {comp.core && <span className="badge">Basis</span>}
+                </ComponentItem>
+              );
+            })}
+          </ComponentListContainer>
+        </Section>
+        
         <SubmitButton type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Wird erstellt...' : 'Projekt erstellen'}
         </SubmitButton>

@@ -1,12 +1,25 @@
 // src/pages/ProjectDetailPage.js
-// Projekt bearbeiten - mit CRM-Trennung und Drag & Drop
+// Editorial Design - Minimalistisch, Bold Typography
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
 import { getProjectById, updateProject, deleteProject } from '../lib/supabase';
-import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER } from '../lib/constants';
+import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS } from '../lib/constants';
+
+// ============================================
+// EDITORIAL DESIGN TOKENS
+// ============================================
+
+const colors = {
+  black: '#0A0A0A',
+  white: '#FAFAFA',
+  red: '#C41E3A',
+  gray: '#666666',
+  lightGray: '#E5E5E5',
+  background: '#F5F5F5',
+};
 
 // ============================================
 // STYLED COMPONENTS
@@ -17,16 +30,26 @@ const Header = styled.div`
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 3px solid ${colors.black};
   flex-wrap: wrap;
   gap: 1rem;
 `;
 
+const HeaderLeft = styled.div``;
+
 const BackLink = styled(Link)`
-  color: #666;
-  font-size: 0.8rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: ${colors.gray};
+  text-decoration: none;
   display: inline-block;
-  margin-bottom: 0.5rem;
-  &:hover { color: #1A1A1A; }
+  margin-bottom: 0.75rem;
+  
+  &:hover { color: ${colors.black}; }
 `;
 
 const TitleRow = styled.div`
@@ -37,40 +60,74 @@ const TitleRow = styled.div`
 `;
 
 const Title = styled.h1`
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-size: 2rem;
-  font-weight: 400;
+  font-family: 'Oswald', 'Arial Narrow', sans-serif;
+  font-size: clamp(2rem, 4vw, 2.5rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  color: ${colors.black};
+  line-height: 1;
 `;
 
 const StatusBadge = styled.span`
-  display: inline-block;
-  padding: 0.35rem 0.75rem;
+  font-family: 'Inter', sans-serif;
   font-size: 0.65rem;
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  background: ${p => p.$color ? `${p.$color}15` : '#F5F5F5'};
-  color: ${p => p.$color || '#666'};
+  padding: 0.35rem 0.75rem;
+  background: ${p => p.$color ? `${p.$color}20` : colors.background};
+  color: ${p => p.$color || colors.gray};
+  border: 1px solid ${p => p.$color || colors.lightGray};
 `;
 
 const Actions = styled.div`
   display: flex;
-  gap: 0.5rem;
+  gap: 0.75rem;
 `;
 
 const Button = styled.button`
-  padding: 0.65rem 1.25rem;
-  background: ${p => p.$danger ? '#fff' : p.$primary ? '#1A1A1A' : '#fff'};
-  color: ${p => p.$danger ? '#DC2626' : p.$primary ? '#fff' : '#1A1A1A'};
-  border: 1px solid ${p => p.$danger ? '#FCA5A5' : p.$primary ? '#1A1A1A' : '#E5E5E5'};
-  font-size: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
   font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
   
-  &:hover:not(:disabled) {
-    background: ${p => p.$danger ? '#FEE2E2' : p.$primary ? '#333' : '#F5F5F5'};
-  }
+  ${p => p.$danger && `
+    background: transparent;
+    color: ${colors.red};
+    border: 2px solid ${colors.red};
+    
+    &:hover {
+      background: ${colors.red};
+      color: ${colors.white};
+    }
+  `}
+  
+  ${p => p.$primary && `
+    background: ${colors.red};
+    color: ${colors.white};
+    border: 2px solid ${colors.red};
+    
+    &:hover:not(:disabled) {
+      background: ${colors.black};
+      border-color: ${colors.black};
+    }
+  `}
+  
+  ${p => !p.$danger && !p.$primary && `
+    background: transparent;
+    color: ${colors.black};
+    border: 2px solid ${colors.black};
+    
+    &:hover {
+      background: ${colors.black};
+      color: ${colors.white};
+    }
+  `}
   
   &:disabled {
     opacity: 0.5;
@@ -80,7 +137,7 @@ const Button = styled.button`
 
 const Grid = styled.div`
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr 300px;
   gap: 2rem;
   align-items: start;
   
@@ -92,47 +149,51 @@ const Grid = styled.div`
 const MainColumn = styled.div``;
 const Sidebar = styled.div``;
 
-const Section = styled.div`
-  background: #fff;
-  border: 1px solid #E5E5E5;
-  margin-bottom: 1.5rem;
+const Section = styled.section`
+  margin-bottom: 2.5rem;
 `;
 
 const SectionHeader = styled.div`
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #E5E5E5;
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  
-  .icon { font-size: 1.25rem; }
-  
-  h2 {
-    font-family: 'Instrument Serif', Georgia, serif;
-    font-size: 1.1rem;
-    font-weight: 400;
-    flex: 1;
-  }
-  
-  .badge {
-    font-size: 0.65rem;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 0.25rem 0.5rem;
-    background: #F5F5F5;
-    color: #666;
-  }
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid ${colors.lightGray};
+  padding-bottom: 0.75rem;
 `;
 
-const SectionBody = styled.div`
-  padding: 1.5rem;
+const SectionNumber = styled.span`
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: ${colors.red};
+`;
+
+const SectionTitle = styled.h2`
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${colors.black};
+`;
+
+const SectionBadge = styled.span`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: ${colors.gray};
+  background: ${colors.background};
+  padding: 0.25rem 0.5rem;
+  margin-left: auto;
 `;
 
 const FormGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: 1.5rem;
   
   @media (max-width: 600px) {
     grid-template-columns: 1fr;
@@ -145,174 +206,195 @@ const FormGroup = styled.div`
 
 const Label = styled.label`
   display: block;
-  font-size: 0.65rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: #666;
+  color: ${colors.black};
   margin-bottom: 0.5rem;
 `;
 
 const Input = styled.input`
   width: 100%;
-  padding: 0.75rem 1rem;
-  background: #FAFAFA;
-  border: 1px solid #E5E5E5;
-  font-size: 0.9rem;
+  padding: 0.875rem 1rem;
+  background: ${colors.white};
+  border: 2px solid ${colors.lightGray};
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: ${colors.black};
+  transition: border-color 0.2s ease;
   
   &:focus {
     outline: none;
-    border-color: #1A1A1A;
-    background: #fff;
+    border-color: ${colors.black};
   }
 `;
 
 const TextArea = styled.textarea`
   width: 100%;
-  padding: 0.75rem 1rem;
-  background: #FAFAFA;
-  border: 1px solid #E5E5E5;
-  font-size: 0.9rem;
-  font-family: inherit;
+  padding: 0.875rem 1rem;
+  background: ${colors.white};
+  border: 2px solid ${colors.lightGray};
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: ${colors.black};
   resize: vertical;
-  min-height: 80px;
+  min-height: 100px;
   
   &:focus {
     outline: none;
-    border-color: #1A1A1A;
-    background: #fff;
+    border-color: ${colors.black};
   }
 `;
 
 const Select = styled.select`
   width: 100%;
-  padding: 0.75rem 1rem;
-  background: #FAFAFA;
-  border: 1px solid #E5E5E5;
-  font-size: 0.9rem;
+  padding: 0.875rem 1rem;
+  background: ${colors.white};
+  border: 2px solid ${colors.lightGray};
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
   cursor: pointer;
   
   &:focus {
     outline: none;
-    border-color: #1A1A1A;
+    border-color: ${colors.black};
   }
 `;
 
-const Hint = styled.div`
-  font-size: 0.75rem;
-  color: #999;
-  margin-top: 0.35rem;
-`;
-
 const LinkBox = styled.div`
-  background: #FAFAFA;
-  border: 1px solid #E5E5E5;
-  padding: 0.75rem 1rem;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.8rem;
+  background: ${colors.black};
+  padding: 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
+  margin-bottom: 1rem;
   
   a {
-    color: #1A1A1A;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: ${colors.white};
+    text-decoration: none;
+    
     &:hover { text-decoration: underline; }
   }
   
   button {
-    background: #fff;
-    border: 1px solid #E5E5E5;
-    color: #666;
-    padding: 0.25rem 0.6rem;
+    background: ${colors.red};
+    border: none;
+    color: ${colors.white};
+    padding: 0.4rem 0.75rem;
+    font-family: 'Inter', sans-serif;
     font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     cursor: pointer;
     
-    &:hover { border-color: #1A1A1A; color: #1A1A1A; }
+    &:hover { background: ${colors.white}; color: ${colors.black}; }
   }
 `;
 
-// Component List Styles
-const ComponentList = styled.div`
+// Component List
+const ComponentListContainer = styled.div`
+  border: 2px solid ${colors.black};
+`;
+
+const ComponentListHeader = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: ${colors.black};
+  color: ${colors.white};
+  
+  .count {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+  
+  .hint {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.7rem;
+    color: ${colors.gray};
+  }
 `;
 
 const ComponentItem = styled.div`
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  background: ${p => p.$active ? '#1A1A1A' : '#FAFAFA'};
-  color: ${p => p.$active ? '#fff' : '#333'};
-  border: 1px solid ${p => p.$active ? '#1A1A1A' : '#E5E5E5'};
+  gap: 1rem;
+  padding: 0.875rem 1rem;
+  background: ${p => p.$active ? colors.black : colors.white};
+  color: ${p => p.$active ? colors.white : colors.black};
+  border-bottom: 1px solid ${colors.lightGray};
   cursor: pointer;
   user-select: none;
   transition: all 0.15s ease;
   
-  ${p => p.$dragging && `opacity: 0.5; transform: scale(1.02);`}
+  &:last-child { border-bottom: none; }
   
-  &:hover { border-color: #1A1A1A; }
+  ${p => p.$dragging && `opacity: 0.5;`}
+  
+  &:hover {
+    background: ${p => p.$active ? colors.black : colors.background};
+  }
   
   .drag-handle {
+    color: ${p => p.$active ? colors.gray : colors.lightGray};
     cursor: grab;
-    color: ${p => p.$active ? 'rgba(255,255,255,0.5)' : '#999'};
-    &:active { cursor: grabbing; }
   }
   
   .checkbox {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid ${p => p.$active ? '#fff' : '#ccc'};
-    background: ${p => p.$active ? '#fff' : 'transparent'};
-    color: #1A1A1A;
-    font-size: 0.7rem;
-    ${p => p.$core && `opacity: 0.5;`}
+    border: 2px solid ${p => p.$active ? colors.white : colors.black};
+    background: ${p => p.$active ? colors.white : 'transparent'};
+    color: ${colors.black};
+    font-size: 0.75rem;
+    font-weight: 700;
+    ${p => p.$core && `border-style: dashed; opacity: 0.6;`}
   }
   
-  .name { flex: 1; font-size: 0.85rem; font-weight: 500; }
+  .name {
+    flex: 1;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
   
   .badge {
+    font-family: 'Inter', sans-serif;
     font-size: 0.6rem;
     font-weight: 600;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    padding: 0.15rem 0.4rem;
-    background: ${p => p.$active ? 'rgba(255,255,255,0.2)' : '#E5E5E5'};
-    color: ${p => p.$active ? '#fff' : '#666'};
+    padding: 0.2rem 0.5rem;
+    background: ${p => p.$active ? colors.red : colors.background};
+    color: ${p => p.$active ? colors.white : colors.gray};
   }
 `;
 
-const ComponentInfo = styled.div`
-  display: flex;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-  background: #F5F5F5;
-  margin-bottom: 1rem;
-  font-size: 0.8rem;
-  color: #666;
-  strong { color: #1A1A1A; }
-`;
-
-// Sidebar Cards
+// Sidebar
 const InfoCard = styled.div`
-  background: #fff;
-  border: 1px solid #E5E5E5;
-  margin-bottom: 1rem;
+  border: 2px solid ${colors.black};
+  margin-bottom: 1.5rem;
 `;
 
 const InfoHeader = styled.div`
-  padding: 0.875rem 1rem;
-  border-bottom: 1px solid #E5E5E5;
-  font-size: 0.65rem;
-  font-weight: 600;
+  padding: 0.75rem 1rem;
+  background: ${colors.black};
+  color: ${colors.white};
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #666;
 `;
 
 const InfoBody = styled.div`
@@ -322,11 +404,24 @@ const InfoBody = styled.div`
 const InfoRow = styled.div`
   display: flex;
   justify-content: space-between;
+  font-family: 'Inter', sans-serif;
   font-size: 0.85rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+  
   &:last-child { margin-bottom: 0; }
-  .label { color: #666; }
-  .value { font-weight: 500; color: #1A1A1A; }
+  
+  .label { color: ${colors.gray}; }
+  .value { 
+    font-weight: 500; 
+    color: ${colors.black};
+    text-align: right;
+  }
+  
+  a {
+    color: ${colors.red};
+    text-decoration: none;
+    &:hover { text-decoration: underline; }
+  }
 `;
 
 // ============================================
@@ -347,13 +442,13 @@ export default function ProjectDetailPage() {
   }, [id]);
 
   const loadProject = async () => {
-    const { data, error } = await getProjectById(id);
+    const { data } = await getProjectById(id);
     if (data) {
       setProject(data);
       setFormData({
         ...data,
         component_order: data.component_order || DEFAULT_COMPONENT_ORDER,
-        active_components: data.active_components || ALL_COMPONENTS.filter(c => c.core).map(c => c.id),
+        active_components: data.active_components || [...CORE_COMPONENTS],
       });
     }
     setIsLoading(false);
@@ -363,7 +458,6 @@ export default function ProjectDetailPage() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Component toggle
   const toggleComponent = (compId) => {
     const comp = ALL_COMPONENTS.find(c => c.id === compId);
     if (comp?.core) return;
@@ -375,7 +469,6 @@ export default function ProjectDetailPage() {
     handleChange('active_components', updated);
   };
 
-  // Drag and Drop
   const handleDragStart = (e, compId) => {
     setDraggedItem(compId);
     e.dataTransfer.effectAllowed = 'move';
@@ -395,36 +488,29 @@ export default function ProjectDetailPage() {
     handleChange('component_order', newOrder);
   };
 
-  const handleDragEnd = () => {
-    setDraggedItem(null);
-  };
+  const handleDragEnd = () => setDraggedItem(null);
 
   const handleSave = async () => {
     setIsSaving(true);
     const { error } = await updateProject(id, {
-      // CRM
       client_name: formData.client_name || null,
       client_email: formData.client_email || null,
       client_phone: formData.client_phone || null,
       client_address: formData.client_address || null,
       client_notes: formData.client_notes || null,
-      // Website Pflicht
       partner1_name: formData.partner1_name,
       partner2_name: formData.partner2_name,
       couple_names: `${formData.partner1_name} & ${formData.partner2_name}`,
       wedding_date: formData.wedding_date,
       slug: formData.slug,
-      // Website Optional
       location: formData.location || null,
       hashtag: formData.hashtag || null,
       display_email: formData.display_email || null,
       display_phone: formData.display_phone || null,
-      // System
       theme: formData.theme,
       status: formData.status,
       admin_password: formData.admin_password,
       custom_domain: formData.custom_domain || null,
-      // Komponenten
       active_components: formData.active_components,
       component_order: formData.component_order,
     });
@@ -439,9 +525,7 @@ export default function ProjectDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Projekt wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
-      return;
-    }
+    if (!window.confirm('Projekt wirklich löschen?')) return;
     const { error } = await deleteProject(id);
     if (error) {
       toast.error('Fehler beim Löschen');
@@ -456,35 +540,27 @@ export default function ProjectDetailPage() {
     toast.success('Kopiert!');
   };
 
-  if (isLoading) {
-    return <Layout><div style={{ color: '#666', padding: '2rem' }}>Laden...</div></Layout>;
-  }
-
-  if (!project) {
-    return <Layout><div style={{ padding: '2rem' }}>Projekt nicht gefunden</div></Layout>;
-  }
+  if (isLoading) return <Layout><div style={{ padding: '2rem', color: colors.gray }}>Laden...</div></Layout>;
+  if (!project) return <Layout><div style={{ padding: '2rem' }}>Projekt nicht gefunden</div></Layout>;
 
   const status = PROJECT_STATUS[formData.status];
   const baseUrl = formData.custom_domain || `siwedding.de/${formData.slug}`;
   const coupleNames = formData.partner1_name && formData.partner2_name 
     ? `${formData.partner1_name} & ${formData.partner2_name}`
     : formData.couple_names || 'Unbenannt';
-  
   const activeCount = formData.active_components?.length || 0;
-  const coreCount = ALL_COMPONENTS.filter(c => c.core).length;
   const componentOrder = formData.component_order || DEFAULT_COMPONENT_ORDER;
 
   return (
     <Layout>
-      <BackLink to="/projects">← Zurück zu Projekte</BackLink>
-      
       <Header>
-        <div>
+        <HeaderLeft>
+          <BackLink to="/projects">← Zurück zu Projekte</BackLink>
           <TitleRow>
             <Title>{coupleNames}</Title>
-            <StatusBadge $color={status?.color}>{status?.label || formData.status}</StatusBadge>
+            <StatusBadge $color={status?.color}>{status?.label}</StatusBadge>
           </TitleRow>
-        </div>
+        </HeaderLeft>
         <Actions>
           <Button $danger onClick={handleDelete}>Löschen</Button>
           <Button $primary onClick={handleSave} disabled={isSaving}>
@@ -495,266 +571,178 @@ export default function ProjectDetailPage() {
       
       <Grid>
         <MainColumn>
-          {/* CRM */}
+          {/* 01 - CRM */}
           <Section>
             <SectionHeader>
-              <span className="icon">👤</span>
-              <h2>Kundendaten</h2>
-              <span className="badge">Intern / CRM</span>
+              <SectionNumber>01</SectionNumber>
+              <SectionTitle>Kundendaten</SectionTitle>
+              <SectionBadge>Intern</SectionBadge>
             </SectionHeader>
-            <SectionBody>
-              <FormGrid>
-                <FormGroup className="full-width">
-                  <Label>Kundenname</Label>
-                  <Input
-                    value={formData.client_name || ''}
-                    onChange={(e) => handleChange('client_name', e.target.value)}
-                  />
-                </FormGroup>
-                <FormGroup>
-                  <Label>E-Mail (privat)</Label>
-                  <Input
-                    type="email"
-                    value={formData.client_email || ''}
-                    onChange={(e) => handleChange('client_email', e.target.value)}
-                  />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Telefon (privat)</Label>
-                  <Input
-                    value={formData.client_phone || ''}
-                    onChange={(e) => handleChange('client_phone', e.target.value)}
-                  />
-                </FormGroup>
-                <FormGroup className="full-width">
-                  <Label>Adresse</Label>
-                  <Input
-                    value={formData.client_address || ''}
-                    onChange={(e) => handleChange('client_address', e.target.value)}
-                  />
-                </FormGroup>
-                <FormGroup className="full-width">
-                  <Label>Notizen</Label>
-                  <TextArea
-                    value={formData.client_notes || ''}
-                    onChange={(e) => handleChange('client_notes', e.target.value)}
-                  />
-                </FormGroup>
-              </FormGrid>
-            </SectionBody>
-          </Section>
-          
-          {/* Website Pflicht */}
-          <Section>
-            <SectionHeader>
-              <span className="icon">💒</span>
-              <h2>Hochzeits-Website</h2>
-            </SectionHeader>
-            <SectionBody>
-              <FormGrid>
-                <FormGroup>
-                  <Label>Partner 1</Label>
-                  <Input
-                    value={formData.partner1_name || ''}
-                    onChange={(e) => handleChange('partner1_name', e.target.value)}
-                  />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Partner 2</Label>
-                  <Input
-                    value={formData.partner2_name || ''}
-                    onChange={(e) => handleChange('partner2_name', e.target.value)}
-                  />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Hochzeitsdatum</Label>
-                  <Input
-                    type="date"
-                    value={formData.wedding_date?.split('T')[0] || ''}
-                    onChange={(e) => handleChange('wedding_date', e.target.value)}
-                  />
-                </FormGroup>
-                <FormGroup>
-                  <Label>URL-Slug</Label>
-                  <Input
-                    value={formData.slug || ''}
-                    onChange={(e) => handleChange('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                  />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Location</Label>
-                  <Input
-                    value={formData.location || ''}
-                    onChange={(e) => handleChange('location', e.target.value)}
-                    placeholder="Hamburg"
-                  />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Hashtag</Label>
-                  <Input
-                    value={formData.hashtag || ''}
-                    onChange={(e) => handleChange('hashtag', e.target.value)}
-                    placeholder="#AnnaUndMax"
-                  />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Kontakt-E-Mail (Website)</Label>
-                  <Input
-                    value={formData.display_email || ''}
-                    onChange={(e) => handleChange('display_email', e.target.value)}
-                    placeholder="hochzeit@..."
-                  />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Kontakt-Telefon (Website)</Label>
-                  <Input
-                    value={formData.display_phone || ''}
-                    onChange={(e) => handleChange('display_phone', e.target.value)}
-                  />
-                </FormGroup>
-              </FormGrid>
-            </SectionBody>
-          </Section>
-          
-          {/* System */}
-          <Section>
-            <SectionHeader>
-              <span className="icon">⚙️</span>
-              <h2>Einstellungen</h2>
-            </SectionHeader>
-            <SectionBody>
-              <FormGrid>
-                <FormGroup>
-                  <Label>Theme</Label>
-                  <Select
-                    value={formData.theme || 'botanical'}
-                    onChange={(e) => handleChange('theme', e.target.value)}
-                  >
-                    {Object.values(THEMES).map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </Select>
-                </FormGroup>
-                <FormGroup>
-                  <Label>Status</Label>
-                  <Select
-                    value={formData.status || 'draft'}
-                    onChange={(e) => handleChange('status', e.target.value)}
-                  >
-                    {Object.entries(PROJECT_STATUS).map(([key, val]) => (
-                      <option key={key} value={key}>{val.label}</option>
-                    ))}
-                  </Select>
-                </FormGroup>
-                <FormGroup>
-                  <Label>Admin Passwort</Label>
-                  <Input
-                    value={formData.admin_password || ''}
-                    onChange={(e) => handleChange('admin_password', e.target.value)}
-                  />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Custom Domain</Label>
-                  <Input
-                    value={formData.custom_domain || ''}
-                    onChange={(e) => handleChange('custom_domain', e.target.value.toLowerCase())}
-                    placeholder="anna-max.de"
-                  />
-                </FormGroup>
-              </FormGrid>
-            </SectionBody>
-          </Section>
-          
-          {/* Links */}
-          <Section>
-            <SectionHeader>
-              <span className="icon">🔗</span>
-              <h2>Links</h2>
-            </SectionHeader>
-            <SectionBody>
-              <FormGroup style={{ marginBottom: '1rem' }}>
-                <Label>Hochzeitsseite</Label>
-                <LinkBox>
-                  <a href={`https://${baseUrl}`} target="_blank" rel="noopener noreferrer">{baseUrl}</a>
-                  <button onClick={() => copyToClipboard(`https://${baseUrl}`)}>Kopieren</button>
-                </LinkBox>
+            <FormGrid>
+              <FormGroup className="full-width">
+                <Label>Kundenname</Label>
+                <Input value={formData.client_name || ''} onChange={(e) => handleChange('client_name', e.target.value)} />
               </FormGroup>
               <FormGroup>
-                <Label>Kunden-Dashboard</Label>
-                <LinkBox>
-                  <a href={`https://${baseUrl}/admin`} target="_blank" rel="noopener noreferrer">{baseUrl}/admin</a>
-                  <button onClick={() => copyToClipboard(`https://${baseUrl}/admin`)}>Kopieren</button>
-                </LinkBox>
+                <Label>E-Mail (privat)</Label>
+                <Input type="email" value={formData.client_email || ''} onChange={(e) => handleChange('client_email', e.target.value)} />
               </FormGroup>
-            </SectionBody>
+              <FormGroup>
+                <Label>Telefon (privat)</Label>
+                <Input value={formData.client_phone || ''} onChange={(e) => handleChange('client_phone', e.target.value)} />
+              </FormGroup>
+              <FormGroup className="full-width">
+                <Label>Adresse</Label>
+                <Input value={formData.client_address || ''} onChange={(e) => handleChange('client_address', e.target.value)} />
+              </FormGroup>
+              <FormGroup className="full-width">
+                <Label>Notizen</Label>
+                <TextArea value={formData.client_notes || ''} onChange={(e) => handleChange('client_notes', e.target.value)} />
+              </FormGroup>
+            </FormGrid>
           </Section>
           
-          {/* Komponenten */}
+          {/* 02 - Website */}
           <Section>
             <SectionHeader>
-              <span className="icon">📑</span>
-              <h2>Komponenten</h2>
+              <SectionNumber>02</SectionNumber>
+              <SectionTitle>Hochzeits-Website</SectionTitle>
             </SectionHeader>
-            <SectionBody>
-              <ComponentInfo>
-                <span><strong>{activeCount}</strong> aktiv ({coreCount} Basis + {activeCount - coreCount} optional)</span>
-                <span>☰ Ziehen zum Sortieren</span>
-              </ComponentInfo>
-              
-              <ComponentList>
-                {componentOrder.map((compId) => {
-                  const comp = ALL_COMPONENTS.find(c => c.id === compId);
-                  if (!comp) return null;
-                  
-                  const isActive = formData.active_components?.includes(compId);
-                  const isDragging = draggedItem === compId;
-                  
-                  return (
-                    <ComponentItem
-                      key={compId}
-                      $active={isActive}
-                      $core={comp.core}
-                      $dragging={isDragging}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, compId)}
-                      onDragOver={(e) => handleDragOver(e, compId)}
-                      onDragEnd={handleDragEnd}
-                      onClick={() => toggleComponent(compId)}
-                    >
-                      <span className="drag-handle">☰</span>
-                      <span className="checkbox">{isActive && '✓'}</span>
-                      <span className="name">{comp.name}</span>
-                      {comp.core && <span className="badge">Basis</span>}
-                    </ComponentItem>
-                  );
-                })}
-              </ComponentList>
-            </SectionBody>
+            <FormGrid>
+              <FormGroup>
+                <Label>Partner 1</Label>
+                <Input value={formData.partner1_name || ''} onChange={(e) => handleChange('partner1_name', e.target.value)} />
+              </FormGroup>
+              <FormGroup>
+                <Label>Partner 2</Label>
+                <Input value={formData.partner2_name || ''} onChange={(e) => handleChange('partner2_name', e.target.value)} />
+              </FormGroup>
+              <FormGroup>
+                <Label>Hochzeitsdatum</Label>
+                <Input type="date" value={formData.wedding_date?.split('T')[0] || ''} onChange={(e) => handleChange('wedding_date', e.target.value)} />
+              </FormGroup>
+              <FormGroup>
+                <Label>URL-Slug</Label>
+                <Input value={formData.slug || ''} onChange={(e) => handleChange('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
+              </FormGroup>
+              <FormGroup>
+                <Label>Location</Label>
+                <Input value={formData.location || ''} onChange={(e) => handleChange('location', e.target.value)} placeholder="Hamburg" />
+              </FormGroup>
+              <FormGroup>
+                <Label>Hashtag</Label>
+                <Input value={formData.hashtag || ''} onChange={(e) => handleChange('hashtag', e.target.value)} placeholder="#AnnaUndMax" />
+              </FormGroup>
+              <FormGroup>
+                <Label>Kontakt-E-Mail (Website)</Label>
+                <Input value={formData.display_email || ''} onChange={(e) => handleChange('display_email', e.target.value)} />
+              </FormGroup>
+              <FormGroup>
+                <Label>Kontakt-Telefon (Website)</Label>
+                <Input value={formData.display_phone || ''} onChange={(e) => handleChange('display_phone', e.target.value)} />
+              </FormGroup>
+            </FormGrid>
+          </Section>
+          
+          {/* 03 - Einstellungen */}
+          <Section>
+            <SectionHeader>
+              <SectionNumber>03</SectionNumber>
+              <SectionTitle>Einstellungen</SectionTitle>
+            </SectionHeader>
+            <FormGrid>
+              <FormGroup>
+                <Label>Theme</Label>
+                <Select value={formData.theme || 'botanical'} onChange={(e) => handleChange('theme', e.target.value)}>
+                  {Object.values(THEMES).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </Select>
+              </FormGroup>
+              <FormGroup>
+                <Label>Status</Label>
+                <Select value={formData.status || 'draft'} onChange={(e) => handleChange('status', e.target.value)}>
+                  {Object.entries(PROJECT_STATUS).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}
+                </Select>
+              </FormGroup>
+              <FormGroup>
+                <Label>Admin Passwort</Label>
+                <Input value={formData.admin_password || ''} onChange={(e) => handleChange('admin_password', e.target.value)} />
+              </FormGroup>
+              <FormGroup>
+                <Label>Custom Domain</Label>
+                <Input value={formData.custom_domain || ''} onChange={(e) => handleChange('custom_domain', e.target.value.toLowerCase())} placeholder="anna-max.de" />
+              </FormGroup>
+            </FormGrid>
+          </Section>
+          
+          {/* 04 - Links */}
+          <Section>
+            <SectionHeader>
+              <SectionNumber>04</SectionNumber>
+              <SectionTitle>Links</SectionTitle>
+            </SectionHeader>
+            <LinkBox>
+              <a href={`https://${baseUrl}`} target="_blank" rel="noopener noreferrer">{baseUrl}</a>
+              <button onClick={() => copyToClipboard(`https://${baseUrl}`)}>Kopieren</button>
+            </LinkBox>
+            <LinkBox>
+              <a href={`https://${baseUrl}/admin`} target="_blank" rel="noopener noreferrer">{baseUrl}/admin</a>
+              <button onClick={() => copyToClipboard(`https://${baseUrl}/admin`)}>Kopieren</button>
+            </LinkBox>
+          </Section>
+          
+          {/* 05 - Komponenten */}
+          <Section>
+            <SectionHeader>
+              <SectionNumber>05</SectionNumber>
+              <SectionTitle>Komponenten</SectionTitle>
+            </SectionHeader>
+            <ComponentListContainer>
+              <ComponentListHeader>
+                <span className="count">{activeCount} AKTIV</span>
+                <span className="hint">☰ Drag to reorder</span>
+              </ComponentListHeader>
+              {componentOrder.map((compId) => {
+                const comp = ALL_COMPONENTS.find(c => c.id === compId);
+                if (!comp) return null;
+                const isActive = formData.active_components?.includes(compId);
+                return (
+                  <ComponentItem
+                    key={compId}
+                    $active={isActive}
+                    $core={comp.core}
+                    $dragging={draggedItem === compId}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, compId)}
+                    onDragOver={(e) => handleDragOver(e, compId)}
+                    onDragEnd={handleDragEnd}
+                    onClick={() => toggleComponent(compId)}
+                  >
+                    <span className="drag-handle">☰</span>
+                    <span className="checkbox">{isActive && '✓'}</span>
+                    <span className="name">{comp.name}</span>
+                    {comp.core && <span className="badge">Basis</span>}
+                  </ComponentItem>
+                );
+              })}
+            </ComponentListContainer>
           </Section>
         </MainColumn>
         
-        {/* Sidebar */}
         <Sidebar>
           <InfoCard>
             <InfoHeader>Projekt-Info</InfoHeader>
             <InfoBody>
               <InfoRow>
                 <span className="label">Erstellt</span>
-                <span className="value">
-                  {project.created_at ? new Date(project.created_at).toLocaleDateString('de-DE') : '–'}
-                </span>
+                <span className="value">{project.created_at ? new Date(project.created_at).toLocaleDateString('de-DE') : '–'}</span>
               </InfoRow>
               <InfoRow>
                 <span className="label">Theme</span>
-                <span className="value">{THEMES[formData.theme]?.name || formData.theme}</span>
+                <span className="value">{THEMES[formData.theme]?.name}</span>
               </InfoRow>
               <InfoRow>
                 <span className="label">Hochzeit</span>
-                <span className="value">
-                  {formData.wedding_date 
-                    ? new Date(formData.wedding_date).toLocaleDateString('de-DE') 
-                    : '–'}
-                </span>
+                <span className="value">{formData.wedding_date ? new Date(formData.wedding_date).toLocaleDateString('de-DE') : '–'}</span>
               </InfoRow>
               <InfoRow>
                 <span className="label">Komponenten</span>
@@ -769,16 +757,12 @@ export default function ProjectDetailPage() {
               <InfoBody>
                 <InfoRow>
                   <span className="label">E-Mail</span>
-                  <span className="value">
-                    <a href={`mailto:${formData.client_email}`}>{formData.client_email}</a>
-                  </span>
+                  <span className="value"><a href={`mailto:${formData.client_email}`}>{formData.client_email}</a></span>
                 </InfoRow>
                 {formData.client_phone && (
                   <InfoRow>
                     <span className="label">Telefon</span>
-                    <span className="value">
-                      <a href={`tel:${formData.client_phone}`}>{formData.client_phone}</a>
-                    </span>
+                    <span className="value"><a href={`tel:${formData.client_phone}`}>{formData.client_phone}</a></span>
                   </InfoRow>
                 )}
               </InfoBody>
