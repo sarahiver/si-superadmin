@@ -1,11 +1,16 @@
 // src/pages/ProjectDetailPage.js
+// Projekt bearbeiten - mit CRM-Trennung und Drag & Drop
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
-import { getProjectById, updateProject, deleteProject, getDashboardStats } from '../lib/supabase';
-import { PACKAGES, ADDONS, THEMES, PROJECT_STATUS, CORE_COMPONENTS, OPTIONAL_COMPONENTS } from '../lib/constants';
+import { getProjectById, updateProject, deleteProject } from '../lib/supabase';
+import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER } from '../lib/constants';
+
+// ============================================
+// STYLED COMPONENTS
+// ============================================
 
 const Header = styled.div`
   display: flex;
@@ -21,7 +26,6 @@ const BackLink = styled(Link)`
   font-size: 0.8rem;
   display: inline-block;
   margin-bottom: 0.5rem;
-  
   &:hover { color: #1A1A1A; }
 `;
 
@@ -61,6 +65,7 @@ const Button = styled.button`
   border: 1px solid ${p => p.$danger ? '#FCA5A5' : p.$primary ? '#1A1A1A' : '#E5E5E5'};
   font-size: 0.75rem;
   font-weight: 500;
+  cursor: pointer;
   transition: all 0.15s ease;
   
   &:hover:not(:disabled) {
@@ -85,7 +90,6 @@ const Grid = styled.div`
 `;
 
 const MainColumn = styled.div``;
-
 const Sidebar = styled.div``;
 
 const Section = styled.div`
@@ -98,13 +102,26 @@ const SectionHeader = styled.div`
   padding: 1rem 1.5rem;
   border-bottom: 1px solid #E5E5E5;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
+  
+  .icon { font-size: 1.25rem; }
   
   h2 {
     font-family: 'Instrument Serif', Georgia, serif;
     font-size: 1.1rem;
     font-weight: 400;
+    flex: 1;
+  }
+  
+  .badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.5rem;
+    background: #F5F5F5;
+    color: #666;
   }
 `;
 
@@ -123,10 +140,6 @@ const FormGrid = styled.div`
 `;
 
 const FormGroup = styled.div`
-  margin-bottom: 1rem;
-  
-  &:last-child { margin-bottom: 0; }
-  
   &.full-width { grid-column: 1 / -1; }
 `;
 
@@ -152,9 +165,22 @@ const Input = styled.input`
     border-color: #1A1A1A;
     background: #fff;
   }
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #FAFAFA;
+  border: 1px solid #E5E5E5;
+  font-size: 0.9rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
   
-  &:disabled {
-    opacity: 0.6;
+  &:focus {
+    outline: none;
+    border-color: #1A1A1A;
+    background: #fff;
   }
 `;
 
@@ -170,6 +196,12 @@ const Select = styled.select`
     outline: none;
     border-color: #1A1A1A;
   }
+`;
+
+const Hint = styled.div`
+  font-size: 0.75rem;
+  color: #999;
+  margin-top: 0.35rem;
 `;
 
 const LinkBox = styled.div`
@@ -200,27 +232,70 @@ const LinkBox = styled.div`
   }
 `;
 
-const ComponentsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+// Component List Styles
+const ComponentList = styled.div`
+  display: flex;
+  flex-direction: column;
   gap: 0.5rem;
 `;
 
-const ComponentToggle = styled.label`
+const ComponentItem = styled.div`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
   background: ${p => p.$active ? '#1A1A1A' : '#FAFAFA'};
-  color: ${p => p.$active ? '#fff' : '#666'};
+  color: ${p => p.$active ? '#fff' : '#333'};
   border: 1px solid ${p => p.$active ? '#1A1A1A' : '#E5E5E5'};
   cursor: pointer;
-  font-size: 0.75rem;
+  user-select: none;
   transition: all 0.15s ease;
   
-  input { display: none; }
+  ${p => p.$dragging && `opacity: 0.5; transform: scale(1.02);`}
   
   &:hover { border-color: #1A1A1A; }
+  
+  .drag-handle {
+    cursor: grab;
+    color: ${p => p.$active ? 'rgba(255,255,255,0.5)' : '#999'};
+    &:active { cursor: grabbing; }
+  }
+  
+  .checkbox {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid ${p => p.$active ? '#fff' : '#ccc'};
+    background: ${p => p.$active ? '#fff' : 'transparent'};
+    color: #1A1A1A;
+    font-size: 0.7rem;
+    ${p => p.$core && `opacity: 0.5;`}
+  }
+  
+  .name { flex: 1; font-size: 0.85rem; font-weight: 500; }
+  
+  .badge {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0.15rem 0.4rem;
+    background: ${p => p.$active ? 'rgba(255,255,255,0.2)' : '#E5E5E5'};
+    color: ${p => p.$active ? '#fff' : '#666'};
+  }
+`;
+
+const ComponentInfo = styled.div`
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #F5F5F5;
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+  color: #666;
+  strong { color: #1A1A1A; }
 `;
 
 // Sidebar Cards
@@ -249,80 +324,38 @@ const InfoRow = styled.div`
   justify-content: space-between;
   font-size: 0.85rem;
   margin-bottom: 0.5rem;
-  
   &:last-child { margin-bottom: 0; }
-  
   .label { color: #666; }
-  .value { 
-    font-weight: 500; 
-    color: #1A1A1A;
-    font-family: ${p => p.$mono ? "'JetBrains Mono', monospace" : 'inherit'};
-  }
+  .value { font-weight: 500; color: #1A1A1A; }
 `;
 
-const PriceTotal = styled.div`
-  display: flex;
-  justify-content: space-between;
-  padding-top: 0.75rem;
-  margin-top: 0.75rem;
-  border-top: 1px solid #E5E5E5;
-  font-weight: 600;
-  
-  .value {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 1.1rem;
-  }
-`;
-
-const HostingBar = styled.div`
-  margin-top: 1rem;
-  
-  .bar-label {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.75rem;
-    color: #666;
-    margin-bottom: 0.35rem;
-  }
-  
-  .bar {
-    height: 6px;
-    background: #E5E5E5;
-    border-radius: 3px;
-    overflow: hidden;
-    
-    .fill {
-      height: 100%;
-      background: ${p => p.$expired ? '#DC2626' : '#22c55e'};
-      width: ${p => p.$percent}%;
-    }
-  }
-`;
+// ============================================
+// MAIN COMPONENT
+// ============================================
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [project, setProject] = useState(null);
-  const [stats, setStats] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({});
+  const [draggedItem, setDraggedItem] = useState(null);
 
   useEffect(() => {
-    loadData();
+    loadProject();
   }, [id]);
 
-  const loadData = async () => {
-    const [projectRes, statsRes] = await Promise.all([
-      getProjectById(id),
-      getDashboardStats(),
-    ]);
-    
-    if (projectRes.data) {
-      setProject(projectRes.data);
-      setFormData(projectRes.data);
+  const loadProject = async () => {
+    const { data, error } = await getProjectById(id);
+    if (data) {
+      setProject(data);
+      setFormData({
+        ...data,
+        component_order: data.component_order || DEFAULT_COMPONENT_ORDER,
+        active_components: data.active_components || ALL_COMPONENTS.filter(c => c.core).map(c => c.id),
+      });
     }
-    setStats(statsRes);
     setIsLoading(false);
   };
 
@@ -330,30 +363,70 @@ export default function ProjectDetailPage() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleComponentToggle = (comp) => {
-    if (CORE_COMPONENTS.includes(comp)) return;
+  // Component toggle
+  const toggleComponent = (compId) => {
+    const comp = ALL_COMPONENTS.find(c => c.id === compId);
+    if (comp?.core) return;
+    
     const current = formData.active_components || [];
-    const updated = current.includes(comp)
-      ? current.filter(c => c !== comp)
-      : [...current, comp];
+    const updated = current.includes(compId)
+      ? current.filter(id => id !== compId)
+      : [...current, compId];
     handleChange('active_components', updated);
+  };
+
+  // Drag and Drop
+  const handleDragStart = (e, compId) => {
+    setDraggedItem(compId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, compId) => {
+    e.preventDefault();
+    if (draggedItem === compId) return;
+    
+    const newOrder = [...(formData.component_order || DEFAULT_COMPONENT_ORDER)];
+    const draggedIndex = newOrder.indexOf(draggedItem);
+    const targetIndex = newOrder.indexOf(compId);
+    
+    newOrder.splice(draggedIndex, 1);
+    newOrder.splice(targetIndex, 0, draggedItem);
+    
+    handleChange('component_order', newOrder);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
   };
 
   const handleSave = async () => {
     setIsSaving(true);
     const { error } = await updateProject(id, {
-      couple_names: formData.couple_names,
-      slug: formData.slug,
+      // CRM
+      client_name: formData.client_name || null,
+      client_email: formData.client_email || null,
+      client_phone: formData.client_phone || null,
+      client_address: formData.client_address || null,
+      client_notes: formData.client_notes || null,
+      // Website Pflicht
+      partner1_name: formData.partner1_name,
+      partner2_name: formData.partner2_name,
+      couple_names: `${formData.partner1_name} & ${formData.partner2_name}`,
       wedding_date: formData.wedding_date,
-      status: formData.status,
-      custom_domain: formData.custom_domain || null,
+      slug: formData.slug,
+      // Website Optional
+      location: formData.location || null,
+      hashtag: formData.hashtag || null,
+      display_email: formData.display_email || null,
+      display_phone: formData.display_phone || null,
+      // System
       theme: formData.theme,
-      package_type: formData.package_type,
-      active_components: formData.active_components,
+      status: formData.status,
       admin_password: formData.admin_password,
-      addons: formData.addons,
-      extra_hosting_months: formData.extra_hosting_months,
-      total_price: formData.total_price,
+      custom_domain: formData.custom_domain || null,
+      // Komponenten
+      active_components: formData.active_components,
+      component_order: formData.component_order,
     });
     
     if (error) {
@@ -369,7 +442,6 @@ export default function ProjectDetailPage() {
     if (!window.confirm('Projekt wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
       return;
     }
-    
     const { error } = await deleteProject(id);
     if (error) {
       toast.error('Fehler beim Löschen');
@@ -384,53 +456,32 @@ export default function ProjectDetailPage() {
     toast.success('Kopiert!');
   };
 
-  // Hosting calculation
-  const getHostingInfo = () => {
-    if (!formData.wedding_date) return { endDate: null, daysLeft: null, percent: 0 };
-    
-    const weddingDate = new Date(formData.wedding_date);
-    const pkg = PACKAGES[formData.package_type];
-    const baseMonths = pkg?.hostingMonths || 1;
-    const extraMonths = formData.extra_hosting_months || 0;
-    
-    const endDate = new Date(weddingDate);
-    endDate.setMonth(endDate.getMonth() + baseMonths + extraMonths);
-    
-    const now = new Date();
-    const totalDays = Math.ceil((endDate - weddingDate) / (1000 * 60 * 60 * 24));
-    const daysLeft = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
-    const percent = Math.max(0, Math.min(100, (daysLeft / totalDays) * 100));
-    
-    return { 
-      endDate: endDate.toLocaleDateString('de-DE'), 
-      daysLeft: daysLeft > 0 ? daysLeft : 0,
-      percent,
-      expired: daysLeft <= 0
-    };
-  };
-
   if (isLoading) {
-    return <Layout stats={stats}><div style={{ color: '#666', padding: '2rem' }}>Laden...</div></Layout>;
+    return <Layout><div style={{ color: '#666', padding: '2rem' }}>Laden...</div></Layout>;
   }
 
   if (!project) {
-    return <Layout stats={stats}><div style={{ padding: '2rem' }}>Projekt nicht gefunden</div></Layout>;
+    return <Layout><div style={{ padding: '2rem' }}>Projekt nicht gefunden</div></Layout>;
   }
 
-  const baseUrl = formData.custom_domain || `siwedding.de/${formData.slug}`;
-  const pkg = PACKAGES[formData.package_type];
   const status = PROJECT_STATUS[formData.status];
-  const hosting = getHostingInfo();
-  const componentCount = formData.active_components?.length || 0;
+  const baseUrl = formData.custom_domain || `siwedding.de/${formData.slug}`;
+  const coupleNames = formData.partner1_name && formData.partner2_name 
+    ? `${formData.partner1_name} & ${formData.partner2_name}`
+    : formData.couple_names || 'Unbenannt';
+  
+  const activeCount = formData.active_components?.length || 0;
+  const coreCount = ALL_COMPONENTS.filter(c => c.core).length;
+  const componentOrder = formData.component_order || DEFAULT_COMPONENT_ORDER;
 
   return (
-    <Layout stats={stats}>
+    <Layout>
       <BackLink to="/projects">← Zurück zu Projekte</BackLink>
       
       <Header>
         <div>
           <TitleRow>
-            <Title>{formData.couple_names || 'Unbenannt'}</Title>
+            <Title>{coupleNames}</Title>
             <StatusBadge $color={status?.color}>{status?.label || formData.status}</StatusBadge>
           </TitleRow>
         </div>
@@ -444,25 +495,75 @@ export default function ProjectDetailPage() {
       
       <Grid>
         <MainColumn>
-          {/* Basic Info */}
+          {/* CRM */}
           <Section>
             <SectionHeader>
-              <h2>Grunddaten</h2>
+              <span className="icon">👤</span>
+              <h2>Kundendaten</h2>
+              <span className="badge">Intern / CRM</span>
+            </SectionHeader>
+            <SectionBody>
+              <FormGrid>
+                <FormGroup className="full-width">
+                  <Label>Kundenname</Label>
+                  <Input
+                    value={formData.client_name || ''}
+                    onChange={(e) => handleChange('client_name', e.target.value)}
+                  />
+                </FormGroup>
+                <FormGroup>
+                  <Label>E-Mail (privat)</Label>
+                  <Input
+                    type="email"
+                    value={formData.client_email || ''}
+                    onChange={(e) => handleChange('client_email', e.target.value)}
+                  />
+                </FormGroup>
+                <FormGroup>
+                  <Label>Telefon (privat)</Label>
+                  <Input
+                    value={formData.client_phone || ''}
+                    onChange={(e) => handleChange('client_phone', e.target.value)}
+                  />
+                </FormGroup>
+                <FormGroup className="full-width">
+                  <Label>Adresse</Label>
+                  <Input
+                    value={formData.client_address || ''}
+                    onChange={(e) => handleChange('client_address', e.target.value)}
+                  />
+                </FormGroup>
+                <FormGroup className="full-width">
+                  <Label>Notizen</Label>
+                  <TextArea
+                    value={formData.client_notes || ''}
+                    onChange={(e) => handleChange('client_notes', e.target.value)}
+                  />
+                </FormGroup>
+              </FormGrid>
+            </SectionBody>
+          </Section>
+          
+          {/* Website Pflicht */}
+          <Section>
+            <SectionHeader>
+              <span className="icon">💒</span>
+              <h2>Hochzeits-Website</h2>
             </SectionHeader>
             <SectionBody>
               <FormGrid>
                 <FormGroup>
-                  <Label>Paarname</Label>
+                  <Label>Partner 1</Label>
                   <Input
-                    value={formData.couple_names || ''}
-                    onChange={(e) => handleChange('couple_names', e.target.value)}
+                    value={formData.partner1_name || ''}
+                    onChange={(e) => handleChange('partner1_name', e.target.value)}
                   />
                 </FormGroup>
                 <FormGroup>
-                  <Label>Slug (URL)</Label>
+                  <Label>Partner 2</Label>
                   <Input
-                    value={formData.slug || ''}
-                    onChange={(e) => handleChange('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                    value={formData.partner2_name || ''}
+                    onChange={(e) => handleChange('partner2_name', e.target.value)}
                   />
                 </FormGroup>
                 <FormGroup>
@@ -474,9 +575,59 @@ export default function ProjectDetailPage() {
                   />
                 </FormGroup>
                 <FormGroup>
+                  <Label>URL-Slug</Label>
+                  <Input
+                    value={formData.slug || ''}
+                    onChange={(e) => handleChange('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  />
+                </FormGroup>
+                <FormGroup>
+                  <Label>Location</Label>
+                  <Input
+                    value={formData.location || ''}
+                    onChange={(e) => handleChange('location', e.target.value)}
+                    placeholder="Hamburg"
+                  />
+                </FormGroup>
+                <FormGroup>
+                  <Label>Hashtag</Label>
+                  <Input
+                    value={formData.hashtag || ''}
+                    onChange={(e) => handleChange('hashtag', e.target.value)}
+                    placeholder="#AnnaUndMax"
+                  />
+                </FormGroup>
+                <FormGroup>
+                  <Label>Kontakt-E-Mail (Website)</Label>
+                  <Input
+                    value={formData.display_email || ''}
+                    onChange={(e) => handleChange('display_email', e.target.value)}
+                    placeholder="hochzeit@..."
+                  />
+                </FormGroup>
+                <FormGroup>
+                  <Label>Kontakt-Telefon (Website)</Label>
+                  <Input
+                    value={formData.display_phone || ''}
+                    onChange={(e) => handleChange('display_phone', e.target.value)}
+                  />
+                </FormGroup>
+              </FormGrid>
+            </SectionBody>
+          </Section>
+          
+          {/* System */}
+          <Section>
+            <SectionHeader>
+              <span className="icon">⚙️</span>
+              <h2>Einstellungen</h2>
+            </SectionHeader>
+            <SectionBody>
+              <FormGrid>
+                <FormGroup>
                   <Label>Theme</Label>
                   <Select
-                    value={formData.theme || 'editorial'}
+                    value={formData.theme || 'botanical'}
                     onChange={(e) => handleChange('theme', e.target.value)}
                   >
                     {Object.values(THEMES).map(t => (
@@ -502,12 +653,12 @@ export default function ProjectDetailPage() {
                     onChange={(e) => handleChange('admin_password', e.target.value)}
                   />
                 </FormGroup>
-                <FormGroup className="full-width">
+                <FormGroup>
                   <Label>Custom Domain</Label>
                   <Input
                     value={formData.custom_domain || ''}
                     onChange={(e) => handleChange('custom_domain', e.target.value.toLowerCase())}
-                    placeholder="z.B. sarah-iver.de"
+                    placeholder="anna-max.de"
                   />
                 </FormGroup>
               </FormGrid>
@@ -517,10 +668,11 @@ export default function ProjectDetailPage() {
           {/* Links */}
           <Section>
             <SectionHeader>
+              <span className="icon">🔗</span>
               <h2>Links</h2>
             </SectionHeader>
             <SectionBody>
-              <FormGroup>
+              <FormGroup style={{ marginBottom: '1rem' }}>
                 <Label>Hochzeitsseite</Label>
                 <LinkBox>
                   <a href={`https://${baseUrl}`} target="_blank" rel="noopener noreferrer">{baseUrl}</a>
@@ -537,122 +689,101 @@ export default function ProjectDetailPage() {
             </SectionBody>
           </Section>
           
-          {/* Components */}
+          {/* Komponenten */}
           <Section>
             <SectionHeader>
-              <h2>Komponenten ({componentCount} aktiv)</h2>
+              <span className="icon">📑</span>
+              <h2>Komponenten</h2>
             </SectionHeader>
             <SectionBody>
-              <ComponentsGrid>
-                {[...CORE_COMPONENTS, ...OPTIONAL_COMPONENTS.map(c => c.id)].map(comp => {
-                  const isCore = CORE_COMPONENTS.includes(comp);
-                  const isActive = formData.active_components?.includes(comp);
-                  const label = OPTIONAL_COMPONENTS.find(c => c.id === comp)?.name || comp;
+              <ComponentInfo>
+                <span><strong>{activeCount}</strong> aktiv ({coreCount} Basis + {activeCount - coreCount} optional)</span>
+                <span>☰ Ziehen zum Sortieren</span>
+              </ComponentInfo>
+              
+              <ComponentList>
+                {componentOrder.map((compId) => {
+                  const comp = ALL_COMPONENTS.find(c => c.id === compId);
+                  if (!comp) return null;
+                  
+                  const isActive = formData.active_components?.includes(compId);
+                  const isDragging = draggedItem === compId;
                   
                   return (
-                    <ComponentToggle 
-                      key={comp} 
-                      $active={isActive || isCore}
-                      onClick={() => !isCore && handleComponentToggle(comp)}
-                      style={isCore ? { opacity: 0.6, cursor: 'default' } : {}}
+                    <ComponentItem
+                      key={compId}
+                      $active={isActive}
+                      $core={comp.core}
+                      $dragging={isDragging}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, compId)}
+                      onDragOver={(e) => handleDragOver(e, compId)}
+                      onDragEnd={handleDragEnd}
+                      onClick={() => toggleComponent(compId)}
                     >
-                      <input type="checkbox" checked={isActive || isCore} onChange={() => {}} />
-                      {label}
-                    </ComponentToggle>
+                      <span className="drag-handle">☰</span>
+                      <span className="checkbox">{isActive && '✓'}</span>
+                      <span className="name">{comp.name}</span>
+                      {comp.core && <span className="badge">Basis</span>}
+                    </ComponentItem>
                   );
                 })}
-              </ComponentsGrid>
+              </ComponentList>
             </SectionBody>
           </Section>
         </MainColumn>
         
         {/* Sidebar */}
         <Sidebar>
-          {/* Package Info */}
           <InfoCard>
-            <InfoHeader>Paket & Preis</InfoHeader>
+            <InfoHeader>Projekt-Info</InfoHeader>
             <InfoBody>
               <InfoRow>
-                <span className="label">Paket</span>
-                <span className="value">{pkg?.name || '–'}</span>
+                <span className="label">Erstellt</span>
+                <span className="value">
+                  {project.created_at ? new Date(project.created_at).toLocaleDateString('de-DE') : '–'}
+                </span>
               </InfoRow>
-              <InfoRow $mono>
-                <span className="label">Paketpreis</span>
-                <span className="value">{pkg?.price?.toLocaleString('de-DE')} €</span>
+              <InfoRow>
+                <span className="label">Theme</span>
+                <span className="value">{THEMES[formData.theme]?.name || formData.theme}</span>
               </InfoRow>
-              {formData.addons?.length > 0 && formData.addons.map(addonId => (
-                <InfoRow key={addonId} $mono>
-                  <span className="label">{ADDONS[addonId]?.name}</span>
-                  <span className="value">+{ADDONS[addonId]?.price} €</span>
-                </InfoRow>
-              ))}
-              {formData.extra_hosting_months > 0 && (
-                <InfoRow $mono>
-                  <span className="label">+{formData.extra_hosting_months} Mon. Hosting</span>
-                  <span className="value">+{formData.extra_hosting_months * 25} €</span>
-                </InfoRow>
-              )}
-              <PriceTotal>
-                <span>Gesamt</span>
-                <span className="value">{formData.total_price?.toLocaleString('de-DE') || '–'} €</span>
-              </PriceTotal>
+              <InfoRow>
+                <span className="label">Hochzeit</span>
+                <span className="value">
+                  {formData.wedding_date 
+                    ? new Date(formData.wedding_date).toLocaleDateString('de-DE') 
+                    : '–'}
+                </span>
+              </InfoRow>
+              <InfoRow>
+                <span className="label">Komponenten</span>
+                <span className="value">{activeCount} aktiv</span>
+              </InfoRow>
             </InfoBody>
           </InfoCard>
           
-          {/* Hosting Info */}
-          <InfoCard>
-            <InfoHeader>Hosting</InfoHeader>
-            <InfoBody>
-              <InfoRow>
-                <span className="label">Basis</span>
-                <span className="value">{pkg?.hostingMonths || 1} Monate</span>
-              </InfoRow>
-              {formData.extra_hosting_months > 0 && (
+          {formData.client_email && (
+            <InfoCard>
+              <InfoHeader>Schnellkontakt</InfoHeader>
+              <InfoBody>
                 <InfoRow>
-                  <span className="label">Extra</span>
-                  <span className="value">+{formData.extra_hosting_months} Monate</span>
+                  <span className="label">E-Mail</span>
+                  <span className="value">
+                    <a href={`mailto:${formData.client_email}`}>{formData.client_email}</a>
+                  </span>
                 </InfoRow>
-              )}
-              <InfoRow>
-                <span className="label">Enddatum</span>
-                <span className="value">{hosting.endDate || '–'}</span>
-              </InfoRow>
-              
-              {hosting.endDate && (
-                <HostingBar $percent={hosting.percent} $expired={hosting.expired}>
-                  <div className="bar-label">
-                    <span>{hosting.expired ? 'Abgelaufen' : `${hosting.daysLeft} Tage übrig`}</span>
-                  </div>
-                  <div className="bar">
-                    <div className="fill" />
-                  </div>
-                </HostingBar>
-              )}
-            </InfoBody>
-          </InfoCard>
-          
-          {/* Features */}
-          <InfoCard>
-            <InfoHeader>Features</InfoHeader>
-            <InfoBody>
-              <InfoRow>
-                <span className="label">Save the Date</span>
-                <span className="value">{formData.includes_std || pkg?.includesSTD ? '✓' : '–'}</span>
-              </InfoRow>
-              <InfoRow>
-                <span className="label">Archiv-Seite</span>
-                <span className="value">{formData.includes_archive || pkg?.includesArchive ? '✓' : '–'}</span>
-              </InfoRow>
-              <InfoRow>
-                <span className="label">Max. Komponenten</span>
-                <span className="value">{pkg?.maxOptionalComponents === 999 ? '∞' : pkg?.maxOptionalComponents}</span>
-              </InfoRow>
-              <InfoRow>
-                <span className="label">Feedback-Runden</span>
-                <span className="value">{pkg?.feedbackRounds === 999 ? '∞' : pkg?.feedbackRounds}</span>
-              </InfoRow>
-            </InfoBody>
-          </InfoCard>
+                {formData.client_phone && (
+                  <InfoRow>
+                    <span className="label">Telefon</span>
+                    <span className="value">
+                      <a href={`tel:${formData.client_phone}`}>{formData.client_phone}</a>
+                    </span>
+                  </InfoRow>
+                )}
+              </InfoBody>
+            </InfoCard>
+          )}
         </Sidebar>
       </Grid>
     </Layout>
