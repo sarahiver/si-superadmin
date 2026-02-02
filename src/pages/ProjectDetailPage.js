@@ -10,6 +10,8 @@ import { jsPDF } from 'jspdf';
 import Layout from '../components/Layout';
 import { getProjectById, updateProject, deleteProject } from '../lib/supabase';
 import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS, PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from '../lib/constants';
+import EmailSection from '../components/EmailSection';
+
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
@@ -481,6 +483,11 @@ export default function ProjectDetailPage() {
               })}
             </ComponentListContainer>
           </CollapsibleSection>
+
+              <CollapsibleSection number="06" title="E-Mails" badge={`${emailCount} gesendet`}>
+  <EmailSection project={formData} />
+</CollapsibleSection>
+
         </MainColumn>
 
         <Sidebar>
