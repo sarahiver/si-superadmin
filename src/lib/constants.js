@@ -22,6 +22,7 @@ export const PROJECT_STATUS = {
   draft: { id: 'draft', label: 'Entwurf', color: '#666666' },
   inquiry: { id: 'inquiry', label: 'Anfrage', color: '#F59E0B' },
   in_progress: { id: 'in_progress', label: 'In Bearbeitung', color: '#3B82F6' },
+  ready_for_review: { id: 'ready_for_review', label: 'Bereit zur Prüfung', color: '#F97316' }, // Orange - Kunde hat Daten eingegeben
   std: { id: 'std', label: 'Save the Date', color: '#8B5CF6' },
   live: { id: 'live', label: 'Live', color: '#10B981' },
   archive: { id: 'archive', label: 'Archiv', color: '#6B7280' },

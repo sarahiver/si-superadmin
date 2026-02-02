@@ -692,4 +692,131 @@ export async function sendPasswordResetEmail(project, newPassword) {
   });
 }
 
-export default { sendEmail, sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail };
+// ============================================
+// ADMIN-BENACHRICHTIGUNG: KUNDE HAT DATEN EINGEGEBEN
+// ============================================
+export async function sendDataReadyNotification(project) {
+  const adminEmail = 'wedding@sarahiver.de';
+  const timestamp = new Date().toLocaleString('de-DE', {
+    dateStyle: 'long',
+    timeStyle: 'short',
+  });
+  
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    </head>
+    <body style="font-family: 'Roboto', Arial, sans-serif; margin: 0; padding: 0; background: #F5F5F5;">
+      <div style="max-width: 600px; margin: 0 auto; background: #FFFFFF;">
+        <div style="background: #0A0A0A; padding: 30px; text-align: center;">
+          <h1 style="font-family: 'Oswald', sans-serif; font-size: 24px; color: #FFFFFF; margin: 0;">
+            S&I. <span style="color: #F97316;">Admin</span>
+          </h1>
+        </div>
+        <div style="padding: 40px 30px; color: #333333; line-height: 1.7;">
+          <div style="background: #FFF7ED; border-left: 4px solid #F97316; padding: 20px; margin-bottom: 25px;">
+            <h2 style="font-size: 20px; color: #C2410C; margin: 0 0 10px 0;">
+              🔔 Neue Daten bereit zur Prüfung
+            </h2>
+            <p style="margin: 0; color: #9A3412;">
+              Ein Kunde hat seine Daten eingegeben und wartet auf Finalisierung.
+            </p>
+          </div>
+          
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
+            <tr>
+              <td style="padding: 10px 0; border-bottom: 1px solid #E5E5E5; font-weight: 700; width: 140px;">Projekt:</td>
+              <td style="padding: 10px 0; border-bottom: 1px solid #E5E5E5;">${project.couple_names || project.slug}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; border-bottom: 1px solid #E5E5E5; font-weight: 700;">Kunde:</td>
+              <td style="padding: 10px 0; border-bottom: 1px solid #E5E5E5;">${project.client_name || '–'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; border-bottom: 1px solid #E5E5E5; font-weight: 700;">E-Mail:</td>
+              <td style="padding: 10px 0; border-bottom: 1px solid #E5E5E5;">${project.client_email || '–'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; border-bottom: 1px solid #E5E5E5; font-weight: 700;">Hochzeitsdatum:</td>
+              <td style="padding: 10px 0; border-bottom: 1px solid #E5E5E5;">${project.wedding_date ? new Date(project.wedding_date).toLocaleDateString('de-DE') : '–'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; font-weight: 700;">Zeitstempel:</td>
+              <td style="padding: 10px 0;">${timestamp}</td>
+            </tr>
+          </table>
+          
+          <a href="https://superadmin.siwedding.de/projects/${project.id}" 
+             style="display: block; background: #F97316; color: #FFFFFF; padding: 15px 30px; 
+                    text-align: center; text-decoration: none; font-weight: 700; margin: 20px 0;">
+            Zum Projekt im SuperAdmin →
+          </a>
+          
+          <p style="font-size: 0.85rem; color: #666666; margin-top: 30px;">
+            Der Status wurde automatisch auf "Bereit zur Prüfung" gesetzt.
+          </p>
+        </div>
+        <div style="background: #0A0A0A; padding: 20px; text-align: center;">
+          <p style="font-size: 0.75rem; color: rgba(255,255,255,0.5); margin: 0;">
+            S&I. SuperAdmin Notification
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  try {
+    const response = await fetch(BREVO_API_URL, {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': BREVO_API_KEY,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: 'S&I. System', email: 'wedding@sarahiver.de' },
+        to: [{ email: adminEmail, name: 'Iver' }],
+        subject: `🔔 Daten bereit: ${project.couple_names || project.slug}`,
+        htmlContent: htmlContent,
+      }),
+    });
+
+    const result = await response.json();
+
+    // Log speichern
+    await supabase.from('email_logs').insert([{
+      project_id: project.id,
+      recipient_email: adminEmail,
+      recipient_name: 'Admin',
+      subject: `Daten bereit: ${project.couple_names || project.slug}`,
+      template_type: 'admin_data_ready',
+      theme: project.theme,
+      html_content: htmlContent,
+      variables: { project_id: project.id, couple_names: project.couple_names, timestamp },
+      status: response.ok ? 'sent' : 'failed',
+      error_message: response.ok ? null : JSON.stringify(result),
+      brevo_message_id: result.messageId || null,
+      sent_at: response.ok ? new Date().toISOString() : null,
+    }]);
+
+    return { success: response.ok, messageId: result.messageId, error: result.message };
+  } catch (error) {
+    console.error('Admin notification error:', error);
+    
+    await supabase.from('email_logs').insert([{
+      project_id: project.id,
+      recipient_email: adminEmail,
+      subject: `Daten bereit: ${project.couple_names || project.slug}`,
+      template_type: 'admin_data_ready',
+      status: 'failed',
+      error_message: error.message,
+    }]);
+
+    return { success: false, error: error.message };
+  }
+}
+
+export default { sendEmail, sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail, sendDataReadyNotification };
