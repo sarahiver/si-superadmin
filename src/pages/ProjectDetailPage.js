@@ -15,6 +15,9 @@ import EmailSection from '../components/EmailSection';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
+const [emailLogs, setEmailLogs] = useState([]);
+const emailCount = emailLogs.length;
+
 // Styled Components (kompakt)
 const Header = styled.div`display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 3px solid ${colors.black}; flex-wrap: wrap; gap: 1rem;`;
 const HeaderLeft = styled.div``;
@@ -57,6 +60,7 @@ const InfoCard = styled.div`border: 2px solid ${colors.black}; margin-bottom: 1.
 const InfoHeader = styled.div`padding: 0.75rem 1rem; background: ${colors.black}; color: white; font-family: 'Oswald', sans-serif; font-size: 0.8rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase;`;
 const InfoBody = styled.div`padding: 1rem;`;
 const InfoRow = styled.div`display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.75rem; &:last-child { margin-bottom: 0; } .label { color: ${colors.gray}; } .value { font-weight: 500; text-align: right; } a { color: ${colors.red}; text-decoration: none; &:hover { text-decoration: underline; } }`;
+
 
 function CollapsibleSection({ number, title, badge, defaultOpen = false, children }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
