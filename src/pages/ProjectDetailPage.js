@@ -60,7 +60,15 @@ const InfoRow = styled.div`display: flex; justify-content: space-between; font-s
 // Email Section Styles
 const EmailActions = styled.div`display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 2rem; @media (max-width: 600px) { grid-template-columns: 1fr; }`;
 const EmailActionCard = styled.button`display: flex; flex-direction: column; align-items: flex-start; padding: 1.25rem; background: ${colors.white}; border: 2px solid ${colors.lightGray}; cursor: pointer; text-align: left; transition: all 0.2s ease; &:hover { border-color: ${colors.black}; } &:disabled { opacity: 0.5; cursor: not-allowed; } .icon { font-size: 1.5rem; margin-bottom: 0.5rem; } .title { font-family: 'Oswald', sans-serif; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; } .desc { font-family: 'Inter', sans-serif; font-size: 0.75rem; color: ${colors.gray}; margin-top: 0.25rem; }`;
-const EmailLog = styled.div`background: ${colors.white}; border: 1px solid ${colors.lightGray}; margin-bottom: 0.5rem; display: flex; align-items: center; padding: 0.75rem 1rem; gap: 1rem; .status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; } .status.sent { background: ${colors.green}; } .status.failed { background: ${colors.red}; } .status.pending { background: ${colors.orange}; } .date { font-size: 0.75rem; color: ${colors.gray}; min-width: 70px; } .subject { font-size: 0.85rem; flex: 1; } .type { font-size: 0.65rem; text-transform: uppercase; padding: 0.2rem 0.5rem; background: ${colors.background}; color: ${colors.gray}; }`;
+const EmailLogItem = styled.div`background: ${colors.white}; border: 1px solid ${colors.lightGray}; margin-bottom: 0.5rem; overflow: hidden;`;
+const EmailLogHeader = styled.div`display: flex; align-items: center; padding: 0.875rem 1rem; gap: 0.75rem; cursor: pointer; transition: background 0.2s ease; &:hover { background: ${colors.background}; }`;
+const EmailLogStatus = styled.span`width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: ${p => p.$status === 'sent' ? colors.green : p.$status === 'failed' ? colors.red : colors.orange};`;
+const EmailLogType = styled.span`font-family: 'Oswald', sans-serif; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; flex: 1;`;
+const EmailLogDate = styled.span`font-family: 'Inter', sans-serif; font-size: 0.75rem; color: ${colors.gray};`;
+const EmailLogExpand = styled.span`font-size: 0.75rem; color: ${colors.gray}; transition: transform 0.2s ease; transform: ${p => p.$open ? 'rotate(180deg)' : 'rotate(0)'};`;
+const EmailLogDetails = styled.div`padding: ${p => p.$open ? '1rem' : '0 1rem'}; max-height: ${p => p.$open ? '200px' : '0'}; overflow: hidden; transition: all 0.2s ease; background: ${colors.background}; border-top: ${p => p.$open ? `1px solid ${colors.lightGray}` : 'none'};`;
+const EmailLogRow = styled.div`display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; margin-bottom: 0.5rem; &:last-child { margin-bottom: 0; } .label { color: ${colors.gray}; } .value { font-weight: 500; display: flex; align-items: center; gap: 0.5rem; }`;
+const EmailStatusBadge = styled.span`font-size: 0.65rem; font-weight: 600; text-transform: uppercase; padding: 0.2rem 0.5rem; background: ${p => p.$success ? `${colors.green}20` : `${colors.red}20`}; color: ${p => p.$success ? colors.green : colors.red};`;
 const EmptyState = styled.div`text-align: center; padding: 2rem; color: ${colors.gray}; font-size: 0.9rem;`;
 const ManualEmailBox = styled.div`background: ${colors.background}; padding: 1.25rem; margin-top: 1.5rem;`;
 
@@ -277,6 +285,7 @@ export default function ProjectDetailPage() {
   const [draggedItem, setDraggedItem] = useState(null);
   const [emailLogs, setEmailLogs] = useState([]);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [expandedEmailId, setExpandedEmailId] = useState(null);
 
   useEffect(() => {
     loadProject();
@@ -698,14 +707,64 @@ export default function ProjectDetailPage() {
             {emailLogs.length === 0 ? (
               <EmptyState>Noch keine E-Mails gesendet</EmptyState>
             ) : (
-              emailLogs.slice(0, 10).map(log => (
-                <EmailLog key={log.id}>
-                  <span className={`status ${log.status}`}></span>
-                  <span className="date">{new Date(log.sent_at || log.created_at).toLocaleDateString('de-DE')}</span>
-                  <span className="subject">{log.subject}</span>
-                  <span className="type">{log.template_type}</span>
-                </EmailLog>
-              ))
+              emailLogs.map(log => {
+                const isOpen = expandedEmailId === log.id;
+                const templateLabels = {
+                  welcome: 'Willkommen',
+                  credentials: 'Zugangsdaten',
+                  golive: 'Go-Live',
+                  reminder: 'Erinnerung',
+                  password_reset: 'Passwort Reset',
+                };
+                const sentDate = new Date(log.sent_at || log.created_at);
+                const formattedDate = sentDate.toLocaleDateString('de-DE');
+                const formattedTime = sentDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                
+                return (
+                  <EmailLogItem key={log.id}>
+                    <EmailLogHeader onClick={() => setExpandedEmailId(isOpen ? null : log.id)}>
+                      <EmailLogStatus $status={log.status} />
+                      <EmailLogType>{templateLabels[log.template_type] || log.template_type}</EmailLogType>
+                      <EmailLogDate>{formattedDate}</EmailLogDate>
+                      <EmailLogExpand $open={isOpen}>▼</EmailLogExpand>
+                    </EmailLogHeader>
+                    <EmailLogDetails $open={isOpen}>
+                      <EmailLogRow>
+                        <span className="label">Empfänger</span>
+                        <span className="value">{log.recipient_email}</span>
+                      </EmailLogRow>
+                      <EmailLogRow>
+                        <span className="label">Betreff</span>
+                        <span className="value" style={{ fontSize: '0.75rem' }}>{log.subject}</span>
+                      </EmailLogRow>
+                      <EmailLogRow>
+                        <span className="label">Gesendet</span>
+                        <span className="value">{formattedDate}, {formattedTime} Uhr</span>
+                      </EmailLogRow>
+                      <EmailLogRow>
+                        <span className="label">Status</span>
+                        <span className="value">
+                          <EmailStatusBadge $success={log.status === 'sent'}>
+                            {log.status === 'sent' ? '✓ Erfolgreich' : log.status === 'failed' ? '✗ Fehlgeschlagen' : '⏳ Ausstehend'}
+                          </EmailStatusBadge>
+                        </span>
+                      </EmailLogRow>
+                      {log.opened_at && (
+                        <EmailLogRow>
+                          <span className="label">Geöffnet</span>
+                          <span className="value">{new Date(log.opened_at).toLocaleDateString('de-DE')}, {new Date(log.opened_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr</span>
+                        </EmailLogRow>
+                      )}
+                      {log.error_message && (
+                        <EmailLogRow>
+                          <span className="label">Fehler</span>
+                          <span className="value" style={{ color: colors.red, fontSize: '0.7rem' }}>{log.error_message}</span>
+                        </EmailLogRow>
+                      )}
+                    </EmailLogDetails>
+                  </EmailLogItem>
+                );
+              })
             )}
 
             {!formData.client_email && (
