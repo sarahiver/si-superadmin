@@ -8,7 +8,7 @@ const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', gray: '#666
 
 const Container = styled.div`min-height: 100vh; background: ${colors.background};`;
 const Nav = styled.nav`background: ${colors.black}; padding: 0 2rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100;`;
-const Logo = styled(Link)`font-family: 'Oswald', sans-serif; font-size: 1.5rem; font-weight: 700; color: ${colors.white}; text-decoration: none; text-transform: uppercase; letter-spacing: 0.05em; padding: 1rem 0; span { color: ${colors.red}; }`;
+const Logo = styled(Link)`font-family: 'Oswald', sans-serif; font-size: 1.5rem; font-weight: 700; color: ${colors.white}; text-decoration: none; letter-spacing: 0.05em; padding: 1rem 0; span { color: ${colors.red}; font-style: italic; }`;
 const NavLinks = styled.div`display: flex; gap: 0;`;
 const NavLink = styled(Link)`font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: ${p => p.$active ? colors.white : colors.gray}; text-decoration: none; padding: 1.25rem 1.5rem; position: relative; transition: color 0.2s ease; &:hover { color: ${colors.white}; } &::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: ${p => p.$active ? colors.red : 'transparent'}; } &:hover::after { background: ${p => p.$active ? colors.red : colors.gray}; }`;
 const NavRight = styled.div`display: flex; align-items: center; gap: 1.5rem;`;
@@ -29,7 +29,7 @@ export default function Layout({ children }) {
   return (
     <Container>
       <Nav>
-        <Logo to="/">Iver<span>Lasting</span></Logo>
+        <Logo to="/">S<span>&</span>I. wedding</Logo>
         <DesktopNav>
           <NavLinks>{navItems.map(item => (<NavLink key={item.path} to={item.path} $active={location.pathname === item.path}>{item.label}</NavLink>))}</NavLinks>
           <NavRight><LogoutButton onClick={handleLogout}>Logout</LogoutButton></NavRight>
