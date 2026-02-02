@@ -8,7 +8,7 @@ import { jsPDF } from 'jspdf';
 import Layout from '../components/Layout';
 import { getProjectById, updateProject, deleteProject, supabase } from '../lib/supabase';
 import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS, PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from '../lib/constants';
-import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail, refreshEmailStatus, refreshAllEmailStatus } from '../lib/emailService';
+import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail } from '../lib/emailService';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
