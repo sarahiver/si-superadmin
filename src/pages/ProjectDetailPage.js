@@ -23,7 +23,7 @@ const Title = styled.h1`font-family: 'Oswald', sans-serif; font-size: clamp(2rem
 const StatusBadge = styled.span`font-family: 'Inter', sans-serif; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.35rem 0.75rem; background: ${p => p.$color ? `${p.$color}20` : colors.background}; color: ${p => p.$color || colors.gray}; border: 1px solid ${p => p.$color || colors.lightGray};`;
 const Actions = styled.div`display: flex; gap: 0.75rem; flex-wrap: wrap;`;
 const Button = styled.button`padding: 0.75rem 1.5rem; font-family: 'Oswald', sans-serif; font-size: 0.8rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s ease; ${p => p.$danger && `background: transparent; color: ${colors.red}; border: 2px solid ${colors.red}; &:hover { background: ${colors.red}; color: ${colors.white}; }`} ${p => p.$primary && `background: ${colors.red}; color: ${colors.white}; border: 2px solid ${colors.red}; &:hover:not(:disabled) { background: ${colors.black}; border-color: ${colors.black}; }`} ${p => p.$secondary && `background: ${colors.black}; color: ${colors.white}; border: 2px solid ${colors.black}; &:hover { background: ${colors.gray}; }`} ${p => !p.$danger && !p.$primary && !p.$secondary && `background: transparent; color: ${colors.black}; border: 2px solid ${colors.black}; &:hover { background: ${colors.black}; color: ${colors.white}; }`} &:disabled { opacity: 0.5; cursor: not-allowed; }`;
-const Grid = styled.div`display: grid; grid-template-columns: 1fr 300px; gap: 2rem; align-items: start; @media (max-width: 1024px) { grid-template-columns: 1fr; }`;
+const Grid = styled.div`display: grid; grid-template-columns: 1fr 300px; gap: 2rem; align-items: start; padding-bottom: 100px; @media (max-width: 1024px) { grid-template-columns: 1fr; }`;
 const MainColumn = styled.div``;
 const Sidebar = styled.div``;
 const Section = styled.section`margin-bottom: 1rem; border: 2px solid ${colors.black};`;
@@ -71,6 +71,30 @@ const EmailLogRow = styled.div`display: flex; justify-content: space-between; al
 const EmailStatusBadge = styled.span`font-size: 0.65rem; font-weight: 600; text-transform: uppercase; padding: 0.2rem 0.5rem; background: ${p => p.$success ? `${colors.green}20` : p.$warning ? `${colors.orange}20` : `${colors.red}20`}; color: ${p => p.$success ? colors.green : p.$warning ? colors.orange : colors.red};`;
 const EmptyState = styled.div`text-align: center; padding: 2rem; color: ${colors.gray}; font-size: 0.9rem;`;
 const ManualEmailBox = styled.div`background: ${colors.background}; padding: 1.25rem; margin-top: 1.5rem;`;
+
+// Sticky Save Bar - immer sichtbar am unteren Bildschirmrand
+const StickyBottomBar = styled.div`
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: ${colors.white};
+  border-top: 3px solid ${colors.black};
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
+  z-index: 100;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+  
+  .status-text {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    color: ${colors.gray};
+    margin-right: auto;
+  }
+`;
 
 // ============================================
 // COLLAPSIBLE SECTION COMPONENT
@@ -396,7 +420,11 @@ export default function ProjectDetailPage() {
       component_order: formData.component_order,
     });
     if (error) { toast.error('Fehler beim Speichern'); console.error(error); }
-    else { toast.success('Gespeichert!'); setProject({ ...formData, total_price: pricing.total }); }
+    else { 
+      toast.success('Gespeichert!'); 
+      // Update project ohne State-Reset der Scroll-Position
+      setProject(prev => ({ ...prev, ...formData, total_price: pricing.total })); 
+    }
     setIsSaving(false);
   };
 
@@ -517,9 +545,7 @@ export default function ProjectDetailPage() {
           </TitleRow>
         </HeaderLeft>
         <Actions>
-          <Button $secondary onClick={handleGenerateContract}>📄 Vertrag</Button>
           <Button $danger onClick={handleDelete}>Löschen</Button>
-          <Button $primary onClick={handleSave} disabled={isSaving}>{isSaving ? '...' : 'Speichern'}</Button>
         </Actions>
       </Header>
 
@@ -828,6 +854,15 @@ export default function ProjectDetailPage() {
           </InfoCard>
         </Sidebar>
       </Grid>
+      
+      {/* Sticky Save Bar - immer sichtbar */}
+      <StickyBottomBar>
+        <span className="status-text">{coupleNames} • {status?.label}</span>
+        <Button $secondary onClick={handleGenerateContract}>📄 Vertrag</Button>
+        <Button $primary onClick={handleSave} disabled={isSaving}>
+          {isSaving ? 'Speichert...' : '💾 Speichern'}
+        </Button>
+      </StickyBottomBar>
     </Layout>
   );
 }
