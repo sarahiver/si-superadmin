@@ -260,4 +260,78 @@ export async function deletePhoto(id) {
   return { error };
 }
 
+// ============================================
+// EMAIL LOGS
+// ============================================
+
+export async function getEmailLogs(projectId = null) {
+  let query = supabase
+    .from('email_logs')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (projectId) {
+    query = query.eq('project_id', projectId);
+  }
+
+  const { data, error } = await query;
+  return { data, error };
+}
+
+export async function getEmailLogById(id) {
+  const { data, error } = await supabase
+    .from('email_logs')
+    .select('*')
+    .eq('id', id)
+    .single();
+  return { data, error };
+}
+
+export async function createEmailLog(logData) {
+  const { data, error } = await supabase
+    .from('email_logs')
+    .insert([logData])
+    .select()
+    .single();
+  return { data, error };
+}
+
+// ============================================
+// PASSWORD RESET
+// ============================================
+
+export async function createPasswordResetToken(projectId, email, token, expiresAt) {
+  const { data, error } = await supabase
+    .from('password_reset_tokens')
+    .insert([{
+      project_id: projectId,
+      email,
+      token,
+      expires_at: expiresAt,
+    }])
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function getPasswordResetToken(token) {
+  const { data, error } = await supabase
+    .from('password_reset_tokens')
+    .select('*')
+    .eq('token', token)
+    .is('used_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .single();
+  return { data, error };
+}
+
+export async function markTokenAsUsed(tokenId) {
+  const { data, error } = await supabase
+    .from('password_reset_tokens')
+    .update({ used_at: new Date().toISOString() })
+    .eq('id', tokenId);
+  return { data, error };
+}
+
+
 export default supabase;
