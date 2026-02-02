@@ -333,5 +333,142 @@ export async function markTokenAsUsed(tokenId) {
   return { data, error };
 }
 
+// ============================================
+// AUTOMATIC STATUS SYNC
+// ============================================
+
+/**
+ * Prüft alle Projekte und aktualisiert deren Status basierend auf den Daten:
+ * - std_until: Wenn heute > std_until → Status wird "live"
+ * - archive_from: Wenn heute > archive_from → Status wird "archiv"
+ * 
+ * Die Daten kommen aus content.status (std_until, archive_from)
+ * oder aus dem project direkt (falls dort gespeichert)
+ */
+export async function syncAllProjectStatuses() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const results = {
+    checked: 0,
+    updated: 0,
+    errors: [],
+    changes: []
+  };
+  
+  try {
+    // Alle Projekte mit Content laden
+    const { data: projects, error: projectsError } = await supabase
+      .from('projects')
+      .select('id, slug, status, wedding_date, partner1_name, partner2_name');
+    
+    if (projectsError) throw projectsError;
+    
+    for (const project of projects || []) {
+      results.checked++;
+      
+      // Content für dieses Projekt laden (dort sind std_until und archive_from)
+      const { data: contentData } = await supabase
+        .from('content')
+        .select('status')
+        .eq('project_id', project.id)
+        .single();
+      
+      const statusData = contentData?.status || {};
+      const stdUntil = statusData.std_until ? new Date(statusData.std_until) : null;
+      const archiveFrom = statusData.archive_from ? new Date(statusData.archive_from) : null;
+      
+      let newStatus = project.status;
+      let reason = '';
+      
+      // Logik: Archive hat Priorität über Live
+      if (archiveFrom && today >= archiveFrom) {
+        if (project.status !== 'archiv') {
+          newStatus = 'archiv';
+          reason = `Archiv-Datum erreicht (${statusData.archive_from})`;
+        }
+      } else if (stdUntil && today >= stdUntil) {
+        // STD-Ende erreicht → Live (aber nur wenn nicht schon archiv)
+        if (project.status === 'std') {
+          newStatus = 'live';
+          reason = `STD-Ende erreicht (${statusData.std_until})`;
+        }
+      }
+      
+      // Status updaten wenn geändert
+      if (newStatus !== project.status) {
+        const { error: updateError } = await supabase
+          .from('projects')
+          .update({ status: newStatus })
+          .eq('id', project.id);
+        
+        if (updateError) {
+          results.errors.push({ project: project.slug, error: updateError.message });
+        } else {
+          results.updated++;
+          results.changes.push({
+            project: project.slug,
+            names: `${project.partner1_name} & ${project.partner2_name}`,
+            from: project.status,
+            to: newStatus,
+            reason
+          });
+        }
+      }
+    }
+    
+    return { success: true, results };
+  } catch (error) {
+    return { success: false, error: error.message, results };
+  }
+}
+
+/**
+ * Prüft ein einzelnes Projekt und gibt den empfohlenen Status zurück
+ */
+export async function checkProjectStatus(projectId) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const { data: project } = await supabase
+    .from('projects')
+    .select('status, wedding_date')
+    .eq('id', projectId)
+    .single();
+  
+  const { data: contentData } = await supabase
+    .from('content')
+    .select('status')
+    .eq('project_id', projectId)
+    .single();
+  
+  const statusData = contentData?.status || {};
+  const stdUntil = statusData.std_until ? new Date(statusData.std_until) : null;
+  const archiveFrom = statusData.archive_from ? new Date(statusData.archive_from) : null;
+  
+  let recommendedStatus = project?.status || 'std';
+  let reason = 'Keine automatische Änderung';
+  
+  if (archiveFrom && today >= archiveFrom) {
+    recommendedStatus = 'archiv';
+    reason = `Archiv-Datum (${statusData.archive_from}) erreicht`;
+  } else if (stdUntil && today >= stdUntil) {
+    recommendedStatus = 'live';
+    reason = `STD-Ende (${statusData.std_until}) erreicht`;
+  }
+  
+  return {
+    currentStatus: project?.status,
+    recommendedStatus,
+    shouldUpdate: project?.status !== recommendedStatus,
+    reason,
+    dates: {
+      stdUntil: statusData.std_until,
+      archiveFrom: statusData.archive_from,
+      weddingDate: project?.wedding_date
+    }
+  };
+}
+
 
 export default supabase;
