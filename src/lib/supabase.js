@@ -1,11 +1,40 @@
 // src/lib/supabase.js
-// Supabase Client + API Functions for SuperAdmin
+// Supabase Client + ALL API Functions for SuperAdmin
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// ============================================
+// DASHBOARD STATS
+// ============================================
+
+export async function getDashboardStats() {
+  try {
+    const { data: projects } = await supabase.from('projects').select('*');
+    const { data: requests } = await supabase.from('contact_requests').select('*');
+    
+    const projectList = projects || [];
+    const requestList = requests || [];
+    
+    return {
+      data: {
+        totalProjects: projectList.length,
+        liveProjects: projectList.filter(p => p.status === 'live').length,
+        inProgressProjects: projectList.filter(p => ['inquiry', 'in_progress', 'std'].includes(p.status)).length,
+        totalRevenue: projectList.reduce((sum, p) => sum + (p.total_price || 0), 0),
+        pendingRequests: requestList.filter(r => r.status === 'new' || r.status === 'pending').length,
+        recentProjects: projectList.slice(0, 5),
+        recentRequests: requestList.slice(0, 5),
+      },
+      error: null
+    };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
 
 // ============================================
 // PROJECTS
@@ -24,6 +53,15 @@ export async function getProjectById(id) {
     .from('projects')
     .select('*')
     .eq('id', id)
+    .single();
+  return { data, error };
+}
+
+export async function getProjectBySlug(slug) {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('slug', slug)
     .single();
   return { data, error };
 }
@@ -67,6 +105,24 @@ export async function getContactRequests() {
   return { data, error };
 }
 
+export async function getContactRequestById(id) {
+  const { data, error } = await supabase
+    .from('contact_requests')
+    .select('*')
+    .eq('id', id)
+    .single();
+  return { data, error };
+}
+
+export async function createContactRequest(requestData) {
+  const { data, error } = await supabase
+    .from('contact_requests')
+    .insert([requestData])
+    .select()
+    .single();
+  return { data, error };
+}
+
 export async function updateContactRequest(id, updates) {
   const { data, error } = await supabase
     .from('contact_requests')
@@ -89,6 +145,13 @@ export async function deleteContactRequest(id) {
 // SUPERADMINS (Login)
 // ============================================
 
+export async function getSuperadmins() {
+  const { data, error } = await supabase
+    .from('superadmins')
+    .select('*');
+  return { data, error };
+}
+
 export async function getSuperadminByEmail(email) {
   const { data, error } = await supabase
     .from('superadmins')
@@ -102,6 +165,14 @@ export async function getSuperadminByEmail(email) {
 // RSVP
 // ============================================
 
+export async function getRsvps() {
+  const { data, error } = await supabase
+    .from('rsvps')
+    .select('*')
+    .order('created_at', { ascending: false });
+  return { data, error };
+}
+
 export async function getRsvpsByProject(projectId) {
   const { data, error } = await supabase
     .from('rsvps')
@@ -109,6 +180,33 @@ export async function getRsvpsByProject(projectId) {
     .eq('project_id', projectId)
     .order('created_at', { ascending: false });
   return { data, error };
+}
+
+export async function createRsvp(rsvpData) {
+  const { data, error } = await supabase
+    .from('rsvps')
+    .insert([rsvpData])
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function updateRsvp(id, updates) {
+  const { data, error } = await supabase
+    .from('rsvps')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function deleteRsvp(id) {
+  const { error } = await supabase
+    .from('rsvps')
+    .delete()
+    .eq('id', id);
+  return { error };
 }
 
 // ============================================
@@ -131,6 +229,35 @@ export async function updateContent(projectId, updates) {
     .select()
     .single();
   return { data, error };
+}
+
+// ============================================
+// PHOTOS
+// ============================================
+
+export async function getPhotosByProject(projectId) {
+  const { data, error } = await supabase
+    .from('photos')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false });
+  return { data, error };
+}
+
+export async function uploadPhoto(file, projectId) {
+  const fileName = `${projectId}/${Date.now()}-${file.name}`;
+  const { data, error } = await supabase.storage
+    .from('photos')
+    .upload(fileName, file);
+  return { data, error };
+}
+
+export async function deletePhoto(id) {
+  const { error } = await supabase
+    .from('photos')
+    .delete()
+    .eq('id', id);
+  return { error };
 }
 
 export default supabase;
