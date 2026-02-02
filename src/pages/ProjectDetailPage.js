@@ -80,7 +80,7 @@ function generateContractPDF(data, pricing) {
   const newPage = (n = 30) => { if (y > 270 - n) { doc.addPage(); y = 20; } };
 
   doc.setFontSize(24); doc.setFont('helvetica', 'bold');
-  doc.text('IVERLASTING', pw / 2, y, { align: 'center' }); y += 8;
+  doc.text('S&I. WEDDING', pw / 2, y, { align: 'center' }); y += 8;
   doc.setFontSize(12); doc.setFont('helvetica', 'normal'); doc.setTextColor(100);
   doc.text('Wedding Websites', pw / 2, y, { align: 'center' }); y += 15; doc.setTextColor(0);
 
@@ -94,7 +94,7 @@ function generateContractPDF(data, pricing) {
   doc.text('Vertragsparteien', m, y); y += 8;
   doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.text('Zwischen', m, y); y += 6;
   doc.setFont('helvetica', 'normal');
-  doc.text('IverLasting - Iver Arntzen | hello@siwedding.de', m, y); y += 5;
+  doc.text('S&I. wedding - Iver Arntzen | hello@siwedding.de', m, y); y += 5;
   doc.setFont('helvetica', 'italic'); doc.setTextColor(100);
   doc.text('(nachfolgend "Auftragnehmer")', m, y); y += 8; doc.setTextColor(0);
   doc.setFont('helvetica', 'bold'); doc.text('und', m, y); y += 6;
@@ -164,7 +164,7 @@ function generateContractPDF(data, pricing) {
   doc.text(`1. Rate (50%): ${formatPrice(pricing.total / 2)} bei Vertragsabschluss`, m, y); y += 5;
   doc.text(`2. Rate (50%): ${formatPrice(pricing.total / 2)} bei Go-Live`, m, y); y += 8;
   doc.setFont('helvetica', 'normal');
-  doc.text('Bank: IverLasting | IBAN: DE XX XXXX XXXX XXXX XXXX XX', m, y); y += 12;
+  doc.text('Bank: S&I. wedding | IBAN: DE XX XXXX XXXX XXXX XXXX XX', m, y); y += 12;
 
   newPage(50);
   doc.setFontSize(10); doc.setFont('helvetica', 'normal');
@@ -177,10 +177,10 @@ function generateContractPDF(data, pricing) {
   doc.text(`Hamburg, den ${new Date().toLocaleDateString('de-DE')}`, m, y); y += 25;
   doc.line(m, y, m + 60, y); doc.line(pw - m - 60, y, pw - m, y); y += 5;
   doc.setFontSize(8); doc.setTextColor(100);
-  doc.text('Auftragnehmer (IverLasting)', m, y);
+  doc.text('Auftragnehmer (S&I. wedding)', m, y);
   doc.text('Auftraggeber', pw - m - 60, y);
 
-  const fn = `IverLasting-Vertrag-${data.slug || 'projekt'}-${cNum}.pdf`;
+  const fn = `SIwedding-Vertrag-${data.slug || 'projekt'}-${cNum}.pdf`;
   doc.save(fn);
   return fn;
 }

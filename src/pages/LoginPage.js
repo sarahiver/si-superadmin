@@ -11,7 +11,7 @@ const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', gray: '#666
 const Container = styled.div`min-height: 100vh; display: flex; align-items: center; justify-content: center; background: ${colors.black}; padding: 2rem;`;
 const Card = styled.div`background: ${colors.white}; width: 100%; max-width: 420px; border: 3px solid ${colors.black};`;
 const Header = styled.div`background: ${colors.black}; padding: 2rem; text-align: center;`;
-const Logo = styled.h1`font-family: 'Oswald', sans-serif; font-size: 2rem; font-weight: 700; color: ${colors.white}; text-transform: uppercase; letter-spacing: 0.05em; span { color: ${colors.red}; }`;
+const Logo = styled.h1`font-family: 'Oswald', sans-serif; font-size: 2rem; font-weight: 700; color: ${colors.white}; letter-spacing: 0.05em; span { color: ${colors.red}; font-style: italic; }`;
 const Subtitle = styled.p`font-family: 'Inter', sans-serif; font-size: 0.75rem; color: ${colors.gray}; text-transform: uppercase; letter-spacing: 0.15em; margin-top: 0.5rem;`;
 const Body = styled.div`padding: 2rem;`;
 const Form = styled.form`display: flex; flex-direction: column; gap: 1.5rem;`;
@@ -35,7 +35,6 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Check against superadmins table
       const { data, error: dbError } = await supabase
         .from('superadmins')
         .select('*')
@@ -63,7 +62,7 @@ export default function LoginPage() {
     <Container>
       <Card>
         <Header>
-          <Logo>Iver<span>Lasting</span></Logo>
+          <Logo>S<span>&</span>I. wedding</Logo>
           <Subtitle>Super Admin</Subtitle>
         </Header>
         <Body>
@@ -71,7 +70,7 @@ export default function LoginPage() {
             {error && <ErrorBox>{error}</ErrorBox>}
             <FormGroup>
               <Label>E-Mail</Label>
-              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@iverlasting.de" required autoFocus />
+              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@siwedding.de" required autoFocus />
             </FormGroup>
             <FormGroup>
               <Label>Passwort</Label>

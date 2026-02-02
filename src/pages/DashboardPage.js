@@ -8,7 +8,7 @@ import { PACKAGES, PROJECT_STATUS, formatPrice } from '../lib/constants';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
-const Header = styled.div`display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 3px solid ${colors.black};`;
+const Header = styled.div`display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 3px solid ${colors.black}; flex-wrap: wrap; gap: 1rem;`;
 const Title = styled.h1`font-family: 'Oswald', sans-serif; font-size: 3rem; font-weight: 700; text-transform: uppercase; letter-spacing: -0.02em; color: ${colors.black}; line-height: 1;`;
 const Subtitle = styled.p`font-family: 'Inter', sans-serif; font-size: 0.85rem; color: ${colors.gray}; margin-top: 0.5rem;`;
 const NewButton = styled(Link)`font-family: 'Oswald', sans-serif; font-size: 0.85rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; background: ${colors.red}; color: ${colors.white}; text-decoration: none; padding: 1rem 2rem; border: 2px solid ${colors.red}; transition: all 0.2s ease; &:hover { background: ${colors.black}; border-color: ${colors.black}; }`;
@@ -20,7 +20,8 @@ const ProjectCard = styled(Link)`background: ${colors.white}; border: 2px solid 
 const CardHeader = styled.div`background: ${colors.black}; color: ${colors.white}; padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; .names { font-family: 'Oswald', sans-serif; font-size: 1.1rem; font-weight: 600; text-transform: uppercase; }`;
 const StatusDot = styled.span`width: 10px; height: 10px; border-radius: 50%; background: ${p => p.$color || colors.gray};`;
 const CardBody = styled.div`padding: 1.25rem;`;
-const CardRow = styled.div`display: flex; justify-content: space-between; font-family: 'Inter', sans-serif; font-size: 0.85rem; margin-bottom: 0.5rem; &:last-child { margin-bottom: 0; } .label { color: ${colors.gray}; } .value { color: ${colors.black}; font-weight: 500; }`;
+const CardRow = styled.div`display: flex; justify-content: space-between; font-family: 'Inter', sans-serif; font-size: 0.85rem; margin-bottom: 0.5rem; &:last-child { margin-bottom: 0; } .label { color: ${colors.gray}; } .value { color: ${colors.black}; font-weight: 500; text-align: right; max-width: 60%; overflow: hidden; text-overflow: ellipsis; }`;
+const UrlValue = styled.span`font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: ${colors.red}; font-weight: 500;`;
 const CardFooter = styled.div`padding: 1rem 1.25rem; border-top: 1px solid ${colors.lightGray}; display: flex; justify-content: space-between; align-items: center; .price { font-family: 'Oswald', sans-serif; font-size: 1.25rem; font-weight: 600; color: ${colors.red}; } .status { font-family: 'Inter', sans-serif; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.35rem 0.75rem; background: ${p => p.$color ? `${p.$color}20` : colors.background}; color: ${p => p.$color || colors.gray}; }`;
 const EmptyState = styled.div`text-align: center; padding: 4rem 2rem; background: ${colors.white}; border: 2px dashed ${colors.lightGray}; .icon { font-size: 3rem; margin-bottom: 1rem; } .title { font-family: 'Oswald', sans-serif; font-size: 1.5rem; font-weight: 600; text-transform: uppercase; color: ${colors.black}; margin-bottom: 0.5rem; } .text { font-family: 'Inter', sans-serif; font-size: 0.9rem; color: ${colors.gray}; margin-bottom: 1.5rem; }`;
 
@@ -70,6 +71,7 @@ export default function DashboardPage() {
           {recentProjects.map(project => {
             const status = PROJECT_STATUS[project.status];
             const pkg = PACKAGES[project.package];
+            const displayUrl = project.custom_domain || (project.slug ? `siwedding.de/${project.slug}` : null);
             return (
               <ProjectCard key={project.id} to={`/projects/${project.id}`}>
                 <CardHeader><span className="names">{project.couple_names || 'Unbenannt'}</span><StatusDot $color={status?.color} /></CardHeader>
@@ -77,6 +79,7 @@ export default function DashboardPage() {
                   <CardRow><span className="label">Datum</span><span className="value">{project.wedding_date ? new Date(project.wedding_date).toLocaleDateString('de-DE') : '–'}</span></CardRow>
                   <CardRow><span className="label">Paket</span><span className="value">{pkg?.name || 'Starter'}</span></CardRow>
                   <CardRow><span className="label">Theme</span><span className="value" style={{ textTransform: 'capitalize' }}>{project.theme || 'botanical'}</span></CardRow>
+                  {displayUrl && <CardRow><span className="label">URL</span><UrlValue>{displayUrl}</UrlValue></CardRow>}
                 </CardBody>
                 <CardFooter $color={status?.color}>
                   <span className="price">{formatPrice(project.total_price || pkg?.price || 0)}</span>
