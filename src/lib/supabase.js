@@ -1,60 +1,22 @@
 // src/lib/supabase.js
-// SECURE VERSION - keine hardcoded Keys
+// Supabase Client + API Functions for SuperAdmin
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
-// Warnung wenn nicht konfiguriert
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('⚠️ Supabase nicht konfiguriert! Setze REACT_APP_SUPABASE_URL und REACT_APP_SUPABASE_ANON_KEY');
-}
-
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
-
-// ============================================
-// AUTH
-// ============================================
-export async function verifyAdminLogin(username, password) {
-  try {
-    const { data, error } = await supabase
-      .from('admin_users')
-      .select('password_hash')
-      .eq('username', username)
-      .single();
-
-    if (error || !data) {
-      return { success: false, error: 'Ungültige Anmeldedaten' };
-    }
-
-    // Nur gehashte Passwörter akzeptieren!
-    const inputHash = await hashPassword(password);
-    const isValid = inputHash === data.password_hash;
-
-    return { success: isValid, error: isValid ? null : 'Ungültige Anmeldedaten' };
-  } catch (err) {
-    console.error('Auth error:', err);
-    return { success: false, error: 'Verbindungsfehler' };
-  }
-}
-
-async function hashPassword(password) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // ============================================
 // PROJECTS
 // ============================================
-export async function getAllProjects() {
+
+export async function getProjects() {
   const { data, error } = await supabase
     .from('projects')
     .select('*')
     .order('created_at', { ascending: false });
-  return { data: data || [], error };
+  return { data, error };
 }
 
 export async function getProjectById(id) {
@@ -69,7 +31,7 @@ export async function getProjectById(id) {
 export async function createProject(projectData) {
   const { data, error } = await supabase
     .from('projects')
-    .insert(projectData)
+    .insert([projectData])
     .select()
     .single();
   return { data, error };
@@ -94,52 +56,51 @@ export async function deleteProject(id) {
 }
 
 // ============================================
-// CONTACT REQUESTS
+// SUPERADMINS (Login)
 // ============================================
-export async function getContactRequests() {
+
+export async function getSuperadminByEmail(email) {
   const { data, error } = await supabase
-    .from('contact_requests')
+    .from('superadmins')
     .select('*')
-    .order('created_at', { ascending: false });
-  return { data: data || [], error };
+    .eq('email', email)
+    .single();
+  return { data, error };
 }
 
-export async function updateContactRequest(id, updates) {
+// ============================================
+// RSVP
+// ============================================
+
+export async function getRsvpsByProject(projectId) {
   const { data, error } = await supabase
-    .from('contact_requests')
-    .update(updates)
-    .eq('id', id)
+    .from('rsvps')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false });
+  return { data, error };
+}
+
+// ============================================
+// CONTENT
+// ============================================
+
+export async function getContentByProject(projectId) {
+  const { data, error } = await supabase
+    .from('content')
+    .select('*')
+    .eq('project_id', projectId)
+    .single();
+  return { data, error };
+}
+
+export async function updateContent(projectId, updates) {
+  const { data, error } = await supabase
+    .from('content')
+    .upsert({ project_id: projectId, ...updates })
     .select()
     .single();
   return { data, error };
 }
 
-export async function deleteContactRequest(id) {
-  const { error } = await supabase
-    .from('contact_requests')
-    .delete()
-    .eq('id', id);
-  return { error };
-}
-
-// ============================================
-// STATS
-// ============================================
-export async function getDashboardStats() {
-  const [projectsRes, requestsRes] = await Promise.all([
-    supabase.from('projects').select('id, status, created_at'),
-    supabase.from('contact_requests').select('id, status, created_at'),
-  ]);
-
-  const projects = projectsRes.data || [];
-  const requests = requestsRes.data || [];
-
-  return {
-    totalProjects: projects.length,
-    liveProjects: projects.filter(p => p.status === 'live').length,
-    stdProjects: projects.filter(p => p.status === 'std').length,
-    archivProjects: projects.filter(p => p.status === 'archiv').length,
-    totalRequests: requests.length,
-    newRequests: requests.filter(r => r.status === 'new' || !r.status).length,
-  };
-}
+export default supabase;
