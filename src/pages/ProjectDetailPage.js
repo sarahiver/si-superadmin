@@ -15,8 +15,7 @@ import EmailSection from '../components/EmailSection';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
-const [emailLogs, setEmailLogs] = useState([]);
-const emailCount = emailLogs.length;
+
 
 // Styled Components (kompakt)
 const Header = styled.div`display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 3px solid ${colors.black}; flex-wrap: wrap; gap: 1rem;`;
@@ -64,6 +63,8 @@ const InfoRow = styled.div`display: flex; justify-content: space-between; font-s
 
 function CollapsibleSection({ number, title, badge, defaultOpen = false, children }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [emailLogs, setEmailLogs] = useState([]);
+const emailCount = emailLogs.length;
   return (
     <Section>
       <SectionHeader $isOpen={isOpen} onClick={() => setIsOpen(!isOpen)}>
