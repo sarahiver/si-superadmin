@@ -56,6 +56,36 @@ export async function deleteProject(id) {
 }
 
 // ============================================
+// CONTACT REQUESTS
+// ============================================
+
+export async function getContactRequests() {
+  const { data, error } = await supabase
+    .from('contact_requests')
+    .select('*')
+    .order('created_at', { ascending: false });
+  return { data, error };
+}
+
+export async function updateContactRequest(id, updates) {
+  const { data, error } = await supabase
+    .from('contact_requests')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function deleteContactRequest(id) {
+  const { error } = await supabase
+    .from('contact_requests')
+    .delete()
+    .eq('id', id);
+  return { error };
+}
+
+// ============================================
 // SUPERADMINS (Login)
 // ============================================
 
