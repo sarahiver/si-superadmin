@@ -8,6 +8,7 @@ import { jsPDF } from 'jspdf';
 import Layout from '../components/Layout';
 import { getProjectById, updateProject, deleteProject, supabase } from '../lib/supabase';
 import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS, PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from '../lib/constants';
+import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail } from '../lib/emailService';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
@@ -412,33 +413,79 @@ export default function ProjectDetailPage() {
     toast.success('Kopiert!');
   };
 
-  // Email Functions (simplified - full version in emailService.js)
-  const sendEmail = async (templateType) => {
+  // Email Functions - Real Brevo Integration
+  const handleSendWelcome = async () => {
     if (!formData.client_email) {
       toast.error('Keine Kunden-E-Mail hinterlegt!');
       return;
     }
     setSendingEmail(true);
-    toast.success(`E-Mail "${templateType}" würde jetzt gesendet werden (Demo)`);
-    // Log für Demo
-    await supabase.from('email_logs').insert([{
-      project_id: id,
-      recipient_email: formData.client_email,
-      subject: `${templateType} - ${formData.couple_names}`,
-      template_type: templateType,
-      status: 'sent',
-      sent_at: new Date().toISOString(),
-    }]);
+    const projectData = { ...formData, id };
+    const result = await sendWelcomeEmails(projectData);
+    
+    if (result.welcome.success && result.credentials.success) {
+      toast.success('Willkommens-E-Mails gesendet!');
+    } else {
+      toast.error('Fehler: ' + (result.welcome.error || result.credentials.error));
+    }
     loadEmailLogs();
     setSendingEmail(false);
   };
 
-  const resetPassword = async () => {
-    if (!window.confirm('Neues Passwort generieren?')) return;
-    const newPw = Math.random().toString(36).substring(2, 10);
+  const handleSendGoLive = async () => {
+    if (!formData.client_email) {
+      toast.error('Keine Kunden-E-Mail hinterlegt!');
+      return;
+    }
+    setSendingEmail(true);
+    const result = await sendGoLiveEmail({ ...formData, id });
+    
+    if (result.success) {
+      toast.success('Go-Live E-Mail gesendet!');
+    } else {
+      toast.error('Fehler: ' + result.error);
+    }
+    loadEmailLogs();
+    setSendingEmail(false);
+  };
+
+  const handleSendReminder = async () => {
+    if (!formData.client_email) {
+      toast.error('Keine Kunden-E-Mail hinterlegt!');
+      return;
+    }
+    setSendingEmail(true);
+    const result = await sendReminderEmail({ ...formData, id });
+    
+    if (result.success) {
+      toast.success('Erinnerung gesendet!');
+    } else {
+      toast.error('Fehler: ' + result.error);
+    }
+    loadEmailLogs();
+    setSendingEmail(false);
+  };
+
+  const handleResetPassword = async () => {
+    if (!window.confirm('Neues Passwort generieren und per E-Mail senden?')) return;
+    setSendingEmail(true);
+    
+    const newPw = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 4).toUpperCase();
     await updateProject(id, { admin_password: newPw });
     setFormData(prev => ({ ...prev, admin_password: newPw }));
-    toast.success(`Neues Passwort: ${newPw}`);
+    
+    if (formData.client_email) {
+      const result = await sendPasswordResetEmail({ ...formData, id }, newPw);
+      if (result.success) {
+        toast.success(`Neues Passwort: ${newPw} (E-Mail gesendet!)`);
+      } else {
+        toast.success(`Neues Passwort: ${newPw} (E-Mail Fehler: ${result.error})`);
+      }
+    } else {
+      toast.success(`Neues Passwort: ${newPw}`);
+    }
+    loadEmailLogs();
+    setSendingEmail(false);
   };
 
   if (isLoading) return <Layout><div style={{ padding: '2rem' }}>Laden...</div></Layout>;
@@ -625,25 +672,25 @@ export default function ProjectDetailPage() {
           {/* Section 06: E-Mails */}
           <CollapsibleSection number="06" title="E-Mails" badge={`${emailCount} gesendet`} defaultOpen={false}>
             <EmailActions>
-              <EmailActionCard onClick={() => sendEmail('welcome')} disabled={sendingEmail || !formData.client_email}>
+              <EmailActionCard onClick={handleSendWelcome} disabled={sendingEmail || !formData.client_email}>
                 <span className="icon">📧</span>
                 <span className="title">Willkommen</span>
-                <span className="desc">Vertrag + AGBs senden</span>
+                <span className="desc">Vertrag + Zugangsdaten</span>
               </EmailActionCard>
-              <EmailActionCard onClick={() => sendEmail('credentials')} disabled={sendingEmail || !formData.client_email}>
-                <span className="icon">🔑</span>
-                <span className="title">Zugangsdaten</span>
-                <span className="desc">Login-Daten senden</span>
-              </EmailActionCard>
-              <EmailActionCard onClick={() => sendEmail('golive')} disabled={sendingEmail || !formData.client_email}>
+              <EmailActionCard onClick={handleSendGoLive} disabled={sendingEmail || !formData.client_email}>
                 <span className="icon">🚀</span>
                 <span className="title">Go-Live</span>
                 <span className="desc">Website ist online</span>
               </EmailActionCard>
-              <EmailActionCard onClick={resetPassword} disabled={sendingEmail}>
+              <EmailActionCard onClick={handleSendReminder} disabled={sendingEmail || !formData.client_email}>
+                <span className="icon">⏰</span>
+                <span className="title">Erinnerung</span>
+                <span className="desc">Inhalte anfordern</span>
+              </EmailActionCard>
+              <EmailActionCard onClick={handleResetPassword} disabled={sendingEmail}>
                 <span className="icon">🔐</span>
                 <span className="title">Passwort Reset</span>
-                <span className="desc">Neues Passwort generieren</span>
+                <span className="desc">Neu generieren & senden</span>
               </EmailActionCard>
             </EmailActions>
 
