@@ -69,8 +69,6 @@ const EmailLogExpand = styled.span`font-size: 0.75rem; color: ${colors.gray}; tr
 const EmailLogDetails = styled.div`padding: ${p => p.$open ? '1rem' : '0 1rem'}; max-height: ${p => p.$open ? '200px' : '0'}; overflow: hidden; transition: all 0.2s ease; background: ${colors.background}; border-top: ${p => p.$open ? `1px solid ${colors.lightGray}` : 'none'};`;
 const EmailLogRow = styled.div`display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; margin-bottom: 0.5rem; &:last-child { margin-bottom: 0; } .label { color: ${colors.gray}; } .value { font-weight: 500; display: flex; align-items: center; gap: 0.5rem; }`;
 const EmailStatusBadge = styled.span`font-size: 0.65rem; font-weight: 600; text-transform: uppercase; padding: 0.2rem 0.5rem; background: ${p => p.$success ? `${colors.green}20` : p.$warning ? `${colors.orange}20` : `${colors.red}20`}; color: ${p => p.$success ? colors.green : p.$warning ? colors.orange : colors.red};`;
-const RefreshButton = styled.button`background: none; border: 1px solid ${colors.lightGray}; padding: 0.25rem 0.5rem; font-size: 0.7rem; cursor: pointer; border-radius: 2px; transition: all 0.2s ease; &:hover { background: ${colors.black}; color: white; border-color: ${colors.black}; } &:disabled { opacity: 0.5; cursor: not-allowed; }`;
-const RefreshAllButton = styled.button`background: ${colors.black}; color: white; border: none; padding: 0.5rem 1rem; font-family: 'Oswald', sans-serif; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; margin-bottom: 1rem; &:hover { background: ${colors.gray}; } &:disabled { opacity: 0.5; cursor: not-allowed; }`;
 const EmptyState = styled.div`text-align: center; padding: 2rem; color: ${colors.gray}; font-size: 0.9rem;`;
 const ManualEmailBox = styled.div`background: ${colors.background}; padding: 1.25rem; margin-top: 1.5rem;`;
 
@@ -288,8 +286,6 @@ export default function ProjectDetailPage() {
   const [emailLogs, setEmailLogs] = useState([]);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [expandedEmailId, setExpandedEmailId] = useState(null);
-  const [refreshingEmailId, setRefreshingEmailId] = useState(null);
-  const [refreshingAll, setRefreshingAll] = useState(false);
 
   useEffect(() => {
     loadProject();
@@ -501,31 +497,6 @@ export default function ProjectDetailPage() {
     setSendingEmail(false);
   };
 
-  // E-Mail Status von Brevo abrufen
-  const handleRefreshEmailStatus = async (logId) => {
-    setRefreshingEmailId(logId);
-    const result = await refreshEmailStatus(logId);
-    if (result.success) {
-      toast.success('Status aktualisiert');
-      loadEmailLogs();
-    } else {
-      toast.error('Fehler: ' + result.error);
-    }
-    setRefreshingEmailId(null);
-  };
-
-  const handleRefreshAllEmailStatus = async () => {
-    setRefreshingAll(true);
-    const result = await refreshAllEmailStatus(id);
-    if (result.success) {
-      toast.success(`${result.updated} E-Mails aktualisiert`);
-      loadEmailLogs();
-    } else {
-      toast.error('Fehler beim Aktualisieren');
-    }
-    setRefreshingAll(false);
-  };
-
   if (isLoading) return <Layout><div style={{ padding: '2rem' }}>Laden...</div></Layout>;
   if (!project) return <Layout><div style={{ padding: '2rem' }}>Projekt nicht gefunden</div></Layout>;
 
@@ -732,14 +703,7 @@ export default function ProjectDetailPage() {
               </EmailActionCard>
             </EmailActions>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <Label style={{ margin: 0 }}>Verlauf ({emailCount})</Label>
-              {emailLogs.length > 0 && (
-                <RefreshAllButton onClick={handleRefreshAllEmailStatus} disabled={refreshingAll}>
-                  {refreshingAll ? 'Aktualisiere...' : '↻ Alle Status aktualisieren'}
-                </RefreshAllButton>
-              )}
-            </div>
+            <Label>Verlauf ({emailCount})</Label>
             {emailLogs.length === 0 ? (
               <EmptyState>Noch keine E-Mails gesendet</EmptyState>
             ) : (
@@ -819,14 +783,6 @@ export default function ProjectDetailPage() {
                           <span className="value" style={{ color: colors.red, fontSize: '0.7rem' }}>{log.error_message}</span>
                         </EmailLogRow>
                       )}
-                      <EmailLogRow style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: `1px solid ${colors.lightGray}` }}>
-                        <span className="label">Brevo Status</span>
-                        <span className="value">
-                          <RefreshButton onClick={(e) => { e.stopPropagation(); handleRefreshEmailStatus(log.id); }} disabled={refreshingEmailId === log.id}>
-                            {refreshingEmailId === log.id ? '...' : '↻ Aktualisieren'}
-                          </RefreshButton>
-                        </span>
-                      </EmailLogRow>
                     </EmailLogDetails>
                   </EmailLogItem>
                 );
