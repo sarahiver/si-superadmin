@@ -1,4 +1,5 @@
 // src/pages/LoginPage.js
+// Mit SHA-256 Hash für sicheres Passwort
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
@@ -21,6 +22,15 @@ const Input = styled.input`width: 100%; padding: 1rem; background: ${colors.back
 const Button = styled.button`width: 100%; padding: 1rem; font-family: 'Oswald', sans-serif; font-size: 1rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; background: ${colors.red}; color: ${colors.white}; border: 2px solid ${colors.red}; cursor: pointer; transition: all 0.2s ease; &:hover:not(:disabled) { background: ${colors.black}; border-color: ${colors.black}; } &:disabled { opacity: 0.5; cursor: not-allowed; }`;
 const ErrorBox = styled.div`font-family: 'Inter', sans-serif; font-size: 0.85rem; color: ${colors.red}; background: ${colors.red}15; padding: 0.75rem 1rem; border: 1px solid ${colors.red};`;
 
+// SHA-256 Hash Funktion
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -35,11 +45,14 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+      // Passwort hashen vor dem Vergleich
+      const passwordHash = await hashPassword(password);
+
       const { data, error: dbError } = await supabase
         .from('superadmins')
         .select('*')
         .eq('email', email)
-        .eq('password', password)
+        .eq('password', passwordHash)
         .single();
 
       if (dbError || !data) {
