@@ -90,6 +90,15 @@ const StatusBadge = styled.span`
   text-transform: uppercase; padding: 0.3rem 0.6rem;
   background: ${p => p.$color ? `${p.$color}20` : colors.background};
   color: ${p => p.$color || colors.gray};
+  ${p => p.$highlight && `
+    animation: pulse 2s ease-in-out infinite;
+    box-shadow: 0 0 0 2px ${p.$color}40;
+  `}
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
 `;
 
 const ActionButton = styled.span`
@@ -151,6 +160,7 @@ export default function ProjectsPage() {
     draft: projects.filter(p => p.status === 'draft').length,
     inquiry: projects.filter(p => p.status === 'inquiry').length,
     in_progress: projects.filter(p => p.status === 'in_progress').length,
+    ready_for_review: projects.filter(p => p.status === 'ready_for_review').length,
     live: projects.filter(p => p.status === 'live').length,
     archive: projects.filter(p => p.status === 'archive').length,
   };
@@ -203,7 +213,12 @@ export default function ProjectsPage() {
                 <Cell className="couple">{project.couple_names || 'Unbenannt'}</Cell>
                 <Cell data-label="Datum">{project.wedding_date ? new Date(project.wedding_date).toLocaleDateString('de-DE') : '–'}</Cell>
                 <Cell data-label="Paket">{pkg?.name || 'Starter'}</Cell>
-                <Cell data-label="Status"><StatusBadge $color={status?.color}>{status?.label || 'Entwurf'}</StatusBadge></Cell>
+                <Cell data-label="Status">
+                  <StatusBadge $color={status?.color} $highlight={project.status === 'ready_for_review'}>
+                    {project.status === 'ready_for_review' && '🔔 '}
+                    {status?.label || 'Entwurf'}
+                  </StatusBadge>
+                </Cell>
                 <Cell className="price" data-label="Preis">{formatPrice(project.total_price || pkg?.price || 0)}</Cell>
                 <Cell><ActionButton>Öffnen →</ActionButton></Cell>
               </TableRow>
