@@ -2,8 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
+import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
-import { getProjects } from '../lib/supabase';
+import { getProjects, syncAllProjectStatuses } from '../lib/supabase';
 import { PACKAGES, PROJECT_STATUS, formatPrice } from '../lib/constants';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
@@ -11,7 +12,9 @@ const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10
 const Header = styled.div`display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 3px solid ${colors.black}; flex-wrap: wrap; gap: 1rem;`;
 const Title = styled.h1`font-family: 'Oswald', sans-serif; font-size: 3rem; font-weight: 700; text-transform: uppercase; letter-spacing: -0.02em; color: ${colors.black}; line-height: 1;`;
 const Subtitle = styled.p`font-family: 'Inter', sans-serif; font-size: 0.85rem; color: ${colors.gray}; margin-top: 0.5rem;`;
+const ButtonGroup = styled.div`display: flex; gap: 1rem; flex-wrap: wrap;`;
 const NewButton = styled(Link)`font-family: 'Oswald', sans-serif; font-size: 0.85rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; background: ${colors.red}; color: ${colors.white}; text-decoration: none; padding: 1rem 2rem; border: 2px solid ${colors.red}; transition: all 0.2s ease; &:hover { background: ${colors.black}; border-color: ${colors.black}; }`;
+const SyncButton = styled.button`font-family: 'Oswald', sans-serif; font-size: 0.85rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; background: ${colors.white}; color: ${colors.black}; padding: 1rem 2rem; border: 2px solid ${colors.black}; cursor: pointer; transition: all 0.2s ease; &:hover { background: ${colors.black}; color: ${colors.white}; } &:disabled { opacity: 0.5; cursor: not-allowed; }`;
 const StatsGrid = styled.div`display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 3rem; @media (max-width: 900px) { grid-template-columns: repeat(2, 1fr); } @media (max-width: 500px) { grid-template-columns: 1fr; }`;
 const StatCard = styled.div`background: ${colors.white}; border: 2px solid ${colors.black}; padding: 1.5rem; .label { font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: ${colors.gray}; margin-bottom: 0.5rem; } .value { font-family: 'Oswald', sans-serif; font-size: 2.5rem; font-weight: 600; color: ${colors.black}; }`;
 const SectionTitle = styled.h2`font-family: 'Oswald', sans-serif; font-size: 1.25rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: ${colors.black}; margin-bottom: 1rem; display: flex; align-items: center; gap: 1rem; &::after { content: ''; flex: 1; height: 2px; background: ${colors.lightGray}; }`;
@@ -24,13 +27,54 @@ const CardRow = styled.div`display: flex; justify-content: space-between; font-f
 const UrlValue = styled.span`font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: ${colors.red}; font-weight: 500;`;
 const CardFooter = styled.div`padding: 1rem 1.25rem; border-top: 1px solid ${colors.lightGray}; display: flex; justify-content: space-between; align-items: center; .price { font-family: 'Oswald', sans-serif; font-size: 1.25rem; font-weight: 600; color: ${colors.red}; } .status { font-family: 'Inter', sans-serif; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.35rem 0.75rem; background: ${p => p.$color ? `${p.$color}20` : colors.background}; color: ${p => p.$color || colors.gray}; }`;
 const EmptyState = styled.div`text-align: center; padding: 4rem 2rem; background: ${colors.white}; border: 2px dashed ${colors.lightGray}; .icon { font-size: 3rem; margin-bottom: 1rem; } .title { font-family: 'Oswald', sans-serif; font-size: 1.5rem; font-weight: 600; text-transform: uppercase; color: ${colors.black}; margin-bottom: 0.5rem; } .text { font-family: 'Inter', sans-serif; font-size: 0.9rem; color: ${colors.gray}; margin-bottom: 1.5rem; }`;
+const SyncInfo = styled.div`background: ${colors.green}20; border: 1px solid ${colors.green}; padding: 1rem 1.5rem; margin-bottom: 2rem; border-radius: 4px; font-family: 'Inter', sans-serif; font-size: 0.85rem; color: ${colors.black}; display: flex; align-items: center; gap: 0.75rem;`;
 
 export default function DashboardPage() {
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
 
-  useEffect(() => { loadProjects(); }, []);
-  const loadProjects = async () => { const { data } = await getProjects(); setProjects(data || []); setIsLoading(false); };
+  useEffect(() => { 
+    loadProjectsAndSync(); 
+  }, []);
+  
+  const loadProjectsAndSync = async () => {
+    // Erst Projekte laden
+    const { data } = await getProjects();
+    setProjects(data || []);
+    setIsLoading(false);
+    
+    // Dann automatisch Status syncen (im Hintergrund)
+    const result = await syncAllProjectStatuses();
+    if (result.success && result.results.updated > 0) {
+      // Projekte neu laden wenn sich was geändert hat
+      const { data: updatedData } = await getProjects();
+      setProjects(updatedData || []);
+      setSyncResult(result.results);
+    }
+  };
+  
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    const result = await syncAllProjectStatuses();
+    
+    if (result.success) {
+      if (result.results.updated > 0) {
+        toast.success(`${result.results.updated} Projekt(e) aktualisiert`);
+        // Projekte neu laden
+        const { data } = await getProjects();
+        setProjects(data || []);
+        setSyncResult(result.results);
+      } else {
+        toast.success('Alle Status sind aktuell');
+      }
+    } else {
+      toast.error('Fehler beim Sync: ' + result.error);
+    }
+    
+    setIsSyncing(false);
+  };
 
   const stats = {
     total: projects.length,
@@ -47,8 +91,28 @@ export default function DashboardPage() {
     <Layout>
       <Header>
         <div><Title>Dashboard</Title><Subtitle>Willkommen zurück!</Subtitle></div>
-        <NewButton to="/projects/new">+ Neues Projekt</NewButton>
+        <ButtonGroup>
+          <SyncButton onClick={handleManualSync} disabled={isSyncing}>
+            {isSyncing ? '⏳ Sync...' : '🔄 Status Sync'}
+          </SyncButton>
+          <NewButton to="/projects/new">+ Neues Projekt</NewButton>
+        </ButtonGroup>
       </Header>
+      
+      {syncResult && syncResult.updated > 0 && (
+        <SyncInfo>
+          <span>✅</span>
+          <span>
+            <strong>{syncResult.updated} Status-Änderung(en):</strong>{' '}
+            {syncResult.changes.map((c, i) => (
+              <span key={i}>
+                {c.names} ({c.from} → {c.to})
+                {i < syncResult.changes.length - 1 ? ', ' : ''}
+              </span>
+            ))}
+          </span>
+        </SyncInfo>
+      )}
 
       <StatsGrid>
         <StatCard><div className="label">Projekte</div><div className="value">{stats.total}</div></StatCard>
