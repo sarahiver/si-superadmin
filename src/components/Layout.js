@@ -24,7 +24,7 @@ export default function Layout({ children }) {
   const { logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const handleLogout = () => { logout(); navigate('/login'); };
-  const navItems = [{ path: '/', label: 'Dashboard' }, { path: '/projects', label: 'Projekte' }, { path: '/projects/new', label: 'Neu' }];
+  const navItems = [{ path: '/', label: 'Dashboard' }, { path: '/projects', label: 'Projekte' }, { path: '/projects/new', label: 'Neu' }, { path: '/requests', label: 'Anfragen' }];
 
   return (
     <Container>
