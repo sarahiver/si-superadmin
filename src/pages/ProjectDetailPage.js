@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { jsPDF } from 'jspdf';
 import Layout from '../components/Layout';
 import { getProjectById, updateProject, deleteProject, supabase } from '../lib/supabase';
-import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS, MAX_NAV_COMPONENTS, PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from '../lib/constants';
+import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS, PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from '../lib/constants';
 import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail } from '../lib/emailService';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
@@ -52,8 +52,6 @@ const ComponentListContainer = styled.div`border: 2px solid ${colors.lightGray};
 const ComponentListHeader = styled.div`display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: ${colors.background}; .count { font-family: 'Oswald', sans-serif; font-size: 0.9rem; } .hint { font-size: 0.7rem; color: ${colors.gray}; }`;
 const ComponentWarning = styled.div`background: ${colors.orange}20; border: 1px solid ${colors.orange}; color: ${colors.orange}; padding: 0.75rem 1rem; font-size: 0.8rem; strong { font-weight: 600; }`;
 const ComponentItem = styled.div`display: flex; align-items: center; gap: 1rem; padding: 0.875rem 1rem; background: ${p => p.$active ? colors.black : colors.white}; color: ${p => p.$active ? colors.white : colors.black}; border-bottom: 1px solid ${colors.lightGray}; cursor: pointer; transition: all 0.15s ease; &:last-child { border-bottom: none; } &:hover { background: ${p => p.$active ? colors.black : colors.background}; } .drag-handle { color: ${p => p.$active ? colors.gray : colors.lightGray}; cursor: grab; } .checkbox { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: 2px solid ${p => p.$active ? colors.white : colors.black}; background: ${p => p.$active ? colors.white : 'transparent'}; color: ${colors.black}; font-size: 0.75rem; font-weight: 700; } .name { flex: 1; font-size: 0.9rem; font-weight: 500; } .badge { font-size: 0.6rem; font-weight: 600; text-transform: uppercase; padding: 0.2rem 0.5rem; background: ${p => p.$active ? colors.red : colors.background}; color: ${p => p.$active ? colors.white : colors.gray}; }`;
-const NavComponentItem = styled.div`display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: ${p => p.$selected ? `${colors.red}15` : p.$disabled ? colors.background : colors.white}; border-bottom: 1px solid ${colors.lightGray}; cursor: ${p => p.$disabled ? 'not-allowed' : 'pointer'}; opacity: ${p => p.$disabled ? 0.5 : 1}; transition: all 0.15s ease; &:last-child { border-bottom: none; } &:hover { background: ${p => p.$disabled ? colors.background : p.$selected ? `${colors.red}20` : colors.background}; } .checkbox { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: 2px solid ${p => p.$selected ? colors.red : colors.lightGray}; background: ${p => p.$selected ? colors.red : 'transparent'}; color: white; font-size: 0.75rem; font-weight: 700; } .name { flex: 1; font-size: 0.9rem; font-weight: 500; color: ${p => p.$disabled ? colors.gray : colors.black}; } .order { font-family: 'Oswald', sans-serif; font-size: 0.8rem; color: ${colors.red}; min-width: 20px; }`;
-const NavInfo = styled.div`padding: 1rem; background: ${colors.background}; font-size: 0.8rem; color: ${colors.gray}; line-height: 1.5; border-bottom: 1px solid ${colors.lightGray};`;
 const InfoCard = styled.div`border: 2px solid ${colors.black}; margin-bottom: 1.5rem;`;
 const InfoHeader = styled.div`padding: 0.75rem 1rem; background: ${colors.black}; color: white; font-family: 'Oswald', sans-serif; font-size: 0.8rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase;`;
 const InfoBody = styled.div`padding: 1rem;`;
@@ -331,7 +329,6 @@ export default function ProjectDetailPage() {
         custom_price: data.custom_price || 0,
         component_order: data.component_order || DEFAULT_COMPONENT_ORDER,
         active_components: data.active_components || [...CORE_COMPONENTS],
-        nav_components: data.nav_components || [], // Empty = show all active components
         std_date: data.std_date || '',
         archive_date: data.archive_date || '',
       });
@@ -393,21 +390,6 @@ export default function ProjectDetailPage() {
     handleChange('active_components', current.includes(compId) ? current.filter(i => i !== compId) : [...current, compId]);
   };
 
-  // Toggle navigation component (max 8)
-  const toggleNavComponent = (compId) => {
-    const current = formData.nav_components || [];
-    if (current.includes(compId)) {
-      // Remove from nav
-      handleChange('nav_components', current.filter(i => i !== compId));
-    } else {
-      // Add to nav (if under limit)
-      if (current.length >= MAX_NAV_COMPONENTS) {
-        toast.error(`Maximal ${MAX_NAV_COMPONENTS} Komponenten in der Navigation erlaubt`);
-        return;
-      }
-      handleChange('nav_components', [...current, compId]);
-    }
-  };
 
   const activeExtraCount = useMemo(() => (formData.active_components || []).filter(id => !CORE_COMPONENTS.includes(id)).length, [formData.active_components]);
   const allowedExtraCount = useMemo(() => (PACKAGES[formData.package]?.extraComponentsIncluded || 0) + (formData.extra_components_count || 0), [formData.package, formData.extra_components_count]);
@@ -449,7 +431,7 @@ export default function ProjectDetailPage() {
       discount: formData.discount, custom_price: formData.custom_price, total_price: pricing.total,
       theme: formData.theme, status: formData.status, admin_password: formData.admin_password,
       custom_domain: formData.custom_domain, active_components: formData.active_components,
-      component_order: formData.component_order, nav_components: formData.nav_components,
+      component_order: formData.component_order,
       std_date: formData.std_date, archive_date: formData.archive_date,
     });
     if (error) { toast.error('Fehler beim Speichern'); console.error(error); }
@@ -739,49 +721,8 @@ export default function ProjectDetailPage() {
             </ComponentListContainer>
           </CollapsibleSection>
 
-          {/* Section 06: Navigation */}
-          <CollapsibleSection number="06" title="Navigation" badge={`${(formData.nav_components || []).length}/${MAX_NAV_COMPONENTS}`} defaultOpen={false}>
-            <NavInfo>
-              Wähle bis zu {MAX_NAV_COMPONENTS} Komponenten für die Navigation aus. Die Reihenfolge entspricht der Komponentenreihenfolge oben.<br/>
-              <strong>Leer = alle aktiven Komponenten werden angezeigt.</strong>
-            </NavInfo>
-            <ComponentListContainer>
-              <ComponentListHeader>
-                <span className="count">{(formData.nav_components || []).length} von {MAX_NAV_COMPONENTS} ausgewählt</span>
-                <span className="hint">Klicken zum Auswählen</span>
-              </ComponentListHeader>
-              {(formData.component_order || DEFAULT_COMPONENT_ORDER).map(compId => {
-                const comp = ALL_COMPONENTS.find(c => c.id === compId);
-                if (!comp) return null;
-                const isActive = (formData.active_components || []).includes(compId);
-                const isInNav = (formData.nav_components || []).includes(compId);
-                const navIndex = (formData.nav_components || []).indexOf(compId);
-                const isMaxReached = (formData.nav_components || []).length >= MAX_NAV_COMPONENTS && !isInNav;
-                // Only show active components as options
-                if (!isActive) return null;
-                return (
-                  <NavComponentItem
-                    key={compId}
-                    $selected={isInNav}
-                    $disabled={isMaxReached}
-                    onClick={() => !isMaxReached && toggleNavComponent(compId)}
-                  >
-                    <span className="checkbox">{isInNav && '✓'}</span>
-                    <span className="name">{comp.name}</span>
-                    {isInNav && <span className="order">#{navIndex + 1}</span>}
-                  </NavComponentItem>
-                );
-              })}
-            </ComponentListContainer>
-            {(formData.nav_components || []).length === 0 && (
-              <NavInfo style={{ background: `${colors.green}15`, color: colors.green }}>
-                Keine Auswahl = Alle aktiven Komponenten erscheinen in der Navigation
-              </NavInfo>
-            )}
-          </CollapsibleSection>
-
-          {/* Section 07: E-Mails */}
-          <CollapsibleSection number="07" title="E-Mails" badge={`${emailCount} gesendet`} defaultOpen={false}>
+          {/* Section 06: E-Mails */}
+          <CollapsibleSection number="06" title="E-Mails" badge={`${emailCount} gesendet`} defaultOpen={false}>
             <EmailActions>
               <EmailActionCard onClick={handleSendWelcome} disabled={sendingEmail || !formData.client_email}>
                 <span className="icon">📧</span>
