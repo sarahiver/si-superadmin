@@ -55,14 +55,13 @@ export const ALL_COMPONENTS = [
   { id: 'witnesses', name: 'Trauzeugen', core: false },
   { id: 'faq', name: 'FAQ', core: false },
   { id: 'weddingabc', name: 'Hochzeits-ABC', core: false },
-  { id: 'contact', name: 'Kontakt', core: false },
 ];
 
 export const DEFAULT_COMPONENT_ORDER = [
   'hero', 'countdown', 'lovestory', 'timeline', 'locations',
   'directions', 'accommodations', 'dresscode', 'rsvp', 'gallery',
   'photoupload', 'guestbook', 'musicwishes', 'gifts', 'witnesses',
-  'faq', 'weddingabc', 'contact'
+  'faq', 'weddingabc'
 ];
 
 // ============================================
