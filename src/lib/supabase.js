@@ -383,8 +383,8 @@ export async function syncAllProjectStatuses() {
       
       // Logik: Archive hat Priorität über Live
       if (archiveFrom && today >= archiveFrom) {
-        if (project.status !== 'archiv') {
-          newStatus = 'archiv';
+        if (project.status !== 'archive') {
+          newStatus = 'archive';
           reason = `Archiv-Datum erreicht (${statusData.archive_from})`;
         }
       } else if (stdUntil && today >= stdUntil) {
@@ -450,7 +450,7 @@ export async function checkProjectStatus(projectId) {
   let reason = 'Keine automatische Änderung';
   
   if (archiveFrom && today >= archiveFrom) {
-    recommendedStatus = 'archiv';
+    recommendedStatus = 'archive';
     reason = `Archiv-Datum (${statusData.archive_from}) erreicht`;
   } else if (stdUntil && today >= stdUntil) {
     recommendedStatus = 'live';

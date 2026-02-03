@@ -155,6 +155,17 @@ export default function NewProjectPage() {
       return;
     }
 
+    // Validierung: Hochzeitsdatum muss in der Zukunft liegen
+    if (formData.wedding_date) {
+      const weddingDate = new Date(formData.wedding_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (weddingDate < today) {
+        toast.error('Hochzeitsdatum muss in der Zukunft liegen');
+        return;
+      }
+    }
+
     setIsSaving(true);
     const pkg = PACKAGES[formData.package];
     
@@ -217,7 +228,7 @@ export default function NewProjectPage() {
               </FormGroup>
               <FormGroup>
                 <Label>Hochzeitsdatum</Label>
-                <Input type="date" value={formData.wedding_date} onChange={e => handleChange('wedding_date', e.target.value)} />
+                <Input type="date" value={formData.wedding_date} onChange={e => handleChange('wedding_date', e.target.value)} min={new Date().toISOString().split('T')[0]} />
               </FormGroup>
               <FormGroup>
                 <Label>URL-Slug</Label>

@@ -329,6 +329,8 @@ export default function ProjectDetailPage() {
         custom_price: data.custom_price || 0,
         component_order: data.component_order || DEFAULT_COMPONENT_ORDER,
         active_components: data.active_components || [...CORE_COMPONENTS],
+        std_date: data.std_date || '',
+        archive_date: data.archive_date || '',
       });
     }
     setIsLoading(false);
@@ -405,6 +407,17 @@ export default function ProjectDetailPage() {
   const handleDragEnd = () => setDraggedItem(null);
 
   const handleSave = async () => {
+    // Validierung: Hochzeitsdatum muss in der Zukunft liegen
+    if (formData.wedding_date) {
+      const weddingDate = new Date(formData.wedding_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (weddingDate < today) {
+        toast.error('Hochzeitsdatum muss in der Zukunft liegen');
+        return;
+      }
+    }
+
     setIsSaving(true);
     const { error } = await updateProject(id, {
       client_name: formData.client_name, client_email: formData.client_email, client_phone: formData.client_phone,
@@ -417,7 +430,7 @@ export default function ProjectDetailPage() {
       discount: formData.discount, custom_price: formData.custom_price, total_price: pricing.total,
       theme: formData.theme, status: formData.status, admin_password: formData.admin_password,
       custom_domain: formData.custom_domain, active_components: formData.active_components,
-      component_order: formData.component_order,
+      component_order: formData.component_order, std_date: formData.std_date, archive_date: formData.archive_date,
     });
     if (error) { toast.error('Fehler beim Speichern'); console.error(error); }
     else { 
@@ -567,7 +580,7 @@ export default function ProjectDetailPage() {
             <FormGrid>
               <FormGroup><Label>Partner 1</Label><Input value={formData.partner1_name || ''} onChange={e => handleChange('partner1_name', e.target.value)} /></FormGroup>
               <FormGroup><Label>Partner 2</Label><Input value={formData.partner2_name || ''} onChange={e => handleChange('partner2_name', e.target.value)} /></FormGroup>
-              <FormGroup><Label>Datum</Label><Input type="date" value={formData.wedding_date?.split('T')[0] || ''} onChange={e => handleChange('wedding_date', e.target.value)} /></FormGroup>
+              <FormGroup><Label>Hochzeitsdatum</Label><Input type="date" value={formData.wedding_date?.split('T')[0] || ''} onChange={e => handleChange('wedding_date', e.target.value)} min={new Date().toISOString().split('T')[0]} /></FormGroup>
               <FormGroup><Label>Slug</Label><Input value={formData.slug || ''} onChange={e => handleChange('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} /></FormGroup>
               <FormGroup><Label>Location</Label><Input value={formData.location || ''} onChange={e => handleChange('location', e.target.value)} /></FormGroup>
               <FormGroup><Label>Hashtag</Label><Input value={formData.hashtag || ''} onChange={e => handleChange('hashtag', e.target.value)} /></FormGroup>
@@ -663,6 +676,8 @@ export default function ProjectDetailPage() {
             <SettingsGrid>
               <FormGroup><Label>Theme</Label><Select value={formData.theme || 'botanical'} onChange={e => handleChange('theme', e.target.value)}>{Object.values(THEMES).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</Select></FormGroup>
               <FormGroup><Label>Status</Label><Select value={formData.status || 'draft'} onChange={e => handleChange('status', e.target.value)}>{Object.entries(PROJECT_STATUS).map(([k, v]) => <option key={k} value={k} disabled={!canUseStatus(k)}>{v.label}{!canUseStatus(k) && ' (nicht gebucht)'}</option>)}</Select></FormGroup>
+              <FormGroup><Label>STD-Datum (Save the Date)</Label><Input type="date" value={formData.std_date?.split('T')[0] || ''} onChange={e => handleChange('std_date', e.target.value)} disabled={!canUseStatus('std')} /></FormGroup>
+              <FormGroup><Label>Archiv-Datum</Label><Input type="date" value={formData.archive_date?.split('T')[0] || ''} onChange={e => handleChange('archive_date', e.target.value)} disabled={!canUseStatus('archive')} /></FormGroup>
               <FormGroup><Label>Admin Passwort</Label><Input value={formData.admin_password || ''} onChange={e => handleChange('admin_password', e.target.value)} /></FormGroup>
               <FormGroup><Label>Custom Domain</Label><Input value={formData.custom_domain || ''} onChange={e => handleChange('custom_domain', e.target.value.toLowerCase())} placeholder="anna-max.de" /></FormGroup>
             </SettingsGrid>
