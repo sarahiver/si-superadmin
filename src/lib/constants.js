@@ -34,6 +34,9 @@ export const PROJECT_STATUS = {
 
 export const CORE_COMPONENTS = ['hero', 'countdown', 'lovestory', 'rsvp'];
 
+// Navigation: Max items allowed in navbar
+export const MAX_NAV_COMPONENTS = 8;
+
 export const ALL_COMPONENTS = [
   { id: 'hero', name: 'Hero', core: true },
   { id: 'countdown', name: 'Countdown', core: true },
