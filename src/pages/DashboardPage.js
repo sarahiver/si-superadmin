@@ -76,14 +76,17 @@ export default function DashboardPage() {
     setIsSyncing(false);
   };
 
+  // Demo-Projekte ausfiltern - nur echte Kundenprojekte anzeigen
+  const customerProjects = projects.filter(p => p.status !== 'demo');
+
   const stats = {
-    total: projects.length,
-    live: projects.filter(p => p.status === 'live').length,
-    inProgress: projects.filter(p => ['inquiry', 'in_progress', 'std'].includes(p.status)).length,
-    revenue: projects.reduce((sum, p) => sum + (p.total_price || 0), 0),
+    total: customerProjects.length,
+    live: customerProjects.filter(p => p.status === 'live').length,
+    inProgress: customerProjects.filter(p => ['inquiry', 'in_progress', 'std'].includes(p.status)).length,
+    revenue: customerProjects.reduce((sum, p) => sum + (p.total_price || 0), 0),
   };
 
-  const recentProjects = [...projects].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 6);
+  const recentProjects = [...customerProjects].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 6);
 
   if (isLoading) return <Layout><div style={{ padding: '2rem', color: colors.gray }}>Laden...</div></Layout>;
 
