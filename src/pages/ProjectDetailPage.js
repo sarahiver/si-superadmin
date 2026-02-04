@@ -46,6 +46,158 @@ const FeatureList = styled.div`background: ${colors.background}; padding: 1rem; 
 const AddonsSection = styled.div`margin-bottom: 1.5rem; .title { font-family: 'Oswald', sans-serif; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.75rem; }`;
 const AddonItem = styled.div`display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: ${p => p.$included ? `${colors.green}15` : p.$selected ? `${colors.red}10` : colors.white}; border: 1px solid ${p => p.$included ? colors.green : p.$selected ? colors.red : colors.lightGray}; margin-bottom: 0.5rem; cursor: ${p => p.$included ? 'default' : 'pointer'}; .checkbox { width: 20px; height: 20px; border: 2px solid ${p => p.$included ? colors.green : p.$selected ? colors.red : colors.black}; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; background: ${p => (p.$included || p.$selected) ? (p.$included ? colors.green : colors.red) : 'transparent'}; color: white; } .info { flex: 1; } .name { font-size: 0.9rem; font-weight: 500; } .description { font-size: 0.75rem; color: ${colors.gray}; } .price { font-size: 0.85rem; font-weight: 600; } .included-badge { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; color: ${colors.green}; background: ${colors.green}20; padding: 0.2rem 0.5rem; }`;
 const ExtraComponentsRow = styled.div`display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: ${colors.white}; border: 1px solid ${colors.lightGray}; margin-bottom: 0.5rem; .info { flex: 1; } .name { font-size: 0.9rem; font-weight: 500; } .description { font-size: 0.75rem; color: ${colors.gray}; } .counter { display: flex; align-items: center; gap: 0.5rem; button { width: 28px; height: 28px; border: 2px solid ${colors.black}; background: transparent; font-size: 1rem; font-weight: 700; cursor: pointer; &:hover { background: ${colors.black}; color: white; } &:disabled { opacity: 0.3; cursor: not-allowed; } } span { font-size: 1rem; font-weight: 600; min-width: 24px; text-align: center; } } .price { font-size: 0.85rem; font-weight: 600; min-width: 60px; text-align: right; }`;
+
+// Custom Extras Styles
+const CustomExtrasSection = styled.div`
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid ${colors.lightGray};
+`;
+
+const CustomExtrasTitle = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+
+  .title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+`;
+
+const AddExtraButton = styled.button`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: ${colors.red};
+  background: transparent;
+  border: 1px dashed ${colors.red};
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: ${colors.red}10;
+  }
+`;
+
+const CustomExtraItem = styled.div`
+  background: ${colors.background};
+  border: 1px solid ${colors.lightGray};
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+
+  .extra-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .extra-title-input {
+    flex: 1;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.5rem;
+    border: 1px solid ${colors.lightGray};
+    background: ${colors.white};
+
+    &:focus {
+      outline: none;
+      border-color: ${colors.black};
+    }
+  }
+
+  .extra-amount {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    input {
+      width: 100px;
+      text-align: right;
+      font-weight: 600;
+      padding: 0.5rem;
+      border: 1px solid ${colors.lightGray};
+      background: ${colors.white};
+
+      &:focus {
+        outline: none;
+        border-color: ${colors.black};
+      }
+    }
+
+    span {
+      color: ${colors.gray};
+    }
+  }
+
+  .extra-description {
+    width: 100%;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    padding: 0.5rem;
+    border: 1px solid ${colors.lightGray};
+    background: ${colors.white};
+    resize: vertical;
+    min-height: 60px;
+
+    &:focus {
+      outline: none;
+      border-color: ${colors.black};
+    }
+
+    &::placeholder {
+      color: ${colors.gray};
+    }
+  }
+
+  .extra-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.75rem;
+  }
+
+  .delete-btn {
+    font-size: 0.7rem;
+    color: ${colors.red};
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+`;
+
+const CustomExtrasSummary = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: ${colors.red}10;
+  border: 1px solid ${colors.red}30;
+  margin-top: 0.5rem;
+
+  .label {
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .total {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: ${colors.red};
+  }
+`;
 const PriceSummary = styled.div`background: ${colors.black}; color: white; padding: 1.25rem; .row { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.5rem; &.total { border-top: 1px solid ${colors.gray}; padding-top: 0.75rem; margin-top: 0.75rem; font-size: 1.1rem; font-weight: 700; } &.discount { color: ${colors.green}; } } .label { color: ${colors.lightGray}; } .total .label { color: white; }`;
 const SettingsGrid = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid ${colors.lightGray}; @media (max-width: 600px) { grid-template-columns: 1fr; }`;
 const ComponentListContainer = styled.div`border: 2px solid ${colors.lightGray};`;
@@ -315,7 +467,7 @@ function generateContractPDF(data, pricing) {
   const px = pw - m - 10;
   if (data.package === 'individual') {
     doc.text('Individual-Paket', m, y);
-    doc.text(formatPrice(pricing.total), px, y, { align: 'right' });
+    doc.text(formatPrice(data.custom_price || 0), px, y, { align: 'right' });
     y += 6;
   } else {
     doc.text(`Paket ${pkg.name}`, m, y);
@@ -339,6 +491,36 @@ function generateContractPDF(data, pricing) {
       doc.setTextColor(0);
     }
   }
+
+  // Custom Extras im Vertrag
+  const customExtras = data.custom_extras || [];
+  if (customExtras.length > 0) {
+    y += 4;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Individuelle Leistungen:', m, y);
+    y += 6;
+    doc.setFont('helvetica', 'normal');
+    customExtras.forEach(extra => {
+      checkPage(15);
+      doc.text(`• ${extra.title || 'Individuelle Leistung'}`, m, y);
+      doc.text(`+${formatPrice(extra.amount || 0)}`, px, y, { align: 'right' });
+      y += 5;
+      if (extra.description) {
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        const descLines = doc.splitTextToSize(extra.description, pw - 2 * m - 20);
+        descLines.forEach(line => {
+          checkPage(5);
+          doc.text(line, m + 5, y);
+          y += 4;
+        });
+        doc.setFontSize(10);
+        doc.setTextColor(0);
+        y += 2;
+      }
+    });
+  }
+
   doc.line(m, y, pw - m, y);
   y += 5;
   doc.setFont('helvetica', 'bold');
@@ -416,6 +598,7 @@ export default function ProjectDetailPage() {
         extra_components_count: data.extra_components_count || 0,
         discount: data.discount || 0,
         custom_price: data.custom_price || 0,
+        custom_extras: data.custom_extras || [],
         component_order: data.component_order || DEFAULT_COMPONENT_ORDER,
         active_components: data.active_components || [...CORE_COMPONENTS],
         std_date: data.std_date || '',
@@ -441,8 +624,11 @@ export default function ProjectDetailPage() {
 
   const pricing = useMemo(() => {
     const pkg = PACKAGES[formData.package] || PACKAGES.starter;
+    const customExtras = formData.custom_extras || [];
+    const customExtrasPrice = customExtras.reduce((sum, extra) => sum + (parseFloat(extra.amount) || 0), 0);
+
     if (formData.package === 'individual') {
-      return { packagePrice: 0, addonsPrice: 0, extraComponentsPrice: 0, discount: 0, total: formData.custom_price || 0 };
+      return { packagePrice: 0, addonsPrice: 0, extraComponentsPrice: 0, customExtrasPrice, discount: 0, total: (formData.custom_price || 0) + customExtrasPrice };
     }
     const addons = formData.addons || [];
     const extraCount = formData.extra_components_count || 0;
@@ -456,14 +642,37 @@ export default function ProjectDetailPage() {
     });
     const extraOverLimit = Math.max(0, extraCount - pkg.extraComponentsIncluded);
     const extraComponentsPrice = extraOverLimit * (ADDONS.extra_component?.price || 50);
-    const total = Math.max(0, packagePrice + addonsPrice + extraComponentsPrice - discount);
-    return { packagePrice, addonsPrice, extraComponentsPrice, discount, total };
-  }, [formData.package, formData.addons, formData.extra_components_count, formData.discount, formData.custom_price]);
+    const total = Math.max(0, packagePrice + addonsPrice + extraComponentsPrice + customExtrasPrice - discount);
+    return { packagePrice, addonsPrice, extraComponentsPrice, customExtrasPrice, discount, total };
+  }, [formData.package, formData.addons, formData.extra_components_count, formData.discount, formData.custom_price, formData.custom_extras]);
 
   const toggleAddon = (addonId) => {
     if (isFeatureIncluded(formData.package, addonId)) return;
     const current = formData.addons || [];
     handleChange('addons', current.includes(addonId) ? current.filter(i => i !== addonId) : [...current, addonId]);
+  };
+
+  // Custom Extras Management
+  const addCustomExtra = () => {
+    const newExtra = {
+      id: Date.now().toString(),
+      title: '',
+      description: '',
+      amount: 0
+    };
+    handleChange('custom_extras', [...(formData.custom_extras || []), newExtra]);
+  };
+
+  const updateCustomExtra = (id, field, value) => {
+    const updated = (formData.custom_extras || []).map(extra =>
+      extra.id === id ? { ...extra, [field]: value } : extra
+    );
+    handleChange('custom_extras', updated);
+  };
+
+  const deleteCustomExtra = (id) => {
+    const updated = (formData.custom_extras || []).filter(extra => extra.id !== id);
+    handleChange('custom_extras', updated);
   };
 
   const canUseStatus = (key) => {
@@ -548,7 +757,8 @@ export default function ProjectDetailPage() {
       wedding_date: formData.wedding_date, slug: formData.slug, location: formData.location,
       hashtag: formData.hashtag, display_email: formData.display_email, display_phone: formData.display_phone,
       package: formData.package, addons: formData.addons, extra_components_count: formData.extra_components_count,
-      discount: formData.discount, custom_price: formData.custom_price, total_price: pricing.total,
+      discount: formData.discount, custom_price: formData.custom_price, custom_extras: formData.custom_extras || [],
+      total_price: pricing.total,
       theme: formData.theme, status: formData.status, admin_password: formData.admin_password,
       custom_domain: formData.custom_domain, active_components: formData.active_components,
       component_order: formData.component_order,
@@ -767,6 +977,53 @@ export default function ProjectDetailPage() {
                   <div className="info"><div className="name">Rabatt</div></div>
                   <Input type="number" value={formData.discount || 0} onChange={e => handleChange('discount', parseFloat(e.target.value) || 0)} style={{ width: '120px', textAlign: 'right' }} />
                 </ExtraComponentsRow>
+
+                {/* Custom Extras */}
+                <CustomExtrasSection>
+                  <CustomExtrasTitle>
+                    <span className="title">Individuelle Extras</span>
+                    <AddExtraButton onClick={addCustomExtra}>+ Extra hinzufügen</AddExtraButton>
+                  </CustomExtrasTitle>
+
+                  {(formData.custom_extras || []).map(extra => (
+                    <CustomExtraItem key={extra.id}>
+                      <div className="extra-header">
+                        <input
+                          className="extra-title-input"
+                          type="text"
+                          value={extra.title}
+                          onChange={e => updateCustomExtra(extra.id, 'title', e.target.value)}
+                          placeholder="Titel (z.B. Designanpassung Countdown)"
+                        />
+                        <div className="extra-amount">
+                          <input
+                            type="number"
+                            value={extra.amount || ''}
+                            onChange={e => updateCustomExtra(extra.id, 'amount', parseFloat(e.target.value) || 0)}
+                            placeholder="0"
+                          />
+                          <span>€</span>
+                        </div>
+                      </div>
+                      <textarea
+                        className="extra-description"
+                        value={extra.description}
+                        onChange={e => updateCustomExtra(extra.id, 'description', e.target.value)}
+                        placeholder="Detaillierte Beschreibung für Vertrag/Rechnung (z.B. Runde Uhr mit Gold-Akzenten statt Standard-Flip-Counter, Animation bei Ziffernwechsel)"
+                      />
+                      <div className="extra-footer">
+                        <button className="delete-btn" onClick={() => deleteCustomExtra(extra.id)}>✕ Entfernen</button>
+                      </div>
+                    </CustomExtraItem>
+                  ))}
+
+                  {(formData.custom_extras || []).length > 0 && (
+                    <CustomExtrasSummary>
+                      <span className="label">Individuelle Extras gesamt</span>
+                      <span className="total">+{formatPrice(pricing.customExtrasPrice)}</span>
+                    </CustomExtrasSummary>
+                  )}
+                </CustomExtrasSection>
               </AddonsSection>
             )}
             
@@ -789,10 +1046,16 @@ export default function ProjectDetailPage() {
                   <div className="row"><span className="label">Paket ({selectedPackage.name})</span><span>{formatPrice(pricing.packagePrice)}</span></div>
                   {pricing.addonsPrice > 0 && <div className="row"><span className="label">Zusatzoptionen</span><span>+{formatPrice(pricing.addonsPrice)}</span></div>}
                   {pricing.extraComponentsPrice > 0 && <div className="row"><span className="label">Extra Komponenten</span><span>+{formatPrice(pricing.extraComponentsPrice)}</span></div>}
+                  {pricing.customExtrasPrice > 0 && <div className="row"><span className="label">Individuelle Extras</span><span>+{formatPrice(pricing.customExtrasPrice)}</span></div>}
                   {pricing.discount > 0 && <div className="row discount"><span className="label">Rabatt</span><span>-{formatPrice(pricing.discount)}</span></div>}
                 </>
               )}
-              {isIndividual && <div className="row"><span className="label">Individual-Paket</span><span>{formatPrice(pricing.total)}</span></div>}
+              {isIndividual && (
+                <>
+                  <div className="row"><span className="label">Individual-Paket</span><span>{formatPrice(formData.custom_price || 0)}</span></div>
+                  {pricing.customExtrasPrice > 0 && <div className="row"><span className="label">Individuelle Extras</span><span>+{formatPrice(pricing.customExtrasPrice)}</span></div>}
+                </>
+              )}
               <div className="row total"><span className="label">Gesamt</span><span>{formatPrice(pricing.total)}</span></div>
             </PriceSummary>
             
