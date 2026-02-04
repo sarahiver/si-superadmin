@@ -12,6 +12,49 @@ import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordRese
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
+// Verfügbare Varianten pro Komponente
+// Hier neue Designs hinzufügen, wenn sie implementiert sind
+const COMPONENT_VARIANTS = {
+  countdown: [
+    { id: 'default', name: 'Standard', description: 'Theme-Standard Countdown' },
+    { id: 'round-clock', name: 'Runde Uhr', description: 'Analoge Uhr mit Zeigern' },
+    { id: 'flip-clock', name: 'Flip Clock', description: 'Klassische Klappzahlen' },
+    { id: 'minimal', name: 'Minimal', description: 'Nur Zahlen, keine Dekoration' },
+  ],
+  hero: [
+    { id: 'default', name: 'Standard', description: 'Theme-Standard Hero' },
+    { id: 'video-bg', name: 'Video Background', description: 'Autoplay Video im Hintergrund' },
+    { id: 'parallax', name: 'Parallax', description: 'Parallax Scroll-Effekt' },
+    { id: 'split', name: 'Split Screen', description: 'Bild links, Text rechts' },
+  ],
+  gallery: [
+    { id: 'default', name: 'Standard', description: 'Theme-Standard Galerie' },
+    { id: 'masonry', name: 'Masonry', description: 'Pinterest-Style Grid' },
+    { id: 'carousel', name: 'Carousel', description: 'Horizontal Slider' },
+    { id: 'lightbox', name: 'Lightbox Grid', description: 'Vollbild beim Klick' },
+  ],
+  timeline: [
+    { id: 'default', name: 'Standard', description: 'Theme-Standard Timeline' },
+    { id: 'horizontal', name: 'Horizontal', description: 'Horizontale Timeline' },
+    { id: 'cards', name: 'Karten', description: 'Einzelne Event-Karten' },
+  ],
+  lovestory: [
+    { id: 'default', name: 'Standard', description: 'Theme-Standard Love Story' },
+    { id: 'timeline', name: 'Timeline', description: 'Vertikale Timeline' },
+    { id: 'slideshow', name: 'Slideshow', description: 'Automatische Slideshow' },
+  ],
+  rsvp: [
+    { id: 'default', name: 'Standard', description: 'Theme-Standard RSVP' },
+    { id: 'multi-step', name: 'Multi-Step', description: 'Mehrstufiges Formular' },
+    { id: 'minimal', name: 'Minimal', description: 'Kompaktes Formular' },
+  ],
+  locations: [
+    { id: 'default', name: 'Standard', description: 'Theme-Standard Locations' },
+    { id: 'map-focus', name: 'Karten-Fokus', description: 'Große interaktive Karte' },
+    { id: 'cards', name: 'Karten', description: 'Location-Karten nebeneinander' },
+  ],
+};
+
 // ============================================
 // STYLED COMPONENTS
 // ============================================
@@ -204,6 +247,164 @@ const ComponentListContainer = styled.div`border: 2px solid ${colors.lightGray};
 const ComponentListHeader = styled.div`display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: ${colors.background}; .count { font-family: 'Oswald', sans-serif; font-size: 0.9rem; } .hint { font-size: 0.7rem; color: ${colors.gray}; }`;
 const ComponentWarning = styled.div`background: ${colors.orange}20; border: 1px solid ${colors.orange}; color: ${colors.orange}; padding: 0.75rem 1rem; font-size: 0.8rem; strong { font-weight: 600; }`;
 const ComponentItem = styled.div`display: flex; align-items: center; gap: 1rem; padding: 0.875rem 1rem; background: ${p => p.$active ? colors.black : colors.white}; color: ${p => p.$active ? colors.white : colors.black}; border-bottom: 1px solid ${colors.lightGray}; cursor: pointer; transition: all 0.15s ease; &:last-child { border-bottom: none; } &:hover { background: ${p => p.$active ? colors.black : colors.background}; } .drag-handle { color: ${p => p.$active ? colors.gray : colors.lightGray}; cursor: grab; } .checkbox { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: 2px solid ${p => p.$active ? colors.white : colors.black}; background: ${p => p.$active ? colors.white : 'transparent'}; color: ${colors.black}; font-size: 0.75rem; font-weight: 700; } .name { flex: 1; font-size: 0.9rem; font-weight: 500; } .badge { font-size: 0.6rem; font-weight: 600; text-transform: uppercase; padding: 0.2rem 0.5rem; background: ${p => p.$active ? colors.red : colors.background}; color: ${p => p.$active ? colors.white : colors.gray}; }`;
+
+// Component Config / Variants Styles
+const ComponentConfigSection = styled.div`
+  margin-top: 1rem;
+`;
+
+const ComponentConfigItem = styled.div`
+  background: ${colors.white};
+  border: 1px solid ${p => p.$hasConfig ? colors.red : colors.lightGray};
+  margin-bottom: 0.75rem;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: ${colors.black};
+  }
+`;
+
+const ComponentConfigHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  background: ${p => p.$hasConfig ? `${colors.red}08` : 'transparent'};
+
+  .left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .name {
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .variant-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    background: ${colors.red};
+    color: ${colors.white};
+  }
+
+  .toggle {
+    font-size: 0.75rem;
+    color: ${colors.gray};
+    transition: transform 0.2s ease;
+    transform: ${p => p.$open ? 'rotate(180deg)' : 'rotate(0)'};
+  }
+`;
+
+const ComponentConfigBody = styled.div`
+  padding: ${p => p.$open ? '1rem' : '0 1rem'};
+  max-height: ${p => p.$open ? '300px' : '0'};
+  overflow: hidden;
+  transition: all 0.2s ease;
+  background: ${colors.background};
+  border-top: ${p => p.$open ? `1px solid ${colors.lightGray}` : 'none'};
+`;
+
+const VariantSelector = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+`;
+
+const VariantChip = styled.button`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border: 2px solid ${p => p.$selected ? colors.red : colors.lightGray};
+  background: ${p => p.$selected ? `${colors.red}15` : colors.white};
+  color: ${p => p.$selected ? colors.red : colors.black};
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: ${p => p.$selected ? colors.red : colors.black};
+  }
+`;
+
+const ConfigNotesInput = styled.textarea`
+  width: 100%;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  padding: 0.75rem;
+  border: 1px solid ${colors.lightGray};
+  background: ${colors.white};
+  resize: vertical;
+  min-height: 60px;
+
+  &:focus {
+    outline: none;
+    border-color: ${colors.black};
+  }
+
+  &::placeholder {
+    color: ${colors.gray};
+  }
+`;
+
+const ConfigLabel = styled.div`
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: ${colors.gray};
+  margin-bottom: 0.5rem;
+`;
+
+const ConfigSummary = styled.div`
+  background: ${colors.black};
+  color: ${colors.white};
+  padding: 1rem;
+  margin-top: 1rem;
+
+  .title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.75rem;
+  }
+
+  .item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    font-size: 0.8rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid ${colors.gray};
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    .component {
+      color: ${colors.lightGray};
+    }
+
+    .variant {
+      color: ${colors.red};
+      font-weight: 600;
+    }
+  }
+
+  .empty {
+    font-size: 0.8rem;
+    color: ${colors.gray};
+    text-align: center;
+    padding: 0.5rem;
+  }
+`;
 const InfoCard = styled.div`border: 2px solid ${colors.black}; margin-bottom: 1.5rem;`;
 const InfoHeader = styled.div`padding: 0.75rem 1rem; background: ${colors.black}; color: white; font-family: 'Oswald', sans-serif; font-size: 0.8rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase;`;
 const InfoBody = styled.div`padding: 1rem;`;
@@ -581,6 +782,7 @@ export default function ProjectDetailPage() {
   const [emailLogs, setEmailLogs] = useState([]);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [expandedEmailId, setExpandedEmailId] = useState(null);
+  const [expandedConfigId, setExpandedConfigId] = useState(null);
 
   useEffect(() => {
     loadProject();
@@ -599,6 +801,7 @@ export default function ProjectDetailPage() {
         discount: data.discount || 0,
         custom_price: data.custom_price || 0,
         custom_extras: data.custom_extras || [],
+        component_config: data.component_config || {},
         component_order: data.component_order || DEFAULT_COMPONENT_ORDER,
         active_components: data.active_components || [...CORE_COMPONENTS],
         std_date: data.std_date || '',
@@ -674,6 +877,52 @@ export default function ProjectDetailPage() {
     const updated = (formData.custom_extras || []).filter(extra => extra.id !== id);
     handleChange('custom_extras', updated);
   };
+
+  // Component Config Management
+  const setComponentVariant = (componentId, variantId) => {
+    const currentConfig = formData.component_config || {};
+    const componentConfig = currentConfig[componentId] || {};
+
+    // Wenn default gewählt wird und keine Notizen vorhanden, Config entfernen
+    if (variantId === 'default' && !componentConfig.notes) {
+      const { [componentId]: removed, ...rest } = currentConfig;
+      handleChange('component_config', rest);
+    } else {
+      handleChange('component_config', {
+        ...currentConfig,
+        [componentId]: { ...componentConfig, variant: variantId }
+      });
+    }
+  };
+
+  const setComponentNotes = (componentId, notes) => {
+    const currentConfig = formData.component_config || {};
+    const componentConfig = currentConfig[componentId] || {};
+
+    // Wenn keine Notizen und default Variante, Config entfernen
+    if (!notes && (!componentConfig.variant || componentConfig.variant === 'default')) {
+      const { [componentId]: removed, ...rest } = currentConfig;
+      handleChange('component_config', rest);
+    } else {
+      handleChange('component_config', {
+        ...currentConfig,
+        [componentId]: { ...componentConfig, notes }
+      });
+    }
+  };
+
+  const getComponentConfig = (componentId) => {
+    return (formData.component_config || {})[componentId] || { variant: 'default', notes: '' };
+  };
+
+  const hasComponentConfig = (componentId) => {
+    const config = (formData.component_config || {})[componentId];
+    return config && (config.variant !== 'default' || config.notes);
+  };
+
+  const configuredComponentsCount = Object.keys(formData.component_config || {}).filter(
+    id => hasComponentConfig(id)
+  ).length;
 
   const canUseStatus = (key) => {
     if (key === 'std') return isFeatureIncluded(formData.package, 'save_the_date') || (formData.addons || []).includes('save_the_date');
@@ -762,6 +1011,7 @@ export default function ProjectDetailPage() {
       theme: formData.theme, status: formData.status, admin_password: formData.admin_password,
       custom_domain: formData.custom_domain, active_components: formData.active_components,
       component_order: formData.component_order,
+      component_config: formData.component_config || {},
       std_date: formData.std_date, archive_date: formData.archive_date,
       password_protected: formData.password_protected || false,
     });
@@ -1257,6 +1507,93 @@ export default function ProjectDetailPage() {
               <ManualEmailBox>
                 <p style={{ color: colors.red, margin: 0 }}>⚠️ Keine Kunden-E-Mail hinterlegt. Bitte unter "Kundendaten" ergänzen.</p>
               </ManualEmailBox>
+            )}
+          </CollapsibleSection>
+
+          {/* Section 07: Design Varianten */}
+          <CollapsibleSection number="07" title="Design Varianten" badge={configuredComponentsCount > 0 ? `${configuredComponentsCount} konfiguriert` : ''} defaultOpen={false}>
+            <p style={{ fontSize: '0.85rem', color: colors.gray, marginBottom: '1rem' }}>
+              Hier kannst du für aktive Komponenten spezielle Design-Varianten auswählen.
+              Varianten werden erst angezeigt, wenn sie im Code implementiert sind.
+            </p>
+
+            <ComponentConfigSection>
+              {(formData.active_components || [])
+                .filter(compId => COMPONENT_VARIANTS[compId])
+                .map(compId => {
+                  const comp = ALL_COMPONENTS.find(c => c.id === compId);
+                  if (!comp) return null;
+                  const variants = COMPONENT_VARIANTS[compId] || [];
+                  const config = getComponentConfig(compId);
+                  const isOpen = expandedConfigId === compId;
+                  const hasConfig = hasComponentConfig(compId);
+
+                  return (
+                    <ComponentConfigItem key={compId} $hasConfig={hasConfig}>
+                      <ComponentConfigHeader
+                        $hasConfig={hasConfig}
+                        $open={isOpen}
+                        onClick={() => setExpandedConfigId(isOpen ? null : compId)}
+                      >
+                        <div className="left">
+                          <span className="name">{comp.name}</span>
+                          {hasConfig && config.variant !== 'default' && (
+                            <span className="variant-badge">
+                              {variants.find(v => v.id === config.variant)?.name || config.variant}
+                            </span>
+                          )}
+                        </div>
+                        <span className="toggle">▼</span>
+                      </ComponentConfigHeader>
+                      <ComponentConfigBody $open={isOpen}>
+                        <ConfigLabel>Design-Variante</ConfigLabel>
+                        <VariantSelector>
+                          {variants.map(variant => (
+                            <VariantChip
+                              key={variant.id}
+                              $selected={config.variant === variant.id || (!config.variant && variant.id === 'default')}
+                              onClick={() => setComponentVariant(compId, variant.id)}
+                              title={variant.description}
+                            >
+                              {variant.name}
+                            </VariantChip>
+                          ))}
+                        </VariantSelector>
+                        <ConfigLabel>Notizen / Spezielle Wünsche</ConfigLabel>
+                        <ConfigNotesInput
+                          value={config.notes || ''}
+                          onChange={e => setComponentNotes(compId, e.target.value)}
+                          placeholder="z.B. Gold-Akzente, spezielle Animationen, bestimmte Farben..."
+                        />
+                      </ComponentConfigBody>
+                    </ComponentConfigItem>
+                  );
+                })}
+            </ComponentConfigSection>
+
+            {configuredComponentsCount > 0 && (
+              <ConfigSummary>
+                <div className="title">Konfigurierte Komponenten</div>
+                {Object.entries(formData.component_config || {})
+                  .filter(([id, cfg]) => cfg.variant !== 'default' || cfg.notes)
+                  .map(([compId, cfg]) => {
+                    const comp = ALL_COMPONENTS.find(c => c.id === compId);
+                    const variants = COMPONENT_VARIANTS[compId] || [];
+                    const variantName = variants.find(v => v.id === cfg.variant)?.name || cfg.variant || 'Standard';
+                    return (
+                      <div key={compId} className="item">
+                        <span className="component">{comp?.name || compId}</span>
+                        <span className="variant">{variantName}</span>
+                      </div>
+                    );
+                  })}
+              </ConfigSummary>
+            )}
+
+            {configuredComponentsCount === 0 && (
+              <div style={{ textAlign: 'center', padding: '2rem', color: colors.gray }}>
+                Keine speziellen Design-Varianten konfiguriert. Alle Komponenten verwenden das Standard-Design des gewählten Themes.
+              </div>
             )}
           </CollapsibleSection>
         </MainColumn>
