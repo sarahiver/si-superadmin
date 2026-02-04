@@ -72,6 +72,94 @@ const EmailStatusBadge = styled.span`font-size: 0.65rem; font-weight: 600; text-
 const EmptyState = styled.div`text-align: center; padding: 2rem; color: ${colors.gray}; font-size: 0.9rem;`;
 const ManualEmailBox = styled.div`background: ${colors.background}; padding: 1.25rem; margin-top: 1.5rem;`;
 
+// Password Protection Styles
+const PasswordProtectionBox = styled.div`
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: ${colors.background};
+  border: 2px solid ${colors.lightGray};
+`;
+
+const PasswordHeader = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  
+  .hint {
+    font-size: 0.75rem;
+    color: ${colors.gray};
+  }
+`;
+
+const PasswordToggle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  
+  .checkbox {
+    width: 24px;
+    height: 24px;
+    border: 2px solid ${p => p.$active ? colors.green : colors.black};
+    background: ${p => p.$active ? colors.green : 'transparent'};
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+  
+  .label {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+`;
+
+const PasswordInputRow = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  
+  input {
+    flex: 1;
+  }
+`;
+
+const PasswordSaveButton = styled.button`
+  padding: 0.875rem 1.5rem;
+  background: ${colors.black};
+  color: ${colors.white};
+  border: none;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover:not(:disabled) {
+    background: ${colors.red};
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const PasswordStatus = styled.div`
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: ${p => p.$set ? colors.green : colors.gray};
+`;
+
 // Sticky Save Bar - immer sichtbar am unteren Bildschirmrand
 const StickyBottomBar = styled.div`
   position: fixed;
@@ -305,6 +393,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [formData, setFormData] = useState({});
   const [draggedItem, setDraggedItem] = useState(null);
   const [emailLogs, setEmailLogs] = useState([]);
@@ -407,6 +496,37 @@ export default function ProjectDetailPage() {
   };
   const handleDragEnd = () => setDraggedItem(null);
 
+  // Gäste-Passwort speichern (via Supabase RPC)
+  const handleSaveGuestPassword = async () => {
+    if (!formData.guest_password) {
+      toast.error('Bitte Passwort eingeben');
+      return;
+    }
+    
+    setIsSavingPassword(true);
+    try {
+      // Rufe Supabase RPC Funktion auf (serverseitig, sicher)
+      const { data, error } = await supabase.rpc('set_project_password', {
+        project_id: id,
+        new_password: formData.guest_password
+      });
+      
+      if (error) throw error;
+      
+      if (data?.success) {
+        toast.success('Gäste-Passwort gesetzt!');
+        // Update lokalen State
+        setFormData(prev => ({ ...prev, password_hash: 'set', guest_password: '' }));
+      } else {
+        throw new Error(data?.error || 'Unbekannter Fehler');
+      }
+    } catch (err) {
+      console.error('Error setting password:', err);
+      toast.error('Fehler beim Setzen des Passworts');
+    }
+    setIsSavingPassword(false);
+  };
+
   const handleSave = async () => {
     // Validierung: Hochzeitsdatum muss in der Zukunft liegen
     if (formData.wedding_date) {
@@ -433,6 +553,7 @@ export default function ProjectDetailPage() {
       custom_domain: formData.custom_domain, active_components: formData.active_components,
       component_order: formData.component_order,
       std_date: formData.std_date, archive_date: formData.archive_date,
+      password_protected: formData.password_protected || false,
     });
     if (error) { toast.error('Fehler beim Speichern'); console.error(error); }
     else { 
@@ -683,6 +804,43 @@ export default function ProjectDetailPage() {
               <FormGroup><Label>Admin Passwort</Label><Input value={formData.admin_password || ''} onChange={e => handleChange('admin_password', e.target.value)} /></FormGroup>
               <FormGroup><Label>Custom Domain</Label><Input value={formData.custom_domain || ''} onChange={e => handleChange('custom_domain', e.target.value.toLowerCase())} placeholder="anna-max.de" /></FormGroup>
             </SettingsGrid>
+            
+            {/* Gäste-Passwortschutz */}
+            <PasswordProtectionBox>
+              <PasswordHeader>
+                <PasswordToggle 
+                  $active={formData.password_protected}
+                  onClick={() => handleChange('password_protected', !formData.password_protected)}
+                >
+                  <span className="checkbox">{formData.password_protected && '✓'}</span>
+                  <span className="label">🔐 Passwortschutz für Gäste</span>
+                </PasswordToggle>
+                <span className="hint">Gäste müssen Passwort eingeben, um die Website zu sehen</span>
+              </PasswordHeader>
+              
+              {formData.password_protected && (
+                <PasswordInputRow>
+                  <Input 
+                    type="text"
+                    value={formData.guest_password || ''} 
+                    onChange={e => handleChange('guest_password', e.target.value)}
+                    placeholder="Gäste-Passwort eingeben..."
+                  />
+                  <PasswordSaveButton 
+                    onClick={handleSaveGuestPassword}
+                    disabled={!formData.guest_password || isSavingPassword}
+                  >
+                    {isSavingPassword ? '...' : 'Speichern'}
+                  </PasswordSaveButton>
+                </PasswordInputRow>
+              )}
+              
+              {formData.password_protected && formData.password_hash && (
+                <PasswordStatus $set={true}>
+                  ✓ Passwort ist gesetzt
+                </PasswordStatus>
+              )}
+            </PasswordProtectionBox>
           </CollapsibleSection>
 
           {/* Section 04: Links */}
