@@ -26,6 +26,7 @@ export const PROJECT_STATUS = {
   std: { id: 'std', label: 'Save the Date', color: '#8B5CF6' },
   live: { id: 'live', label: 'Live', color: '#10B981' },
   archive: { id: 'archive', label: 'Archiv', color: '#6B7280' },
+  demo: { id: 'demo', label: 'Demo', color: '#EC4899' }, // Pink - Für Marketing-Website
 };
 
 // ============================================

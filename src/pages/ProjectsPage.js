@@ -143,8 +143,14 @@ export default function ProjectsPage() {
     setIsLoading(false);
   };
 
+  // "all" zeigt alle AUSSER Demo-Projekte
+  // "demo" zeigt nur Demo-Projekte
   const filteredProjects = projects
-    .filter(p => filter === 'all' || p.status === filter)
+    .filter(p => {
+      if (filter === 'all') return p.status !== 'demo';
+      if (filter === 'demo') return p.status === 'demo';
+      return p.status === filter;
+    })
     .filter(p => !search || 
       (p.couple_names || '').toLowerCase().includes(search.toLowerCase()) ||
       (p.client_name || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -155,14 +161,18 @@ export default function ProjectsPage() {
   const totalPages = Math.ceil(filteredProjects.length / perPage);
   const paginatedProjects = filteredProjects.slice((page - 1) * perPage, page * perPage);
 
+  // Zähle alle außer Demo für "Alle"
+  const nonDemoProjects = projects.filter(p => p.status !== 'demo');
   const statusCounts = {
-    all: projects.length,
+    all: nonDemoProjects.length,
     draft: projects.filter(p => p.status === 'draft').length,
     inquiry: projects.filter(p => p.status === 'inquiry').length,
     in_progress: projects.filter(p => p.status === 'in_progress').length,
     ready_for_review: projects.filter(p => p.status === 'ready_for_review').length,
+    std: projects.filter(p => p.status === 'std').length,
     live: projects.filter(p => p.status === 'live').length,
     archive: projects.filter(p => p.status === 'archive').length,
+    demo: projects.filter(p => p.status === 'demo').length,
   };
 
   if (isLoading) return <Layout><div style={{ padding: '2rem', color: colors.gray }}>Laden...</div></Layout>;
