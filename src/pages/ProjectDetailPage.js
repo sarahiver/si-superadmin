@@ -10,6 +10,7 @@ import { getProjectById, updateProject, deleteProject, supabase } from '../lib/s
 import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS, PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from '../lib/constants';
 import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail } from '../lib/emailService';
 import AddressAutocomplete, { formatAddress } from '../components/AddressAutocomplete';
+import PhoneInput from '../components/PhoneInput';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
@@ -1163,7 +1164,7 @@ export default function ProjectDetailPage() {
             <FormGrid>
               <FormGroup className="full-width"><Label>Kundenname</Label><Input value={formData.client_name || ''} onChange={e => handleChange('client_name', e.target.value)} /></FormGroup>
               <FormGroup><Label>E-Mail</Label><Input type="email" value={formData.client_email || ''} onChange={e => handleChange('client_email', e.target.value)} /></FormGroup>
-              <FormGroup><Label>Telefon</Label><Input value={formData.client_phone || ''} onChange={e => handleChange('client_phone', e.target.value)} /></FormGroup>
+              <FormGroup><Label>Telefon</Label><PhoneInput value={formData.client_phone || ''} onChange={val => handleChange('client_phone', val)} placeholder="176 1234567" /></FormGroup>
               <FormGroup className="full-width">
                 <AddressAutocomplete
                   street={formData.client_street}
