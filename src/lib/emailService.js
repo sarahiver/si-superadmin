@@ -74,8 +74,16 @@ function generateContractPDFBase64(project, pricing) {
   doc.setFont('helvetica', 'normal');
   doc.text(project.client_name || '[KUNDENNAME]', m, y);
   y += 5;
-  doc.text(project.client_address || '[ADRESSE]', m, y);
+  const emailAddr1 = [project.client_street, project.client_house_number].filter(Boolean).join(' ') || '[STRASSE]';
+  const emailAddr2 = [project.client_zip, project.client_city].filter(Boolean).join(' ') || '[ORT]';
+  doc.text(emailAddr1, m, y);
   y += 5;
+  doc.text(emailAddr2, m, y);
+  y += 5;
+  if (project.client_country && project.client_country !== 'Deutschland') {
+    doc.text(project.client_country, m, y);
+    y += 5;
+  }
   doc.text(`E-Mail: ${project.client_email || '[EMAIL]'}`, m, y);
   y += 5;
   doc.setFont('helvetica', 'italic');
