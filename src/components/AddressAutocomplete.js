@@ -22,7 +22,23 @@ const colors = {
 // GOOGLE PLACE PARSER
 // ============================================
 
-function parseGooglePlace(place) {
+function extractHouseNumber(text, streetName) {
+  if (!text) return '';
+  // Hausnummer aus Text extrahieren: "Musterstraße 12a" → "12a"
+  // Auch: "Muster Str. 12a", "Am Rabenstein 1"
+  // Strategie: Wenn Straßenname bekannt, alles danach nehmen
+  if (streetName) {
+    const escaped = streetName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const afterStreet = new RegExp(escaped + '\\s+(\\d+\\s*\\w?)', 'i');
+    const match = text.match(afterStreet);
+    if (match) return match[1].trim();
+  }
+  // Fallback: Letzte Zahl(+Buchstabe) vor einem Komma oder am Ende
+  const numMatch = text.match(/\b(\d+\s*[a-zA-Z]?)\s*(?:,|$)/);
+  return numMatch ? numMatch[1].trim() : '';
+}
+
+function parseGooglePlace(place, fallbackText) {
   const result = { street: '', house_number: '', zip: '', city: '', country: 'Deutschland', lat: null, lng: null };
   
   if (place.geometry?.location) {
@@ -40,6 +56,11 @@ function parseGooglePlace(place) {
     else if (types.includes('locality')) result.city = comp.long_name;
     else if (types.includes('sublocality_level_1') && !result.city) result.city = comp.long_name;
     else if (types.includes('country')) result.country = comp.long_name;
+  }
+
+  // Fallback: Hausnummer aus Suchtext / Prediction-Text extrahieren
+  if (!result.house_number && fallbackText) {
+    result.house_number = extractHouseNumber(fallbackText, result.street);
   }
 
   return result;
@@ -112,6 +133,7 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
               id: p.place_id,
               mainText: p.structured_formatting?.main_text || '',
               subText: p.structured_formatting?.secondary_text || '',
+              description: p.description || '',
               placeId: p.place_id,
             }))
           );
@@ -138,12 +160,14 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
     if (!placesService.current) return;
 
     setIsLoading(true);
+    // Suchtext + Prediction-Text als Fallback für Hausnummer merken
+    const fallbackText = suggestion.description || suggestion.mainText || searchValue || '';
     placesService.current.getDetails(
       { placeId: suggestion.placeId, fields: ['address_components', 'geometry'] },
       (place, status) => {
         setIsLoading(false);
         if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
-          const parsed = parseGooglePlace(place);
+          const parsed = parseGooglePlace(place, fallbackText);
           onChange('client_street', parsed.street);
           onChange('client_house_number', parsed.house_number);
           onChange('client_zip', parsed.zip);
