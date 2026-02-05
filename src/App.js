@@ -10,6 +10,7 @@ import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import RequestsPage from './pages/RequestsPage';
 import NewProjectPage from './pages/NewProjectPage';
+import SettingsPage from './pages/SettingsPage';
 
 // Auth Context
 const AuthContext = React.createContext(null);
@@ -77,6 +78,9 @@ function App() {
           } />
           <Route path="/requests" element={
             <ProtectedRoute><RequestsPage /></ProtectedRoute>
+          } />
+          <Route path="/settings" element={
+            <ProtectedRoute><SettingsPage /></ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
