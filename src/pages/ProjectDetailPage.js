@@ -9,6 +9,7 @@ import Layout from '../components/Layout';
 import { getProjectById, updateProject, deleteProject, supabase } from '../lib/supabase';
 import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS, PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from '../lib/constants';
 import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail } from '../lib/emailService';
+import AddressAutocomplete, { formatAddress } from '../components/AddressAutocomplete';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
@@ -611,8 +612,16 @@ function generateContractPDF(data, pricing) {
   doc.setFont('helvetica', 'normal');
   doc.text(data.client_name || '[KUNDENNAME]', m, y);
   y += 5;
-  doc.text(data.client_address || '[ADRESSE]', m, y);
+  const addressLine1 = [data.client_street, data.client_house_number].filter(Boolean).join(' ') || '[STRASSE]';
+  const addressLine2 = [data.client_zip, data.client_city].filter(Boolean).join(' ') || '[ORT]';
+  doc.text(addressLine1, m, y);
   y += 5;
+  doc.text(addressLine2, m, y);
+  y += 5;
+  if (data.client_country && data.client_country !== 'Deutschland') {
+    doc.text(data.client_country, m, y);
+    y += 5;
+  }
   doc.text(`E-Mail: ${data.client_email || '[EMAIL]'}`, m, y);
   y += 5;
   doc.setFont('helvetica', 'italic');
@@ -1000,7 +1009,9 @@ export default function ProjectDetailPage() {
     setIsSaving(true);
     const { error } = await updateProject(id, {
       client_name: formData.client_name, client_email: formData.client_email, client_phone: formData.client_phone,
-      client_address: formData.client_address, client_notes: formData.client_notes,
+      client_street: formData.client_street, client_house_number: formData.client_house_number,
+      client_zip: formData.client_zip, client_city: formData.client_city, client_country: formData.client_country,
+      client_notes: formData.client_notes,
       partner1_name: formData.partner1_name, partner2_name: formData.partner2_name,
       couple_names: `${formData.partner1_name || ''} & ${formData.partner2_name || ''}`.trim(),
       wedding_date: formData.wedding_date, slug: formData.slug, location: formData.location,
@@ -1153,7 +1164,16 @@ export default function ProjectDetailPage() {
               <FormGroup className="full-width"><Label>Kundenname</Label><Input value={formData.client_name || ''} onChange={e => handleChange('client_name', e.target.value)} /></FormGroup>
               <FormGroup><Label>E-Mail</Label><Input type="email" value={formData.client_email || ''} onChange={e => handleChange('client_email', e.target.value)} /></FormGroup>
               <FormGroup><Label>Telefon</Label><Input value={formData.client_phone || ''} onChange={e => handleChange('client_phone', e.target.value)} /></FormGroup>
-              <FormGroup className="full-width"><Label>Adresse</Label><Input value={formData.client_address || ''} onChange={e => handleChange('client_address', e.target.value)} /></FormGroup>
+              <FormGroup className="full-width">
+                <AddressAutocomplete
+                  street={formData.client_street}
+                  houseNumber={formData.client_house_number}
+                  zip={formData.client_zip}
+                  city={formData.client_city}
+                  country={formData.client_country}
+                  onChange={handleChange}
+                />
+              </FormGroup>
               <FormGroup className="full-width"><Label>Notizen</Label><TextArea value={formData.client_notes || ''} onChange={e => handleChange('client_notes', e.target.value)} /></FormGroup>
             </FormGrid>
           </CollapsibleSection>
@@ -1616,6 +1636,7 @@ export default function ProjectDetailPage() {
               <InfoBody>
                 <InfoRow><span className="label">E-Mail</span><span className="value"><a href={`mailto:${formData.client_email}`}>{formData.client_email}</a></span></InfoRow>
                 {formData.client_phone && <InfoRow><span className="label">Tel</span><span className="value"><a href={`tel:${formData.client_phone}`}>{formData.client_phone}</a></span></InfoRow>}
+                {(formData.client_street || formData.client_city) && <InfoRow><span className="label">Adresse</span><span className="value">{formatAddress(formData)}</span></InfoRow>}
               </InfoBody>
             </InfoCard>
           )}
