@@ -1,103 +1,35 @@
 // src/components/AddressAutocomplete.js
-// Adress-Autocomplete basierend auf Photon (OpenStreetMap) – kostenlos, kein API-Key nötig
+// Adress-Autocomplete basierend auf Google Places API
 // Befüllt: client_street, client_house_number, client_zip, client_city, client_country
-// Fallback: Google Places API wenn REACT_APP_GOOGLE_PLACES_API_KEY gesetzt
+//
+// Benötigt: REACT_APP_GOOGLE_MAPS_API_KEY in .env / Vercel
+// Google Cloud Console → Maps JavaScript API + Places API aktivieren
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
+import { loadGoogleMaps, isGoogleMapsAvailable, generateEmbedUrl } from '../lib/googleMaps';
 
 const colors = {
   black: '#0A0A0A',
   white: '#FAFAFA',
   lightGray: '#E5E5E5',
   gray: '#666666',
+  green: '#10B981',
+  orange: '#F59E0B',
 };
 
 // ============================================
-// PHOTON API (OpenStreetMap) – kostenlos
+// GOOGLE PLACE PARSER
 // ============================================
-
-function parsePhotonFeature(feature) {
-  const p = feature.properties || {};
-  return {
-    street: p.street || p.name || '',
-    house_number: p.housenumber || '',
-    zip: p.postcode || '',
-    city: p.city || p.town || p.village || p.municipality || '',
-    country: p.country || 'Deutschland',
-  };
-}
-
-async function fetchPhotonSuggestions(input, signal) {
-  if (!input || input.length < 3) return [];
-
-  try {
-    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(input)}&lang=de&limit=5&lat=53.55&lon=9.99&osm_tag=place&osm_tag=highway`;
-    const resp = await fetch(url, { signal });
-    if (!resp.ok) return [];
-    const data = await resp.json();
-
-    if (!data.features?.length) return [];
-
-    return data.features
-      .filter(f => {
-        const type = f.properties?.osm_value;
-        return type !== 'country' && type !== 'state' && type !== 'continent';
-      })
-      .slice(0, 5)
-      .map(f => {
-        const p = f.properties || {};
-        const streetVal = p.street || p.name || '';
-        const nr = p.housenumber || '';
-        const cityVal = p.city || p.town || p.village || p.municipality || '';
-        const zipVal = p.postcode || '';
-        const mainText = [streetVal, nr].filter(Boolean).join(' ') || p.name || '';
-        const subText = [zipVal, cityVal].filter(Boolean).join(' ');
-
-        return {
-          id: `${f.properties?.osm_id || Math.random()}`,
-          mainText,
-          subText,
-          parsed: parsePhotonFeature(f),
-        };
-      });
-  } catch (err) {
-    if (err.name === 'AbortError') return [];
-    console.warn('Photon API Fehler:', err);
-    return [];
-  }
-}
-
-// ============================================
-// GOOGLE PLACES API – optional, als Fallback
-// ============================================
-
-const GOOGLE_API_KEY = process.env.REACT_APP_GOOGLE_PLACES_API_KEY;
-
-let googleScriptPromise = null;
-function loadGoogleMapsScript() {
-  if (googleScriptPromise) return googleScriptPromise;
-  if (window.google?.maps?.places) return Promise.resolve();
-
-  googleScriptPromise = new Promise((resolve, reject) => {
-    if (!GOOGLE_API_KEY) {
-      reject(new Error('No API key'));
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&libraries=places&language=de`;
-    script.async = true;
-    script.defer = true;
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-
-  return googleScriptPromise;
-}
 
 function parseGooglePlace(place) {
-  const result = { street: '', house_number: '', zip: '', city: '', country: 'Deutschland' };
+  const result = { street: '', house_number: '', zip: '', city: '', country: 'Deutschland', lat: null, lng: null };
+  
+  if (place.geometry?.location) {
+    result.lat = place.geometry.location.lat();
+    result.lng = place.geometry.location.lng();
+  }
+  
   if (!place.address_components) return result;
 
   for (const comp of place.address_components) {
@@ -117,36 +49,33 @@ function parseGooglePlace(place) {
 // KOMPONENTE
 // ============================================
 
-export default function AddressAutocomplete({ street, houseNumber, zip, city, country, onChange }) {
+export default function AddressAutocomplete({ street, houseNumber, zip, city, country, onChange, showMapPreview = true }) {
   const [suggestions, setSuggestions] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchValue, setSearchValue] = useState('');
-  const [useGoogle, setUseGoogle] = useState(false);
-  const [googleReady, setGoogleReady] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [isReady, setIsReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [mapCoords, setMapCoords] = useState(null);
 
   const autocompleteService = useRef(null);
   const placesService = useRef(null);
   const dropdownRef = useRef(null);
   const inputRef = useRef(null);
   const debounceTimer = useRef(null);
-  const abortController = useRef(null);
 
-  // Google Maps laden (falls API-Key vorhanden)
+  // Google Maps laden
   useEffect(() => {
-    if (!GOOGLE_API_KEY) return;
+    if (!isGoogleMapsAvailable()) return;
 
-    loadGoogleMapsScript()
-      .then(() => {
-        autocompleteService.current = new window.google.maps.places.AutocompleteService();
-        placesService.current = new window.google.maps.places.PlacesService(
-          document.createElement('div')
-        );
-        setGoogleReady(true);
-        setUseGoogle(true);
+    loadGoogleMaps()
+      .then((maps) => {
+        autocompleteService.current = new maps.places.AutocompleteService();
+        placesService.current = new maps.places.PlacesService(document.createElement('div'));
+        setIsReady(true);
       })
-      .catch(() => {
-        console.info('Google Places nicht verfügbar – Photon (OSM) wird verwendet');
+      .catch((err) => {
+        console.warn('Google Maps konnte nicht geladen werden:', err.message);
       });
   }, []);
 
@@ -162,24 +91,9 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Photon-Suche
-  const fetchPhoton = useCallback(async (input) => {
-    if (abortController.current) abortController.current.abort();
-    abortController.current = new AbortController();
-
-    const results = await fetchPhotonSuggestions(input, abortController.current.signal);
-    if (results.length > 0) {
-      setSuggestions(results);
-      setShowDropdown(true);
-    } else {
-      setSuggestions([]);
-      setShowDropdown(false);
-    }
-  }, []);
-
-  // Google-Suche
-  const fetchGoogle = useCallback((input) => {
-    if (!googleReady || !autocompleteService.current || input.length < 3) {
+  // Google Places Suche
+  const fetchSuggestions = useCallback((input) => {
+    if (!isReady || !autocompleteService.current || input.length < 3) {
       setSuggestions([]);
       setShowDropdown(false);
       return;
@@ -199,7 +113,6 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
               mainText: p.structured_formatting?.main_text || '',
               subText: p.structured_formatting?.secondary_text || '',
               placeId: p.place_id,
-              isGoogle: true,
             }))
           );
           setShowDropdown(true);
@@ -209,7 +122,7 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
         }
       }
     );
-  }, [googleReady]);
+  }, [isReady]);
 
   const handleSearchInput = (e) => {
     const val = e.target.value;
@@ -217,40 +130,35 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
 
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
-      if (useGoogle && googleReady) {
-        fetchGoogle(val);
-      } else {
-        fetchPhoton(val);
-      }
+      fetchSuggestions(val);
     }, 300);
   };
 
   const handleSelectSuggestion = (suggestion) => {
-    if (suggestion.isGoogle && placesService.current) {
-      placesService.current.getDetails(
-        { placeId: suggestion.placeId, fields: ['address_components'] },
-        (place, status) => {
-          if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
-            const parsed = parseGooglePlace(place);
-            onChange('client_street', parsed.street);
-            onChange('client_house_number', parsed.house_number);
-            onChange('client_zip', parsed.zip);
-            onChange('client_city', parsed.city);
-            onChange('client_country', parsed.country);
+    if (!placesService.current) return;
+
+    setIsLoading(true);
+    placesService.current.getDetails(
+      { placeId: suggestion.placeId, fields: ['address_components', 'geometry'] },
+      (place, status) => {
+        setIsLoading(false);
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
+          const parsed = parseGooglePlace(place);
+          onChange('client_street', parsed.street);
+          onChange('client_house_number', parsed.house_number);
+          onChange('client_zip', parsed.zip);
+          onChange('client_city', parsed.city);
+          onChange('client_country', parsed.country);
+
+          // Koordinaten für Karten-Preview
+          if (parsed.lat && parsed.lng) {
+            setMapCoords({ lat: parsed.lat, lng: parsed.lng });
           }
-          setShowDropdown(false);
-          setSearchValue('');
         }
-      );
-    } else if (suggestion.parsed) {
-      onChange('client_street', suggestion.parsed.street);
-      onChange('client_house_number', suggestion.parsed.house_number);
-      onChange('client_zip', suggestion.parsed.zip);
-      onChange('client_city', suggestion.parsed.city);
-      onChange('client_country', suggestion.parsed.country);
-      setShowDropdown(false);
-      setSearchValue('');
-    }
+        setShowDropdown(false);
+        setSearchValue('');
+      }
+    );
   };
 
   const handleKeyDown = (e) => {
@@ -272,21 +180,31 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
     }
   };
 
-  useEffect(() => {
-    setActiveIndex(-1);
-  }, [suggestions]);
+  useEffect(() => { setActiveIndex(-1); }, [suggestions]);
 
-  const providerLabel = useGoogle && googleReady ? 'Google' : 'OpenStreetMap';
+  // Embed URL für Karten-Preview
+  const currentAddress = [street, houseNumber, zip, city].filter(Boolean).join(', ');
+  const embedUrl = mapCoords
+    ? generateEmbedUrl({ lat: mapCoords.lat, lng: mapCoords.lng, zoom: 16 })
+    : currentAddress.length > 8
+      ? generateEmbedUrl({ address: currentAddress })
+      : '';
+
+  const apiAvailable = isGoogleMapsAvailable();
 
   return (
     <AddressWrapper>
-      {/* Autocomplete Suchfeld – IMMER sichtbar */}
+      {/* Suchfeld */}
       <SearchRow>
         <SearchGroup>
           <LabelRow>
             <Label>Adresse suchen</Label>
-            <ProviderBadge>{providerLabel}</ProviderBadge>
+            {apiAvailable
+              ? <ProviderBadge $ready>Google Maps</ProviderBadge>
+              : <ProviderBadge>API-Key fehlt</ProviderBadge>
+            }
           </LabelRow>
+
           <SearchInputWrapper>
             <SearchIcon>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -299,10 +217,20 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
               value={searchValue}
               onChange={handleSearchInput}
               onKeyDown={handleKeyDown}
-              placeholder="z.B. Hauptstraße 82, Hamburg"
+              onFocus={() => { if (suggestions.length) setShowDropdown(true); }}
+              placeholder={apiAvailable ? 'z.B. Musterstraße 1, Hamburg' : 'Google Maps API-Key in Vercel hinterlegen'}
+              disabled={!apiAvailable}
             />
+            {isLoading && (
+              <LoadingSpinner>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+                </svg>
+              </LoadingSpinner>
+            )}
           </SearchInputWrapper>
 
+          {/* Dropdown */}
           {showDropdown && suggestions.length > 0 && (
             <Dropdown ref={dropdownRef}>
               {suggestions.map((s, idx) => (
@@ -328,49 +256,58 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
         </SearchGroup>
       </SearchRow>
 
-      {/* Adressfelder - immer sichtbar, manuell editierbar */}
+      {/* Adressfelder */}
       <FieldsGrid>
         <FieldGroup className="street">
           <Label>Straße</Label>
-          <Input
-            value={street || ''}
-            onChange={(e) => onChange('client_street', e.target.value)}
-            placeholder="Straße"
-          />
+          <Input value={street || ''} onChange={(e) => onChange('client_street', e.target.value)} placeholder="Straße" />
         </FieldGroup>
         <FieldGroup className="number">
           <Label>Nr.</Label>
-          <Input
-            value={houseNumber || ''}
-            onChange={(e) => onChange('client_house_number', e.target.value)}
-            placeholder="Nr."
-          />
+          <Input value={houseNumber || ''} onChange={(e) => onChange('client_house_number', e.target.value)} placeholder="Nr." />
         </FieldGroup>
         <FieldGroup className="zip">
           <Label>PLZ</Label>
-          <Input
-            value={zip || ''}
-            onChange={(e) => onChange('client_zip', e.target.value)}
-            placeholder="PLZ"
-          />
+          <Input value={zip || ''} onChange={(e) => onChange('client_zip', e.target.value)} placeholder="PLZ" />
         </FieldGroup>
         <FieldGroup className="city">
           <Label>Ort</Label>
-          <Input
-            value={city || ''}
-            onChange={(e) => onChange('client_city', e.target.value)}
-            placeholder="Ort"
-          />
+          <Input value={city || ''} onChange={(e) => onChange('client_city', e.target.value)} placeholder="Ort" />
         </FieldGroup>
         <FieldGroup className="country">
           <Label>Land</Label>
-          <Input
-            value={country || 'Deutschland'}
-            onChange={(e) => onChange('client_country', e.target.value)}
-            placeholder="Land"
-          />
+          <Input value={country || 'Deutschland'} onChange={(e) => onChange('client_country', e.target.value)} placeholder="Land" />
         </FieldGroup>
       </FieldsGrid>
+
+      {/* Karten-Preview */}
+      {showMapPreview && apiAvailable && embedUrl && (
+        <MapPreview>
+          <MapLabel>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+            </svg>
+            Vorschau
+            {mapCoords && <CoordsBadge>✓ {mapCoords.lat.toFixed(4)}, {mapCoords.lng.toFixed(4)}</CoordsBadge>}
+          </MapLabel>
+          <MapFrame>
+            <iframe
+              src={embedUrl}
+              title="Kunden-Adresse"
+              loading="lazy"
+              allowFullScreen
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </MapFrame>
+        </MapPreview>
+      )}
+
+      {!apiAvailable && (
+        <ApiHint>
+          💡 Für Adress-Autocomplete und Kartenvorschau: <code>REACT_APP_GOOGLE_MAPS_API_KEY</code> in Vercel Environment Variables hinterlegen.
+          Benötigt: Maps JavaScript API, Places API, Geocoding API und Maps Embed API.
+        </ApiHint>
+      )}
     </AddressWrapper>
   );
 }
@@ -435,8 +372,8 @@ const ProviderBadge = styled.span`
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: ${colors.gray};
-  background: ${colors.lightGray};
+  color: ${p => p.$ready ? colors.green : colors.orange};
+  background: ${p => p.$ready ? `${colors.green}15` : `${colors.orange}15`};
   padding: 0.15rem 0.4rem;
   border-radius: 2px;
 `;
@@ -455,6 +392,19 @@ const SearchIcon = styled.span`
   z-index: 1;
   display: flex;
   align-items: center;
+`;
+
+const LoadingSpinner = styled.span`
+  position: absolute;
+  right: 1rem;
+  color: ${colors.gray};
+  display: flex;
+  align-items: center;
+  animation: spin 1s linear infinite;
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
 `;
 
 const SearchInput = styled.input`
@@ -476,6 +426,12 @@ const SearchInput = styled.input`
   &::placeholder {
     color: ${colors.gray};
     font-size: 0.85rem;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-style: dashed;
   }
 `;
 
@@ -584,5 +540,68 @@ const Input = styled.input`
   &::placeholder {
     color: #bbb;
     font-size: 0.85rem;
+  }
+`;
+
+const MapPreview = styled.div`
+  margin-top: 0.5rem;
+`;
+
+const MapLabel = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: ${colors.black};
+  margin-bottom: 0.5rem;
+`;
+
+const CoordsBadge = styled.span`
+  font-size: 0.6rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  color: ${colors.green};
+  margin-left: 0.25rem;
+`;
+
+const MapFrame = styled.div`
+  position: relative;
+  padding-top: 35%;
+  background: ${colors.lightGray};
+  overflow: hidden;
+  border: 2px solid ${colors.lightGray};
+
+  iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+
+  @media (max-width: 600px) {
+    padding-top: 50%;
+  }
+`;
+
+const ApiHint = styled.div`
+  padding: 0.75rem 1rem;
+  border-radius: 2px;
+  background: ${colors.orange}10;
+  border: 1px solid ${colors.orange}30;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  color: ${colors.gray};
+  line-height: 1.5;
+
+  code {
+    font-size: 0.75rem;
+    background: ${colors.lightGray};
+    padding: 0.1rem 0.3rem;
+    font-family: 'SF Mono', 'Fira Code', monospace;
   }
 `;
