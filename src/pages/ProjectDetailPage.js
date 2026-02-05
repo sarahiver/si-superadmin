@@ -1014,7 +1014,7 @@ export default function ProjectDetailPage() {
       client_notes: formData.client_notes,
       partner1_name: formData.partner1_name, partner2_name: formData.partner2_name,
       couple_names: `${formData.partner1_name || ''} & ${formData.partner2_name || ''}`.trim(),
-      wedding_date: formData.wedding_date, slug: formData.slug, location: formData.location,
+      wedding_date: formData.wedding_date || null, slug: formData.slug, location: formData.location,
       hashtag: formData.hashtag, display_email: formData.display_email, display_phone: formData.display_phone,
       package: formData.package, addons: formData.addons, extra_components_count: formData.extra_components_count,
       discount: formData.discount, custom_price: formData.custom_price, custom_extras: formData.custom_extras || [],
@@ -1023,7 +1023,7 @@ export default function ProjectDetailPage() {
       custom_domain: formData.custom_domain, active_components: formData.active_components,
       component_order: formData.component_order,
       component_config: formData.component_config || {},
-      std_date: formData.std_date, archive_date: formData.archive_date,
+      std_date: formData.std_date || null, archive_date: formData.archive_date || null,
       password_protected: formData.password_protected || false,
     });
     if (error) { toast.error('Fehler beim Speichern'); console.error(error); }
