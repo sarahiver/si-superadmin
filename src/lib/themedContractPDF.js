@@ -83,7 +83,13 @@ export function generateThemedContractPDF(project, pricing) {
   doc.text('und', m, y); y += 6;
   setColor();
   doc.text(project.client_name || '[KUNDENNAME]', m, y); y += 5;
-  doc.text(project.client_address || '[ADRESSE]', m, y); y += 5;
+  const contractAddr1 = [project.client_street, project.client_house_number].filter(Boolean).join(' ') || '[STRASSE]';
+  const contractAddr2 = [project.client_zip, project.client_city].filter(Boolean).join(' ') || '[ORT]';
+  doc.text(contractAddr1, m, y); y += 5;
+  doc.text(contractAddr2, m, y); y += 5;
+  if (project.client_country && project.client_country !== 'Deutschland') {
+    doc.text(project.client_country, m, y); y += 5;
+  }
   doc.text(`E-Mail: ${project.client_email || '[EMAIL]'}`, m, y); y += 5;
   if (project.client_phone) { doc.text(`Telefon: ${project.client_phone}`, m, y); y += 5; }
   setColor('gray');
