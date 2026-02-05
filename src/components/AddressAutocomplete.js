@@ -1,10 +1,7 @@
 // src/components/AddressAutocomplete.js
-// Google Places Autocomplete für Adressfelder
-// Befüllt: street, house_number, zip, city, country
-//
-// Setup: REACT_APP_GOOGLE_PLACES_API_KEY in .env setzen
-// Google Cloud Console → Places API (New) aktivieren
-// Alternativ funktioniert alles auch ohne API Key – dann nur manuelle Eingabe
+// Adress-Autocomplete basierend auf Photon (OpenStreetMap) – kostenlos, kein API-Key nötig
+// Befüllt: client_street, client_house_number, client_zip, client_city, client_country
+// Fallback: Google Places API wenn REACT_APP_GOOGLE_PLACES_API_KEY gesetzt
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
@@ -16,9 +13,67 @@ const colors = {
   gray: '#666666',
 };
 
+// ============================================
+// PHOTON API (OpenStreetMap) – kostenlos
+// ============================================
+
+function parsePhotonFeature(feature) {
+  const p = feature.properties || {};
+  return {
+    street: p.street || p.name || '',
+    house_number: p.housenumber || '',
+    zip: p.postcode || '',
+    city: p.city || p.town || p.village || p.municipality || '',
+    country: p.country || 'Deutschland',
+  };
+}
+
+async function fetchPhotonSuggestions(input, signal) {
+  if (!input || input.length < 3) return [];
+
+  try {
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(input)}&lang=de&limit=5&lat=53.55&lon=9.99&osm_tag=place&osm_tag=highway`;
+    const resp = await fetch(url, { signal });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+
+    if (!data.features?.length) return [];
+
+    return data.features
+      .filter(f => {
+        const type = f.properties?.osm_value;
+        return type !== 'country' && type !== 'state' && type !== 'continent';
+      })
+      .slice(0, 5)
+      .map(f => {
+        const p = f.properties || {};
+        const streetVal = p.street || p.name || '';
+        const nr = p.housenumber || '';
+        const cityVal = p.city || p.town || p.village || p.municipality || '';
+        const zipVal = p.postcode || '';
+        const mainText = [streetVal, nr].filter(Boolean).join(' ') || p.name || '';
+        const subText = [zipVal, cityVal].filter(Boolean).join(' ');
+
+        return {
+          id: `${f.properties?.osm_id || Math.random()}`,
+          mainText,
+          subText,
+          parsed: parsePhotonFeature(f),
+        };
+      });
+  } catch (err) {
+    if (err.name === 'AbortError') return [];
+    console.warn('Photon API Fehler:', err);
+    return [];
+  }
+}
+
+// ============================================
+// GOOGLE PLACES API – optional, als Fallback
+// ============================================
+
 const GOOGLE_API_KEY = process.env.REACT_APP_GOOGLE_PLACES_API_KEY;
 
-// Google Maps Script laden (einmalig)
 let googleScriptPromise = null;
 function loadGoogleMapsScript() {
   if (googleScriptPromise) return googleScriptPromise;
@@ -41,44 +96,43 @@ function loadGoogleMapsScript() {
   return googleScriptPromise;
 }
 
-// Adress-Komponenten aus Google Place extrahieren
 function parseGooglePlace(place) {
   const result = { street: '', house_number: '', zip: '', city: '', country: 'Deutschland' };
-
   if (!place.address_components) return result;
 
   for (const comp of place.address_components) {
     const types = comp.types;
-    if (types.includes('route')) {
-      result.street = comp.long_name;
-    } else if (types.includes('street_number')) {
-      result.house_number = comp.long_name;
-    } else if (types.includes('postal_code')) {
-      result.zip = comp.long_name;
-    } else if (types.includes('locality')) {
-      result.city = comp.long_name;
-    } else if (types.includes('sublocality_level_1') && !result.city) {
-      result.city = comp.long_name;
-    } else if (types.includes('country')) {
-      result.country = comp.long_name;
-    }
+    if (types.includes('route')) result.street = comp.long_name;
+    else if (types.includes('street_number')) result.house_number = comp.long_name;
+    else if (types.includes('postal_code')) result.zip = comp.long_name;
+    else if (types.includes('locality')) result.city = comp.long_name;
+    else if (types.includes('sublocality_level_1') && !result.city) result.city = comp.long_name;
+    else if (types.includes('country')) result.country = comp.long_name;
   }
 
   return result;
 }
 
+// ============================================
+// KOMPONENTE
+// ============================================
+
 export default function AddressAutocomplete({ street, houseNumber, zip, city, country, onChange }) {
   const [suggestions, setSuggestions] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [googleReady, setGoogleReady] = useState(false);
   const [searchValue, setSearchValue] = useState('');
+  const [useGoogle, setUseGoogle] = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+
   const autocompleteService = useRef(null);
   const placesService = useRef(null);
   const dropdownRef = useRef(null);
   const inputRef = useRef(null);
   const debounceTimer = useRef(null);
+  const abortController = useRef(null);
 
-  // Google Maps laden
+  // Google Maps laden (falls API-Key vorhanden)
   useEffect(() => {
     if (!GOOGLE_API_KEY) return;
 
@@ -89,9 +143,10 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
           document.createElement('div')
         );
         setGoogleReady(true);
+        setUseGoogle(true);
       })
       .catch(() => {
-        console.warn('Google Places konnte nicht geladen werden – manuelle Eingabe aktiv');
+        console.info('Google Places nicht verfügbar – Photon (OSM) wird verwendet');
       });
   }, []);
 
@@ -107,7 +162,23 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const fetchSuggestions = useCallback((input) => {
+  // Photon-Suche
+  const fetchPhoton = useCallback(async (input) => {
+    if (abortController.current) abortController.current.abort();
+    abortController.current = new AbortController();
+
+    const results = await fetchPhotonSuggestions(input, abortController.current.signal);
+    if (results.length > 0) {
+      setSuggestions(results);
+      setShowDropdown(true);
+    } else {
+      setSuggestions([]);
+      setShowDropdown(false);
+    }
+  }, []);
+
+  // Google-Suche
+  const fetchGoogle = useCallback((input) => {
     if (!googleReady || !autocompleteService.current || input.length < 3) {
       setSuggestions([]);
       setShowDropdown(false);
@@ -122,7 +193,15 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
       },
       (predictions, status) => {
         if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
-          setSuggestions(predictions.slice(0, 5));
+          setSuggestions(
+            predictions.slice(0, 5).map(p => ({
+              id: p.place_id,
+              mainText: p.structured_formatting?.main_text || '',
+              subText: p.structured_formatting?.secondary_text || '',
+              placeId: p.place_id,
+              isGoogle: true,
+            }))
+          );
           setShowDropdown(true);
         } else {
           setSuggestions([]);
@@ -137,68 +216,117 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
     setSearchValue(val);
 
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(() => fetchSuggestions(val), 300);
+    debounceTimer.current = setTimeout(() => {
+      if (useGoogle && googleReady) {
+        fetchGoogle(val);
+      } else {
+        fetchPhoton(val);
+      }
+    }, 300);
   };
 
   const handleSelectSuggestion = (suggestion) => {
-    if (!placesService.current) return;
-
-    placesService.current.getDetails(
-      { placeId: suggestion.place_id, fields: ['address_components'] },
-      (place, status) => {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
-          const parsed = parseGooglePlace(place);
-          onChange('client_street', parsed.street);
-          onChange('client_house_number', parsed.house_number);
-          onChange('client_zip', parsed.zip);
-          onChange('client_city', parsed.city);
-          onChange('client_country', parsed.country);
+    if (suggestion.isGoogle && placesService.current) {
+      placesService.current.getDetails(
+        { placeId: suggestion.placeId, fields: ['address_components'] },
+        (place, status) => {
+          if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
+            const parsed = parseGooglePlace(place);
+            onChange('client_street', parsed.street);
+            onChange('client_house_number', parsed.house_number);
+            onChange('client_zip', parsed.zip);
+            onChange('client_city', parsed.city);
+            onChange('client_country', parsed.country);
+          }
+          setShowDropdown(false);
+          setSearchValue('');
         }
-        setShowDropdown(false);
-        setSearchValue('');
-      }
-    );
+      );
+    } else if (suggestion.parsed) {
+      onChange('client_street', suggestion.parsed.street);
+      onChange('client_house_number', suggestion.parsed.house_number);
+      onChange('client_zip', suggestion.parsed.zip);
+      onChange('client_city', suggestion.parsed.city);
+      onChange('client_country', suggestion.parsed.country);
+      setShowDropdown(false);
+      setSearchValue('');
+    }
   };
+
+  const handleKeyDown = (e) => {
+    if (!showDropdown || suggestions.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex(prev => (prev > 0 ? prev - 1 : suggestions.length - 1));
+    } else if (e.key === 'Enter' && activeIndex >= 0) {
+      e.preventDefault();
+      handleSelectSuggestion(suggestions[activeIndex]);
+      setActiveIndex(-1);
+    } else if (e.key === 'Escape') {
+      setShowDropdown(false);
+      setActiveIndex(-1);
+    }
+  };
+
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [suggestions]);
+
+  const providerLabel = useGoogle && googleReady ? 'Google' : 'OpenStreetMap';
 
   return (
     <AddressWrapper>
-      {/* Autocomplete Suche - nur wenn Google API verfügbar */}
-      {GOOGLE_API_KEY && (
-        <SearchRow>
-          <SearchGroup>
+      {/* Autocomplete Suchfeld – IMMER sichtbar */}
+      <SearchRow>
+        <SearchGroup>
+          <LabelRow>
             <Label>Adresse suchen</Label>
-            <SearchInputWrapper>
-              <SearchIcon>🔍</SearchIcon>
-              <SearchInput
-                ref={inputRef}
-                type="text"
-                value={searchValue}
-                onChange={handleSearchInput}
-                placeholder={googleReady ? 'z.B. Fischergasse 95, Trebur' : 'Google Places wird geladen...'}
-                disabled={!googleReady}
-              />
-              {!googleReady && GOOGLE_API_KEY && <LoadingDot />}
-            </SearchInputWrapper>
+            <ProviderBadge>{providerLabel}</ProviderBadge>
+          </LabelRow>
+          <SearchInputWrapper>
+            <SearchIcon>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </SearchIcon>
+            <SearchInput
+              ref={inputRef}
+              type="text"
+              value={searchValue}
+              onChange={handleSearchInput}
+              onKeyDown={handleKeyDown}
+              placeholder="z.B. Hauptstraße 82, Hamburg"
+            />
+          </SearchInputWrapper>
 
-            {showDropdown && suggestions.length > 0 && (
-              <Dropdown ref={dropdownRef}>
-                {suggestions.map((s) => (
-                  <DropdownItem
-                    key={s.place_id}
-                    onClick={() => handleSelectSuggestion(s)}
-                  >
-                    <DropdownIcon>📍</DropdownIcon>
-                    <DropdownText>
-                      <DropdownMain>{s.structured_formatting?.main_text}</DropdownMain>
-                      <DropdownSub>{s.structured_formatting?.secondary_text}</DropdownSub>
-                    </DropdownText>
-                  </DropdownItem>
-                ))}
-              </Dropdown>
-            )}
-          </SearchGroup>
-        </SearchRow>
-      )}
+          {showDropdown && suggestions.length > 0 && (
+            <Dropdown ref={dropdownRef}>
+              {suggestions.map((s, idx) => (
+                <DropdownItem
+                  key={s.id}
+                  $active={idx === activeIndex}
+                  onClick={() => handleSelectSuggestion(s)}
+                  onMouseEnter={() => setActiveIndex(idx)}
+                >
+                  <DropdownIcon>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                    </svg>
+                  </DropdownIcon>
+                  <DropdownText>
+                    <DropdownMain>{s.mainText}</DropdownMain>
+                    {s.subText && <DropdownSub>{s.subText}</DropdownSub>}
+                  </DropdownText>
+                </DropdownItem>
+              ))}
+            </Dropdown>
+          )}
+        </SearchGroup>
+      </SearchRow>
 
       {/* Adressfelder - immer sichtbar, manuell editierbar */}
       <FieldsGrid>
@@ -250,20 +378,20 @@ export default function AddressAutocomplete({ street, houseNumber, zip, city, co
 // Hilfsfunktion: Formatierte Adresse aus Einzelfeldern
 export function formatAddress(data, options = {}) {
   const { multiline = false } = options;
-  const street = data.client_street || '';
+  const streetVal = data.client_street || '';
   const nr = data.client_house_number || '';
-  const zip = data.client_zip || '';
-  const city = data.client_city || '';
-  const country = data.client_country || '';
+  const zipVal = data.client_zip || '';
+  const cityVal = data.client_city || '';
+  const countryVal = data.client_country || '';
 
-  const line1 = [street, nr].filter(Boolean).join(' ');
-  const line2 = [zip, city].filter(Boolean).join(' ');
+  const line1 = [streetVal, nr].filter(Boolean).join(' ');
+  const line2 = [zipVal, cityVal].filter(Boolean).join(' ');
 
   if (multiline) {
-    return [line1, line2, country].filter(Boolean);
+    return [line1, line2, countryVal].filter(Boolean);
   }
 
-  return [line1, line2, country !== 'Deutschland' ? country : ''].filter(Boolean).join(', ');
+  return [line1, line2, countryVal !== 'Deutschland' ? countryVal : ''].filter(Boolean).join(', ');
 }
 
 // ============================================
@@ -284,6 +412,13 @@ const SearchGroup = styled.div`
   position: relative;
 `;
 
+const LabelRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+`;
+
 const Label = styled.label`
   display: block;
   font-family: 'Inter', sans-serif;
@@ -292,7 +427,18 @@ const Label = styled.label`
   letter-spacing: 0.15em;
   text-transform: uppercase;
   color: ${colors.black};
-  margin-bottom: 0.5rem;
+`;
+
+const ProviderBadge = styled.span`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: ${colors.gray};
+  background: ${colors.lightGray};
+  padding: 0.15rem 0.4rem;
+  border-radius: 2px;
 `;
 
 const SearchInputWrapper = styled.div`
@@ -304,9 +450,11 @@ const SearchInputWrapper = styled.div`
 const SearchIcon = styled.span`
   position: absolute;
   left: 1rem;
-  font-size: 0.85rem;
+  color: ${colors.gray};
   pointer-events: none;
   z-index: 1;
+  display: flex;
+  align-items: center;
 `;
 
 const SearchInput = styled.input`
@@ -325,29 +473,9 @@ const SearchInput = styled.input`
     border-style: solid;
   }
 
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
   &::placeholder {
     color: ${colors.gray};
     font-size: 0.85rem;
-  }
-`;
-
-const LoadingDot = styled.div`
-  position: absolute;
-  right: 1rem;
-  width: 8px;
-  height: 8px;
-  background: ${colors.gray};
-  border-radius: 50%;
-  animation: pulse 1s ease-in-out infinite;
-
-  @keyframes pulse {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 1; }
   }
 `;
 
@@ -371,6 +499,7 @@ const DropdownItem = styled.div`
   padding: 0.75rem 1rem;
   cursor: pointer;
   transition: background 0.15s;
+  background: ${({ $active }) => ($active ? colors.white : 'transparent')};
 
   &:hover {
     background: ${colors.white};
@@ -382,8 +511,10 @@ const DropdownItem = styled.div`
 `;
 
 const DropdownIcon = styled.span`
-  font-size: 0.85rem;
+  color: ${colors.gray};
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
 `;
 
 const DropdownText = styled.div`
@@ -418,7 +549,6 @@ const FieldsGrid = styled.div`
   .zip { grid-column: 1; max-width: 120px; }
   .city { grid-column: 2; grid-column: 1 / -1; }
 
-  /* Responsive 5-Spalten Layout auf Desktop */
   @media (min-width: 600px) {
     grid-template-columns: 1fr 80px 100px 1fr 140px;
 
@@ -430,7 +560,11 @@ const FieldsGrid = styled.div`
   }
 `;
 
-const FieldGroup = styled.div``;
+const FieldGroup = styled.div`
+  & > ${Label} {
+    margin-bottom: 0.5rem;
+  }
+`;
 
 const Input = styled.input`
   width: 100%;
