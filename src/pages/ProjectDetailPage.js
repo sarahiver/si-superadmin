@@ -9,6 +9,8 @@ import Layout from '../components/Layout';
 import { getProjectById, updateProject, deleteProject, supabase } from '../lib/supabase';
 import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS, PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from '../lib/constants';
 import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail } from '../lib/emailService';
+import { generateContractPDF } from '../lib/contractPDF';
+import { generateInvoicePDF } from '../lib/invoicePDF';
 import AddressAutocomplete, { formatAddress } from '../components/AddressAutocomplete';
 import PhoneInput from '../components/PhoneInput';
 
@@ -643,6 +645,150 @@ const HostingOverrideFields = styled.div`
   }
 `;
 
+// Kundenabwicklung Styles
+const WorkflowSection = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+
+  @media (max-width: 700px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const WorkflowCard = styled.div`
+  background: ${colors.white};
+  border: 2px solid ${p => p.$complete ? colors.green : colors.lightGray};
+  padding: 1.25rem;
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid ${colors.lightGray};
+  }
+
+  .card-title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .status-badge {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    background: ${p => p.$complete ? `${colors.green}20` : `${colors.orange}20`};
+    color: ${p => p.$complete ? colors.green : colors.orange};
+  }
+`;
+
+const WorkflowRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  font-size: 0.85rem;
+
+  .label {
+    color: ${colors.gray};
+  }
+
+  .value {
+    font-weight: 500;
+    color: ${colors.black};
+  }
+
+  .value.success {
+    color: ${colors.green};
+  }
+
+  .value.pending {
+    color: ${colors.orange};
+  }
+`;
+
+const WorkflowCheckbox = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: ${p => p.$checked ? `${colors.green}10` : colors.background};
+  border: 1px solid ${p => p.$checked ? colors.green : colors.lightGray};
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: ${p => p.$checked ? colors.green : colors.black};
+  }
+
+  .checkbox {
+    width: 22px;
+    height: 22px;
+    border: 2px solid ${p => p.$checked ? colors.green : colors.black};
+    background: ${p => p.$checked ? colors.green : 'transparent'};
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .text {
+    flex: 1;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .date {
+    font-size: 0.75rem;
+    color: ${colors.gray};
+  }
+`;
+
+const PDFButtons = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+`;
+
+const PDFButton = styled.button`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  background: ${p => p.$primary ? colors.black : 'transparent'};
+  color: ${p => p.$primary ? colors.white : colors.black};
+  border: 1px solid ${colors.black};
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: ${p => p.$primary ? colors.red : colors.black};
+    color: ${colors.white};
+    border-color: ${p => p.$primary ? colors.red : colors.black};
+  }
+`;
+
+const WorkflowNotes = styled.div`
+  grid-column: 1 / -1;
+  margin-top: 1rem;
+`;
+
 // Sticky Save Bar - immer sichtbar am unteren Bildschirmrand
 const StickyBottomBar = styled.div`
   position: fixed;
@@ -1007,6 +1153,24 @@ export default function ProjectDetailPage() {
         has_archive: data.has_archive ?? (PACKAGES[data.package]?.includesArchive || false),
         std_end_date: data.std_end_date || '',
         archive_end_date: data.archive_end_date || '',
+        // Kundenabwicklung fields
+        contract_number: data.contract_number || '',
+        contract_date: data.contract_date || '',
+        contract_sent: data.contract_sent || false,
+        contract_sent_date: data.contract_sent_date || '',
+        contract_signed: data.contract_signed || false,
+        contract_signed_date: data.contract_signed_date || '',
+        deposit_invoice_number: data.deposit_invoice_number || '',
+        deposit_invoice_date: data.deposit_invoice_date || '',
+        deposit_paid: data.deposit_paid || false,
+        deposit_paid_date: data.deposit_paid_date || '',
+        deposit_amount: data.deposit_amount || 0,
+        final_invoice_number: data.final_invoice_number || '',
+        final_invoice_date: data.final_invoice_date || '',
+        final_paid: data.final_paid || false,
+        final_paid_date: data.final_paid_date || '',
+        final_amount: data.final_amount || 0,
+        workflow_notes: data.workflow_notes || '',
       });
     }
     setIsLoading(false);
@@ -1270,6 +1434,24 @@ export default function ProjectDetailPage() {
       has_archive: formData.has_archive || false,
       std_end_date: formData.std_end_date || null,
       archive_end_date: formData.archive_end_date || null,
+      // Kundenabwicklung fields
+      contract_number: formData.contract_number || null,
+      contract_date: formData.contract_date || null,
+      contract_sent: formData.contract_sent || false,
+      contract_sent_date: formData.contract_sent_date || null,
+      contract_signed: formData.contract_signed || false,
+      contract_signed_date: formData.contract_signed_date || null,
+      deposit_invoice_number: formData.deposit_invoice_number || null,
+      deposit_invoice_date: formData.deposit_invoice_date || null,
+      deposit_paid: formData.deposit_paid || false,
+      deposit_paid_date: formData.deposit_paid_date || null,
+      deposit_amount: formData.deposit_amount || null,
+      final_invoice_number: formData.final_invoice_number || null,
+      final_invoice_date: formData.final_invoice_date || null,
+      final_paid: formData.final_paid || false,
+      final_paid_date: formData.final_paid_date || null,
+      final_amount: formData.final_amount || null,
+      workflow_notes: formData.workflow_notes || null,
     });
     if (error) { toast.error('Fehler beim Speichern'); console.error(error); }
     else { 
@@ -1733,8 +1915,160 @@ export default function ProjectDetailPage() {
             </HostingSection>
           </CollapsibleSection>
 
-          {/* Section 04: Links */}
-          <CollapsibleSection number="04" title="Links" defaultOpen={false}>
+          {/* Section 04: Kundenabwicklung */}
+          <CollapsibleSection number="04" title="Kundenabwicklung" badge={formData.contract_signed && formData.deposit_paid ? '✓ Komplett' : 'Offen'} defaultOpen={false}>
+            <WorkflowSection>
+              {/* Vertrag */}
+              <WorkflowCard $complete={formData.contract_signed}>
+                <div className="card-header">
+                  <span className="card-title">📄 Vertrag</span>
+                  <span className="status-badge">
+                    {formData.contract_signed ? 'Unterschrieben' : formData.contract_sent ? 'Gesendet' : 'Ausstehend'}
+                  </span>
+                </div>
+
+                <WorkflowCheckbox
+                  $checked={formData.contract_sent}
+                  onClick={() => {
+                    const now = new Date().toISOString();
+                    handleChange('contract_sent', !formData.contract_sent);
+                    if (!formData.contract_sent) handleChange('contract_sent_date', now);
+                  }}
+                >
+                  <span className="checkbox">{formData.contract_sent && '✓'}</span>
+                  <span className="text">Vertrag gesendet</span>
+                  {formData.contract_sent_date && (
+                    <span className="date">{new Date(formData.contract_sent_date).toLocaleDateString('de-DE')}</span>
+                  )}
+                </WorkflowCheckbox>
+
+                <WorkflowCheckbox
+                  $checked={formData.contract_signed}
+                  onClick={() => {
+                    const now = new Date().toISOString();
+                    handleChange('contract_signed', !formData.contract_signed);
+                    if (!formData.contract_signed) handleChange('contract_signed_date', now);
+                  }}
+                >
+                  <span className="checkbox">{formData.contract_signed && '✓'}</span>
+                  <span className="text">Vertrag unterschrieben</span>
+                  {formData.contract_signed_date && (
+                    <span className="date">{new Date(formData.contract_signed_date).toLocaleDateString('de-DE')}</span>
+                  )}
+                </WorkflowCheckbox>
+
+                {formData.contract_number && (
+                  <WorkflowRow>
+                    <span className="label">Vertragsnummer</span>
+                    <span className="value">{formData.contract_number}</span>
+                  </WorkflowRow>
+                )}
+
+                <PDFButtons>
+                  <PDFButton $primary onClick={() => {
+                    const result = generateContractPDF(formData, pricing);
+                    handleChange('contract_number', result.contractNumber);
+                    handleChange('contract_date', new Date().toISOString().split('T')[0]);
+                    toast.success(`Vertrag erstellt: ${result.filename}`);
+                  }}>
+                    📄 Vertrag PDF
+                  </PDFButton>
+                </PDFButtons>
+              </WorkflowCard>
+
+              {/* Zahlungen */}
+              <WorkflowCard $complete={formData.deposit_paid && formData.final_paid}>
+                <div className="card-header">
+                  <span className="card-title">💰 Zahlungen</span>
+                  <span className="status-badge">
+                    {formData.deposit_paid && formData.final_paid ? 'Bezahlt' : formData.deposit_paid ? '50%' : 'Ausstehend'}
+                  </span>
+                </div>
+
+                <WorkflowCheckbox
+                  $checked={formData.deposit_paid}
+                  onClick={() => {
+                    const now = new Date().toISOString().split('T')[0];
+                    handleChange('deposit_paid', !formData.deposit_paid);
+                    if (!formData.deposit_paid) {
+                      handleChange('deposit_paid_date', now);
+                      handleChange('deposit_amount', pricing.total / 2);
+                    }
+                  }}
+                >
+                  <span className="checkbox">{formData.deposit_paid && '✓'}</span>
+                  <span className="text">Anzahlung (50%): {formatPrice(pricing.total / 2)}</span>
+                  {formData.deposit_paid_date && (
+                    <span className="date">{new Date(formData.deposit_paid_date).toLocaleDateString('de-DE')}</span>
+                  )}
+                </WorkflowCheckbox>
+
+                <WorkflowCheckbox
+                  $checked={formData.final_paid}
+                  onClick={() => {
+                    const now = new Date().toISOString().split('T')[0];
+                    handleChange('final_paid', !formData.final_paid);
+                    if (!formData.final_paid) {
+                      handleChange('final_paid_date', now);
+                      handleChange('final_amount', pricing.total / 2);
+                    }
+                  }}
+                >
+                  <span className="checkbox">{formData.final_paid && '✓'}</span>
+                  <span className="text">Restzahlung (50%): {formatPrice(pricing.total / 2)}</span>
+                  {formData.final_paid_date && (
+                    <span className="date">{new Date(formData.final_paid_date).toLocaleDateString('de-DE')}</span>
+                  )}
+                </WorkflowCheckbox>
+
+                <WorkflowRow>
+                  <span className="label">Gesamt bezahlt</span>
+                  <span className={`value ${formData.deposit_paid && formData.final_paid ? 'success' : 'pending'}`}>
+                    {formatPrice((formData.deposit_paid ? pricing.total / 2 : 0) + (formData.final_paid ? pricing.total / 2 : 0))} / {formatPrice(pricing.total)}
+                  </span>
+                </WorkflowRow>
+
+                <PDFButtons>
+                  <PDFButton onClick={() => {
+                    const result = generateInvoicePDF(formData, pricing, { isDeposit: true });
+                    handleChange('deposit_invoice_number', result.invoiceNumber);
+                    handleChange('deposit_invoice_date', new Date().toISOString().split('T')[0]);
+                    toast.success(`Anzahlungsrechnung erstellt: ${result.filename}`);
+                  }}>
+                    📃 Anzahlung
+                  </PDFButton>
+                  <PDFButton onClick={() => {
+                    const result = generateInvoicePDF(formData, pricing, { isFinal: true, depositPaid: formData.deposit_paid });
+                    handleChange('final_invoice_number', result.invoiceNumber);
+                    handleChange('final_invoice_date', new Date().toISOString().split('T')[0]);
+                    toast.success(`Schlussrechnung erstellt: ${result.filename}`);
+                  }}>
+                    📃 Schlussrechnung
+                  </PDFButton>
+                  <PDFButton $primary onClick={() => {
+                    const result = generateInvoicePDF(formData, pricing);
+                    toast.success(`Rechnung erstellt: ${result.filename}`);
+                  }}>
+                    📃 Gesamtrechnung
+                  </PDFButton>
+                </PDFButtons>
+              </WorkflowCard>
+
+              {/* Notizen */}
+              <WorkflowNotes>
+                <Label>Interne Notizen</Label>
+                <TextArea
+                  value={formData.workflow_notes || ''}
+                  onChange={e => handleChange('workflow_notes', e.target.value)}
+                  placeholder="Notizen zur Kundenabwicklung..."
+                  style={{ minHeight: '80px' }}
+                />
+              </WorkflowNotes>
+            </WorkflowSection>
+          </CollapsibleSection>
+
+          {/* Section 05: Links */}
+          <CollapsibleSection number="05" title="Links" defaultOpen={false}>
             <LinkBox>
               <a href={`https://${baseUrl}`} target="_blank" rel="noopener noreferrer">{baseUrl}</a>
               <button onClick={() => copyToClipboard(`https://${baseUrl}`)}>Copy</button>
@@ -1745,8 +2079,8 @@ export default function ProjectDetailPage() {
             </LinkBox>
           </CollapsibleSection>
 
-          {/* Section 05: Komponenten */}
-          <CollapsibleSection number="05" title="Komponenten" defaultOpen={false}>
+          {/* Section 06: Komponenten */}
+          <CollapsibleSection number="06" title="Komponenten" defaultOpen={false}>
             {isOverLimit && <ComponentWarning>⚠️ <strong>{activeExtraCount}</strong> Extra aktiv, aber nur <strong>{allowedExtraCount}</strong> gebucht!</ComponentWarning>}
             <ComponentListContainer>
               <ComponentListHeader>
@@ -1770,7 +2104,7 @@ export default function ProjectDetailPage() {
           </CollapsibleSection>
 
           {/* Section 06: E-Mails */}
-          <CollapsibleSection number="06" title="E-Mails" badge={`${emailCount} gesendet`} defaultOpen={false}>
+          <CollapsibleSection number="07" title="E-Mails" badge={`${emailCount} gesendet`} defaultOpen={false}>
             <EmailActions>
               <EmailActionCard onClick={handleSendWelcome} disabled={sendingEmail || !formData.client_email}>
                 <span className="icon">📧</span>
@@ -1888,7 +2222,7 @@ export default function ProjectDetailPage() {
           </CollapsibleSection>
 
           {/* Section 07: Design Varianten */}
-          <CollapsibleSection number="07" title="Design Varianten" badge={configuredComponentsCount > 0 ? `${configuredComponentsCount} konfiguriert` : ''} defaultOpen={false}>
+          <CollapsibleSection number="08" title="Design Varianten" badge={configuredComponentsCount > 0 ? `${configuredComponentsCount} konfiguriert` : ''} defaultOpen={false}>
             <p style={{ fontSize: '0.85rem', color: colors.gray, marginBottom: '1rem' }}>
               Hier kannst du für aktive Komponenten spezielle Design-Varianten auswählen.
               Varianten werden erst angezeigt, wenn sie im Code implementiert sind.
