@@ -364,6 +364,29 @@ export function generateInvoicePDF(project, pricing, options = {}) {
 
   y += 20;
 
+  // Zahlungsplan anzeigen (bei normaler Rechnung)
+  if (!isDeposit && !isFinal) {
+    y += 5;
+    doc.setFillColor(255, 250, 240);
+    doc.rect(m, y, pw - 2*m, 28, 'F');
+    doc.setDrawColor(...COLORS.lightGray);
+    doc.rect(m, y, pw - 2*m, 28, 'S');
+    y += 8;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COLORS.black);
+    doc.text('Zahlungsplan', m + 5, y);
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...COLORS.gray);
+    doc.text(`1. Rate (50%): ${formatPrice(pricing.total / 2)} – fällig bei Vertragsabschluss`, m + 5, y);
+    y += 5;
+    doc.text(`2. Rate (50%): ${formatPrice(pricing.total / 2)} – fällig bei Go-Live der Website`, m + 5, y);
+    y += 15;
+  }
+
   // Bei Anzahlung: Hinweis
   if (isDeposit) {
     doc.setFontSize(9);
@@ -428,13 +451,19 @@ export function generateInvoicePDF(project, pricing, options = {}) {
   doc.text(`Seite 1 von 1`, pw - m, ph - 10, { align: 'right' });
 
   // ============================================
-  // SPEICHERN
+  // SPEICHERN ODER BASE64 ZURÜCKGEBEN
   // ============================================
 
   const typeLabel = isDeposit ? 'Anzahlung' : isFinal ? 'Schluss' : '';
   const filename = `SIwedding-Rechnung${typeLabel}-${project.slug || 'projekt'}-${invoiceNumber}.pdf`;
-  doc.save(filename);
 
+  // Wenn returnBase64 gesetzt ist, nicht speichern sondern Base64 zurückgeben
+  if (options.returnBase64) {
+    const base64 = doc.output('datauristring').split(',')[1];
+    return { filename, invoiceNumber, invoiceDate: formatDate(invoiceDate), dueDate: formatDate(dueDate), base64 };
+  }
+
+  doc.save(filename);
   return { filename, invoiceNumber, invoiceDate: formatDate(invoiceDate), dueDate: formatDate(dueDate) };
 }
 

@@ -788,6 +788,62 @@ const WorkflowNotes = styled.div`
   margin-top: 1rem;
 `;
 
+const PaymentInputRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: ${p => p.$paid ? `${colors.green}10` : colors.background};
+  border: 1px solid ${p => p.$paid ? colors.green : colors.lightGray};
+  margin-bottom: 0.5rem;
+
+  .checkbox {
+    width: 22px;
+    height: 22px;
+    border: 2px solid ${p => p.$paid ? colors.green : colors.black};
+    background: ${p => p.$paid ? colors.green : 'transparent'};
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    min-width: 120px;
+  }
+
+  .amount-input {
+    width: 100px;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid ${colors.lightGray};
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    text-align: right;
+
+    &:focus {
+      outline: none;
+      border-color: ${colors.black};
+    }
+  }
+
+  .expected {
+    font-size: 0.75rem;
+    color: ${colors.gray};
+  }
+
+  .date {
+    font-size: 0.75rem;
+    color: ${colors.gray};
+    margin-left: auto;
+  }
+`;
+
 // Sticky Save Bar - immer sichtbar am unteren Bildschirmrand
 const StickyBottomBar = styled.div`
   position: fixed;
@@ -1764,46 +1820,80 @@ export default function ProjectDetailPage() {
                   </span>
                 </div>
 
-                <WorkflowCheckbox
-                  $checked={formData.deposit_paid}
-                  onClick={() => {
-                    const now = new Date().toISOString().split('T')[0];
-                    handleChange('deposit_paid', !formData.deposit_paid);
-                    if (!formData.deposit_paid) {
-                      handleChange('deposit_paid_date', now);
-                      handleChange('deposit_amount', pricing.total / 2);
-                    }
-                  }}
-                >
-                  <span className="checkbox">{formData.deposit_paid && '✓'}</span>
-                  <span className="text">Anzahlung (50%): {formatPrice(pricing.total / 2)}</span>
+                <PaymentInputRow $paid={formData.deposit_paid}>
+                  <span
+                    className="checkbox"
+                    onClick={() => {
+                      const now = new Date().toISOString().split('T')[0];
+                      handleChange('deposit_paid', !formData.deposit_paid);
+                      if (!formData.deposit_paid && !formData.deposit_amount) {
+                        handleChange('deposit_paid_date', now);
+                        handleChange('deposit_amount', pricing.total / 2);
+                      }
+                    }}
+                  >
+                    {formData.deposit_paid && '✓'}
+                  </span>
+                  <span className="label">Anzahlung (50%)</span>
+                  <input
+                    type="number"
+                    className="amount-input"
+                    value={formData.deposit_amount || ''}
+                    onChange={e => {
+                      const val = parseFloat(e.target.value) || 0;
+                      handleChange('deposit_amount', val);
+                      if (val > 0 && !formData.deposit_paid) {
+                        handleChange('deposit_paid', true);
+                        handleChange('deposit_paid_date', new Date().toISOString().split('T')[0]);
+                      }
+                    }}
+                    placeholder="0,00"
+                  />
+                  <span className="expected">/ {formatPrice(pricing.total / 2)}</span>
                   {formData.deposit_paid_date && (
                     <span className="date">{new Date(formData.deposit_paid_date).toLocaleDateString('de-DE')}</span>
                   )}
-                </WorkflowCheckbox>
+                </PaymentInputRow>
 
-                <WorkflowCheckbox
-                  $checked={formData.final_paid}
-                  onClick={() => {
-                    const now = new Date().toISOString().split('T')[0];
-                    handleChange('final_paid', !formData.final_paid);
-                    if (!formData.final_paid) {
-                      handleChange('final_paid_date', now);
-                      handleChange('final_amount', pricing.total / 2);
-                    }
-                  }}
-                >
-                  <span className="checkbox">{formData.final_paid && '✓'}</span>
-                  <span className="text">Restzahlung (50%): {formatPrice(pricing.total / 2)}</span>
+                <PaymentInputRow $paid={formData.final_paid}>
+                  <span
+                    className="checkbox"
+                    onClick={() => {
+                      const now = new Date().toISOString().split('T')[0];
+                      handleChange('final_paid', !formData.final_paid);
+                      if (!formData.final_paid && !formData.final_amount) {
+                        handleChange('final_paid_date', now);
+                        handleChange('final_amount', pricing.total / 2);
+                      }
+                    }}
+                  >
+                    {formData.final_paid && '✓'}
+                  </span>
+                  <span className="label">Restzahlung (50%)</span>
+                  <input
+                    type="number"
+                    className="amount-input"
+                    value={formData.final_amount || ''}
+                    onChange={e => {
+                      const val = parseFloat(e.target.value) || 0;
+                      handleChange('final_amount', val);
+                      if (val > 0 && !formData.final_paid) {
+                        handleChange('final_paid', true);
+                        handleChange('final_paid_date', new Date().toISOString().split('T')[0]);
+                      }
+                    }}
+                    placeholder="0,00"
+                  />
+                  <span className="expected">/ {formatPrice(pricing.total / 2)}</span>
                   {formData.final_paid_date && (
                     <span className="date">{new Date(formData.final_paid_date).toLocaleDateString('de-DE')}</span>
                   )}
-                </WorkflowCheckbox>
+                </PaymentInputRow>
 
                 <WorkflowRow>
                   <span className="label">Gesamt bezahlt</span>
-                  <span className={`value ${formData.deposit_paid && formData.final_paid ? 'success' : 'pending'}`}>
-                    {formatPrice((formData.deposit_paid ? pricing.total / 2 : 0) + (formData.final_paid ? pricing.total / 2 : 0))} / {formatPrice(pricing.total)}
+                  <span className={`value ${(formData.deposit_amount || 0) + (formData.final_amount || 0) >= pricing.total ? 'success' : 'pending'}`}>
+                    {formatPrice((formData.deposit_amount || 0) + (formData.final_amount || 0))} / {formatPrice(pricing.total)}
                   </span>
                 </WorkflowRow>
 

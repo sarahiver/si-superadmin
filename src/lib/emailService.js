@@ -2,8 +2,9 @@
 // Brevo E-Mail Service für S&I.
 
 import { supabase } from './supabase';
-import { jsPDF } from 'jspdf';
 import { PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from './constants';
+import { generateContractPDF } from './contractPDF';
+import { generateInvoicePDF } from './invoicePDF';
 
 const BREVO_API_KEY = process.env.REACT_APP_BREVO_API_KEY;
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
@@ -18,232 +19,6 @@ const THEME_COLORS = {
   video: { primary: '#000000', accent: '#E50914', light: '#FFF5F5' },
 };
 
-// ============================================
-// VERTRAG PDF GENERIEREN (als Base64)
-// ============================================
-function generateContractPDFBase64(project, pricing) {
-  const doc = new jsPDF();
-  const pw = doc.internal.pageSize.getWidth();
-  const m = 20;
-  let y = 20;
-  const checkPage = (n = 30) => { if (y > 270 - n) { doc.addPage(); y = 20; } };
-
-  // Header
-  doc.setFillColor(10, 10, 10);
-  doc.rect(0, 0, pw, 40, 'F');
-  doc.setFontSize(24);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(255, 255, 255);
-  doc.text('S&I.', pw / 2, 25, { align: 'center' });
-  doc.setFontSize(10);
-  doc.setTextColor(200, 200, 200);
-  doc.text('Premium Hochzeits-Websites', pw / 2, 33, { align: 'center' });
-  
-  y = 55;
-  doc.setTextColor(0, 0, 0);
-
-  // Title
-  const cNum = `SI-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text('VERTRAG', pw / 2, y, { align: 'center' });
-  y += 8;
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100);
-  doc.text(`Vertragsnummer: ${cNum}`, pw / 2, y, { align: 'center' });
-  y += 15;
-  doc.setTextColor(0);
-
-  // Parties
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(196, 30, 58);
-  doc.text('Vertragsparteien', m, y);
-  y += 8;
-  doc.setTextColor(0);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('S&I. – Iver Arntzen | wedding@sarahiver.de', m, y);
-  y += 5;
-  doc.setFont('helvetica', 'italic');
-  doc.setTextColor(100);
-  doc.text('(nachfolgend "Auftragnehmer")', m, y);
-  y += 10;
-  doc.setTextColor(0);
-  doc.setFont('helvetica', 'normal');
-  doc.text(project.client_name || '[KUNDENNAME]', m, y);
-  y += 5;
-  const emailAddr1 = [project.client_street, project.client_house_number].filter(Boolean).join(' ') || '[STRASSE]';
-  const emailAddr2 = [project.client_zip, project.client_city].filter(Boolean).join(' ') || '[ORT]';
-  doc.text(emailAddr1, m, y);
-  y += 5;
-  doc.text(emailAddr2, m, y);
-  y += 5;
-  if (project.client_country && project.client_country !== 'Deutschland') {
-    doc.text(project.client_country, m, y);
-    y += 5;
-  }
-  doc.text(`E-Mail: ${project.client_email || '[EMAIL]'}`, m, y);
-  y += 5;
-  doc.setFont('helvetica', 'italic');
-  doc.setTextColor(100);
-  doc.text('(nachfolgend "Auftraggeber")', m, y);
-  y += 15;
-  doc.setTextColor(0);
-
-  // Subject
-  checkPage();
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(196, 30, 58);
-  doc.text('Vertragsgegenstand', m, y);
-  y += 8;
-  doc.setTextColor(0);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  const couple = project.couple_names || `${project.partner1_name || ''} & ${project.partner2_name || ''}`;
-  const wDate = project.wedding_date ? new Date(project.wedding_date).toLocaleDateString('de-DE') : '[DATUM]';
-  const url = project.custom_domain || `siwedding.de/${project.slug || 'website'}`;
-  doc.text(`Brautpaar: ${couple}`, m, y); y += 5;
-  doc.text(`Hochzeitsdatum: ${wDate}`, m, y); y += 5;
-  doc.text(`Website: https://${url}`, m, y); y += 15;
-
-  // Services
-  checkPage(80);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(196, 30, 58);
-  doc.text('Leistungsumfang', m, y);
-  y += 8;
-  doc.setTextColor(0);
-  
-  const pkg = PACKAGES[project.package] || PACKAGES.starter;
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`Paket: ${pkg.name}`, m, y);
-  y += 6;
-  doc.setFont('helvetica', 'normal');
-  pkg.features.forEach(f => { checkPage(6); doc.text(`• ${f}`, m, y); y += 5; });
-  
-  // Addons
-  const addons = project.addons || [];
-  if (addons.length > 0) {
-    y += 5;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Zusatzoptionen:', m, y);
-    y += 6;
-    doc.setFont('helvetica', 'normal');
-    addons.forEach(addonId => {
-      const addon = ADDONS[addonId];
-      if (addon && !isFeatureIncluded(project.package, addonId)) {
-        const price = getAddonPrice(addonId, project.package);
-        doc.text(`• ${addon.name} (+${formatPrice(price)})`, m, y);
-        y += 5;
-      }
-    });
-  }
-  
-  // Extra Komponenten
-  if (project.extra_components_count > 0) {
-    doc.text(`• ${project.extra_components_count} Extra-Komponenten (+${formatPrice(project.extra_components_count * 50)})`, m, y);
-    y += 5;
-  }
-  y += 10;
-
-  // Pricing
-  checkPage(60);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(196, 30, 58);
-  doc.text('Vergütung', m, y);
-  y += 8;
-  doc.setTextColor(0);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  const px = pw - m - 10;
-  
-  if (project.package === 'individual') {
-    doc.text('Individual-Paket', m, y);
-    doc.text(formatPrice(pricing.total), px, y, { align: 'right' });
-    y += 6;
-  } else {
-    doc.text(`Paket ${pkg.name}`, m, y);
-    doc.text(formatPrice(pricing.packagePrice), px, y, { align: 'right' });
-    y += 6;
-    if (pricing.addonsPrice > 0) {
-      doc.text('Zusatzoptionen', m, y);
-      doc.text(`+${formatPrice(pricing.addonsPrice)}`, px, y, { align: 'right' });
-      y += 6;
-    }
-    if (pricing.extraComponentsPrice > 0) {
-      doc.text('Extra-Komponenten', m, y);
-      doc.text(`+${formatPrice(pricing.extraComponentsPrice)}`, px, y, { align: 'right' });
-      y += 6;
-    }
-    if (pricing.discount > 0) {
-      doc.setTextColor(16, 185, 129);
-      doc.text('Rabatt', m, y);
-      doc.text(`-${formatPrice(pricing.discount)}`, px, y, { align: 'right' });
-      y += 6;
-      doc.setTextColor(0);
-    }
-  }
-  
-  doc.line(m, y, pw - m, y);
-  y += 5;
-  doc.setFont('helvetica', 'bold');
-  doc.text('GESAMT (inkl. MwSt.)', m, y);
-  doc.setTextColor(196, 30, 58);
-  doc.text(formatPrice(pricing.total), px, y, { align: 'right' });
-  y += 15;
-  doc.setTextColor(0);
-
-  // Payment
-  checkPage(35);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(196, 30, 58);
-  doc.text('Zahlungsbedingungen', m, y);
-  y += 8;
-  doc.setTextColor(0);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Zahlung in zwei Raten:', m, y);
-  y += 6;
-  doc.setFont('helvetica', 'bold');
-  doc.text(`1. Rate (50%): ${formatPrice(pricing.total / 2)} bei Vertragsabschluss`, m, y);
-  y += 5;
-  doc.text(`2. Rate (50%): ${formatPrice(pricing.total / 2)} bei Go-Live`, m, y);
-  y += 10;
-  doc.setFont('helvetica', 'normal');
-  doc.text('Bankverbindung:', m, y);
-  y += 5;
-  doc.text('S&I. – Iver Arntzen', m, y);
-  y += 5;
-  doc.text('IBAN: DE XX XXXX XXXX XXXX XXXX XX', m, y);
-  y += 20;
-
-  // Signatures
-  checkPage(40);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Hamburg, den ${new Date().toLocaleDateString('de-DE')}`, m, y);
-  y += 25;
-  doc.line(m, y, m + 60, y);
-  doc.line(pw - m - 60, y, pw - m, y);
-  y += 5;
-  doc.setFontSize(8);
-  doc.setTextColor(100);
-  doc.text('Auftragnehmer (S&I.)', m, y);
-  doc.text('Auftraggeber', pw - m - 60, y);
-  
-  y += 15;
-  doc.setFontSize(9);
-  doc.text('Bitte unterschrieben per E-Mail zurücksenden an: wedding@sarahiver.de', m, y);
-
-  // Return as base64
-  return doc.output('datauristring').split(',')[1];
-}
 
 // ============================================
 // BUCHUNGSÜBERSICHT FÜR E-MAIL
@@ -359,10 +134,12 @@ function generateEmailHTML(type, variables, theme = 'editorial') {
               ${bookingHTML}
 
               <div style="background: #FFF9E6; border-left: 4px solid #F59E0B; padding: 15px 20px; margin: 25px 0;">
-                <p style="margin: 0; font-size: 14px;"><strong>📎 Im Anhang:</strong> Euer Vertrag – bitte unterschrieben per E-Mail zurücksenden.</p>
+                <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>📎 Im Anhang findet ihr:</strong></p>
+                <p style="margin: 0; font-size: 14px;">• <strong>Vertrag</strong> – bitte unterschrieben per E-Mail zurücksenden</p>
+                <p style="margin: 4px 0 0 0; font-size: 14px;">• <strong>Rechnung</strong> – mit Zahlungsplan und Bankverbindung</p>
               </div>
 
-              <p>Bitte überweist die erste Rate (50%) innerhalb von 7 Tagen auf das im Vertrag angegebene Konto.</p>
+              <p>Bitte überweist die erste Rate (50%) innerhalb von 14 Tagen auf das in der Rechnung angegebene Konto.</p>
               <p>In einer separaten E-Mail erhaltet ihr eure Zugangsdaten zum Admin-Dashboard.</p>
 
               <p style="margin-top: 30px;">Herzliche Grüße,<br><strong>Euer S&I. Team</strong></p>
@@ -606,11 +383,13 @@ export async function sendEmail({ to, toName, templateType, variables, theme, pr
 export async function sendWelcomeEmails(project) {
   // Pricing berechnen
   const pricing = calculatePricing(project);
-  
-  // Vertrag als PDF generieren
-  const contractBase64 = generateContractPDFBase64(project, pricing);
-  const contractFilename = `SI-Vertrag-${project.slug || 'projekt'}.pdf`;
-  
+
+  // Vertrag als PDF generieren (ausführliche Version)
+  const contractResult = generateContractPDF(project, pricing, { returnBase64: true });
+
+  // Rechnung als PDF generieren (mit Zahlungsplan)
+  const invoiceResult = generateInvoicePDF(project, pricing, { returnBase64: true });
+
   const variables = {
     partner1_name: project.partner1_name,
     partner2_name: project.partner2_name,
@@ -624,7 +403,7 @@ export async function sendWelcomeEmails(project) {
     pricing: pricing,
   };
 
-  // E-Mail 1: Willkommen + Vertrag
+  // E-Mail 1: Willkommen + Vertrag + Rechnung
   const welcome = await sendEmail({
     to: project.client_email,
     toName: project.client_name,
@@ -632,7 +411,10 @@ export async function sendWelcomeEmails(project) {
     variables,
     theme: project.theme,
     projectId: project.id,
-    attachments: [{ name: contractFilename, content: contractBase64 }],
+    attachments: [
+      { name: contractResult.filename, content: contractResult.base64 },
+      { name: invoiceResult.filename, content: invoiceResult.base64 },
+    ],
   });
 
   // E-Mail 2: Zugangsdaten

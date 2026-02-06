@@ -377,12 +377,18 @@ export function generateContractPDF(project, pricing, options = {}) {
   addFooter();
 
   // ============================================
-  // SPEICHERN
+  // SPEICHERN ODER BASE64 ZURÜCKGEBEN
   // ============================================
 
   const filename = `SIwedding-Vertrag-${project.slug || 'projekt'}-${contractNumber}.pdf`;
-  doc.save(filename);
 
+  // Wenn returnBase64 in options gesetzt ist, nicht speichern sondern Base64 zurückgeben
+  if (options?.returnBase64) {
+    const base64 = doc.output('datauristring').split(',')[1];
+    return { filename, contractNumber, contractDate: formatDate(contractDate), base64 };
+  }
+
+  doc.save(filename);
   return { filename, contractNumber, contractDate: formatDate(contractDate) };
 }
 
