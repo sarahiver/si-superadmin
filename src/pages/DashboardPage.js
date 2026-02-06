@@ -26,29 +26,67 @@ function getHostingDuration(pkg) {
 function calculateHostingDates(project) {
   const pkg = project.package || 'starter';
   const hostingMonths = getHostingDuration(pkg);
-
-  // Use explicit hosting dates if set, otherwise calculate from wedding_date or created_at
-  let startDate = project.hosting_start_date
-    ? new Date(project.hosting_start_date)
-    : project.wedding_date
-      ? new Date(new Date(project.wedding_date).getTime() - (2 * 30 * 24 * 60 * 60 * 1000)) // 2 months before wedding
-      : new Date(project.created_at);
-
-  let endDate = project.hosting_end_date
-    ? new Date(project.hosting_end_date)
-    : new Date(startDate.getTime() + (hostingMonths * 30 * 24 * 60 * 60 * 1000));
-
+  const totalHostingDays = hostingMonths * 30;
   const today = new Date();
-  const daysRemaining = Math.ceil((endDate - today) / (24 * 60 * 60 * 1000));
 
+  // Explicit dates from DB have priority
+  if (project.hosting_start_date && project.hosting_end_date) {
+    const startDate = new Date(project.hosting_start_date);
+    const endDate = new Date(project.hosting_end_date);
+    const daysRemaining = Math.ceil((endDate - today) / (24 * 60 * 60 * 1000));
+    const daysElapsed = Math.ceil((today - startDate) / (24 * 60 * 60 * 1000));
+
+    return {
+      startDate,
+      endDate,
+      hostingMonths,
+      totalHostingDays,
+      daysRemaining,
+      daysElapsed,
+      isExpired: daysRemaining < 0,
+      isExpiringSoon: daysRemaining >= 0 && daysRemaining <= 30,
+      isWarning: daysRemaining > 30 && daysRemaining <= 60,
+      hasStarted: today >= startDate,
+    };
+  }
+
+  // No explicit dates - estimate based on status
+  // For live/std/archive projects without dates, assume hosting started at created_at
+  const isActive = ['live', 'std', 'archive'].includes(project.status);
+
+  if (isActive) {
+    // Use created_at as hosting start (best guess without explicit date)
+    const startDate = new Date(project.created_at);
+    const endDate = new Date(startDate.getTime() + (totalHostingDays * 24 * 60 * 60 * 1000));
+    const daysRemaining = Math.ceil((endDate - today) / (24 * 60 * 60 * 1000));
+    const daysElapsed = Math.ceil((today - startDate) / (24 * 60 * 60 * 1000));
+
+    return {
+      startDate,
+      endDate,
+      hostingMonths,
+      totalHostingDays,
+      daysRemaining: Math.min(daysRemaining, totalHostingDays), // Cap at total
+      daysElapsed,
+      isExpired: daysRemaining < 0,
+      isExpiringSoon: daysRemaining >= 0 && daysRemaining <= 30,
+      isWarning: daysRemaining > 30 && daysRemaining <= 60,
+      hasStarted: true,
+    };
+  }
+
+  // Project not yet active - show total hosting duration instead
   return {
-    startDate,
-    endDate,
+    startDate: null,
+    endDate: null,
     hostingMonths,
-    daysRemaining,
-    isExpired: daysRemaining < 0,
-    isExpiringSoon: daysRemaining >= 0 && daysRemaining <= 30,
-    isWarning: daysRemaining > 30 && daysRemaining <= 60,
+    totalHostingDays,
+    daysRemaining: totalHostingDays, // Show total available days
+    daysElapsed: 0,
+    isExpired: false,
+    isExpiringSoon: false,
+    isWarning: false,
+    hasStarted: false,
   };
 }
 
