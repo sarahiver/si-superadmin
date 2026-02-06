@@ -2124,7 +2124,6 @@ export default function ProjectDetailPage() {
       {/* Sticky Save Bar - immer sichtbar */}
       <StickyBottomBar>
         <span className="status-text">{coupleNames} • {status?.label}</span>
-        <Button $secondary onClick={handleGenerateContract}>📄 Vertrag</Button>
         <Button $primary onClick={handleSave} disabled={isSaving}>
           {isSaving ? 'Speichert...' : '💾 Speichern'}
         </Button>
