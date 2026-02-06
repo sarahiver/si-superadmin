@@ -7,7 +7,135 @@ import Layout from '../components/Layout';
 import { getProjects, syncAllProjectStatuses } from '../lib/supabase';
 import { PACKAGES, PROJECT_STATUS, formatPrice } from '../lib/constants';
 
-const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
+const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5', purple: '#8B5CF6', blue: '#3B82F6' };
+
+// ============================================
+// HOSTING HELPER FUNCTIONS
+// ============================================
+
+function getHostingDuration(pkg) {
+  switch (pkg) {
+    case 'starter': return 6;
+    case 'standard': return 8;
+    case 'premium': return 12;
+    case 'individual': return 12;
+    default: return 6;
+  }
+}
+
+function calculateHostingDates(project) {
+  const pkg = project.package || 'starter';
+  const hostingMonths = getHostingDuration(pkg);
+
+  // Use explicit hosting dates if set, otherwise calculate from wedding_date or created_at
+  let startDate = project.hosting_start_date
+    ? new Date(project.hosting_start_date)
+    : project.wedding_date
+      ? new Date(new Date(project.wedding_date).getTime() - (2 * 30 * 24 * 60 * 60 * 1000)) // 2 months before wedding
+      : new Date(project.created_at);
+
+  let endDate = project.hosting_end_date
+    ? new Date(project.hosting_end_date)
+    : new Date(startDate.getTime() + (hostingMonths * 30 * 24 * 60 * 60 * 1000));
+
+  const today = new Date();
+  const daysRemaining = Math.ceil((endDate - today) / (24 * 60 * 60 * 1000));
+
+  return {
+    startDate,
+    endDate,
+    hostingMonths,
+    daysRemaining,
+    isExpired: daysRemaining < 0,
+    isExpiringSoon: daysRemaining >= 0 && daysRemaining <= 30,
+    isWarning: daysRemaining > 30 && daysRemaining <= 60,
+  };
+}
+
+function hasSTD(project) {
+  if (project.has_std !== undefined) return project.has_std;
+  const pkg = PACKAGES[project.package];
+  return pkg?.includesSaveTheDate || false;
+}
+
+function hasArchive(project) {
+  if (project.has_archive !== undefined) return project.has_archive;
+  const pkg = PACKAGES[project.package];
+  return pkg?.includesArchive || false;
+}
+
+function getActionItems(projects) {
+  const actions = [];
+  const today = new Date();
+
+  projects.forEach(project => {
+    const hosting = calculateHostingDates(project);
+
+    // Hosting expiring soon
+    if (hosting.isExpiringSoon && project.status === 'live') {
+      actions.push({
+        type: 'hosting_expiring',
+        urgency: 'high',
+        project,
+        message: `Hosting läuft in ${hosting.daysRemaining} Tagen ab`,
+        action: 'Verlängerung anbieten oder Archiv aktivieren',
+      });
+    } else if (hosting.isWarning && project.status === 'live') {
+      actions.push({
+        type: 'hosting_warning',
+        urgency: 'medium',
+        project,
+        message: `Hosting läuft in ${hosting.daysRemaining} Tagen ab`,
+        action: 'Kunde informieren',
+      });
+    }
+
+    // Ready for review
+    if (project.status === 'ready_for_review') {
+      actions.push({
+        type: 'needs_review',
+        urgency: 'high',
+        project,
+        message: 'Wartet auf Prüfung',
+        action: 'Daten überprüfen und live schalten',
+      });
+    }
+
+    // STD active but wedding approaching
+    if (project.status === 'std' && project.wedding_date) {
+      const weddingDate = new Date(project.wedding_date);
+      const daysToWedding = Math.ceil((weddingDate - today) / (24 * 60 * 60 * 1000));
+      if (daysToWedding <= 60 && daysToWedding > 0) {
+        actions.push({
+          type: 'std_to_live',
+          urgency: daysToWedding <= 14 ? 'high' : 'medium',
+          project,
+          message: `Hochzeit in ${daysToWedding} Tagen`,
+          action: 'Prüfen ob auf Live umgestellt werden soll',
+        });
+      }
+    }
+
+    // Wedding passed but still live (should be archive)
+    if (project.status === 'live' && project.wedding_date) {
+      const weddingDate = new Date(project.wedding_date);
+      const daysSinceWedding = Math.ceil((today - weddingDate) / (24 * 60 * 60 * 1000));
+      if (daysSinceWedding > 30 && hasArchive(project)) {
+        actions.push({
+          type: 'should_archive',
+          urgency: 'low',
+          project,
+          message: `Hochzeit vor ${daysSinceWedding} Tagen`,
+          action: 'Archiv-Seite aktivieren',
+        });
+      }
+    }
+  });
+
+  // Sort by urgency
+  const urgencyOrder = { high: 0, medium: 1, low: 2 };
+  return actions.sort((a, b) => urgencyOrder[a.urgency] - urgencyOrder[b.urgency]);
+}
 
 const Header = styled.div`display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 3px solid ${colors.black}; flex-wrap: wrap; gap: 1rem;`;
 const Title = styled.h1`font-family: 'Oswald', sans-serif; font-size: 3rem; font-weight: 700; text-transform: uppercase; letter-spacing: -0.02em; color: ${colors.black}; line-height: 1;`;
@@ -28,6 +156,63 @@ const UrlValue = styled.span`font-family: 'JetBrains Mono', monospace; font-size
 const CardFooter = styled.div`padding: 1rem 1.25rem; border-top: 1px solid ${colors.lightGray}; display: flex; justify-content: space-between; align-items: center; .price { font-family: 'Oswald', sans-serif; font-size: 1.25rem; font-weight: 600; color: ${colors.red}; } .status { font-family: 'Inter', sans-serif; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.35rem 0.75rem; background: ${p => p.$color ? `${p.$color}20` : colors.background}; color: ${p => p.$color || colors.gray}; }`;
 const EmptyState = styled.div`text-align: center; padding: 4rem 2rem; background: ${colors.white}; border: 2px dashed ${colors.lightGray}; .icon { font-size: 3rem; margin-bottom: 1rem; } .title { font-family: 'Oswald', sans-serif; font-size: 1.5rem; font-weight: 600; text-transform: uppercase; color: ${colors.black}; margin-bottom: 0.5rem; } .text { font-family: 'Inter', sans-serif; font-size: 0.9rem; color: ${colors.gray}; margin-bottom: 1.5rem; }`;
 const SyncInfo = styled.div`background: ${colors.green}20; border: 1px solid ${colors.green}; padding: 1rem 1.5rem; margin-bottom: 2rem; border-radius: 4px; font-family: 'Inter', sans-serif; font-size: 0.85rem; color: ${colors.black}; display: flex; align-items: center; gap: 0.75rem;`;
+
+// Action Items Section
+const ActionsSection = styled.div`margin-bottom: 3rem;`;
+const ActionsList = styled.div`display: flex; flex-direction: column; gap: 0.75rem;`;
+const ActionItem = styled(Link)`
+  display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem;
+  background: ${colors.white}; border: 2px solid ${p => p.$urgency === 'high' ? colors.red : p.$urgency === 'medium' ? colors.orange : colors.lightGray};
+  text-decoration: none; transition: all 0.2s ease;
+  &:hover { transform: translateX(4px); box-shadow: 4px 4px 0 ${p => p.$urgency === 'high' ? colors.red : p.$urgency === 'medium' ? colors.orange : colors.lightGray}; }
+`;
+const ActionIcon = styled.span`
+  width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem;
+  background: ${p => p.$urgency === 'high' ? `${colors.red}15` : p.$urgency === 'medium' ? `${colors.orange}15` : `${colors.gray}15`};
+`;
+const ActionContent = styled.div`flex: 1;`;
+const ActionTitle = styled.div`font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 600; color: ${colors.black}; text-transform: uppercase;`;
+const ActionMeta = styled.div`font-family: 'Inter', sans-serif; font-size: 0.8rem; color: ${colors.gray}; margin-top: 0.25rem;`;
+const ActionBadge = styled.span`
+  font-family: 'Inter', sans-serif; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 0.35rem 0.75rem; border-radius: 4px;
+  background: ${p => p.$urgency === 'high' ? `${colors.red}15` : p.$urgency === 'medium' ? `${colors.orange}15` : `${colors.gray}15`};
+  color: ${p => p.$urgency === 'high' ? colors.red : p.$urgency === 'medium' ? colors.orange : colors.gray};
+`;
+
+// Enhanced Card Elements
+const HostingBar = styled.div`
+  height: 4px; background: ${colors.lightGray}; border-radius: 2px; margin-top: 0.75rem; overflow: hidden;
+`;
+const HostingProgress = styled.div`
+  height: 100%; border-radius: 2px; transition: width 0.3s ease;
+  width: ${p => Math.max(0, Math.min(100, p.$percent))}%;
+  background: ${p => p.$expired ? colors.red : p.$warning ? colors.orange : colors.green};
+`;
+const HostingInfo = styled.div`
+  display: flex; justify-content: space-between; font-family: 'Inter', sans-serif; font-size: 0.7rem; margin-top: 0.35rem;
+  .label { color: ${colors.gray}; }
+  .value { color: ${p => p.$expired ? colors.red : p.$warning ? colors.orange : colors.black}; font-weight: 500; }
+`;
+const FeatureBadges = styled.div`display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;`;
+const FeatureBadge = styled.span`
+  font-family: 'Inter', sans-serif; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 0.25rem 0.5rem; border-radius: 3px;
+  background: ${p => p.$active ? `${p.$color || colors.purple}15` : `${colors.gray}10`};
+  color: ${p => p.$active ? (p.$color || colors.purple) : colors.gray};
+  border: 1px solid ${p => p.$active ? `${p.$color || colors.purple}30` : 'transparent'};
+`;
+
+// Stats enhancement
+const StatCardEnhanced = styled(StatCard)`
+  position: relative;
+  &::after {
+    content: '${p => p.$trend || ''}';
+    position: absolute; top: 0.75rem; right: 0.75rem;
+    font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 600;
+    color: ${p => p.$trendUp ? colors.green : p.$trendDown ? colors.red : colors.gray};
+  }
+`;
 
 export default function DashboardPage() {
   const [projects, setProjects] = useState([]);
@@ -84,7 +269,12 @@ export default function DashboardPage() {
     live: customerProjects.filter(p => p.status === 'live').length,
     inProgress: customerProjects.filter(p => ['inquiry', 'in_progress', 'std'].includes(p.status)).length,
     revenue: customerProjects.reduce((sum, p) => sum + (p.total_price || 0), 0),
+    withSTD: customerProjects.filter(p => hasSTD(p)).length,
+    withArchive: customerProjects.filter(p => hasArchive(p)).length,
   };
+
+  // Get action items that need attention
+  const actionItems = getActionItems(customerProjects);
 
   const recentProjects = [...customerProjects].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 6);
 
@@ -124,6 +314,36 @@ export default function DashboardPage() {
         <StatCard><div className="label">Umsatz</div><div className="value" style={{ color: colors.red }}>{formatPrice(stats.revenue)}</div></StatCard>
       </StatsGrid>
 
+      {/* Action Items Section */}
+      {actionItems.length > 0 && (
+        <ActionsSection>
+          <SectionTitle>Aktionen erforderlich ({actionItems.length})</SectionTitle>
+          <ActionsList>
+            {actionItems.slice(0, 5).map((item, index) => {
+              const icons = {
+                hosting_expiring: '⏰',
+                hosting_warning: '📅',
+                needs_review: '👁️',
+                std_to_live: '🚀',
+                should_archive: '📦',
+              };
+              return (
+                <ActionItem key={index} to={`/projects/${item.project.id}`} $urgency={item.urgency}>
+                  <ActionIcon $urgency={item.urgency}>{icons[item.type] || '❗'}</ActionIcon>
+                  <ActionContent>
+                    <ActionTitle>{item.project.couple_names || 'Unbenannt'}</ActionTitle>
+                    <ActionMeta>{item.message} — {item.action}</ActionMeta>
+                  </ActionContent>
+                  <ActionBadge $urgency={item.urgency}>
+                    {item.urgency === 'high' ? 'Dringend' : item.urgency === 'medium' ? 'Bald' : 'Info'}
+                  </ActionBadge>
+                </ActionItem>
+              );
+            })}
+          </ActionsList>
+        </ActionsSection>
+      )}
+
       <SectionTitle>Neueste Projekte</SectionTitle>
 
       {recentProjects.length === 0 ? (
@@ -139,6 +359,13 @@ export default function DashboardPage() {
             const status = PROJECT_STATUS[project.status];
             const pkg = PACKAGES[project.package];
             const displayUrl = project.custom_domain || (project.slug ? `siwedding.de/${project.slug}` : null);
+            const hosting = calculateHostingDates(project);
+            const hostingPercent = hosting.hostingMonths > 0
+              ? Math.max(0, 100 - ((hosting.daysRemaining / (hosting.hostingMonths * 30)) * 100))
+              : 0;
+            const projectHasSTD = hasSTD(project);
+            const projectHasArchive = hasArchive(project);
+
             return (
               <ProjectCard key={project.id} to={`/projects/${project.id}`}>
                 <CardHeader><span className="names">{project.couple_names || 'Unbenannt'}</span><StatusDot $color={status?.color} /></CardHeader>
@@ -147,6 +374,39 @@ export default function DashboardPage() {
                   <CardRow><span className="label">Paket</span><span className="value">{pkg?.name || 'Starter'}</span></CardRow>
                   <CardRow><span className="label">Theme</span><span className="value" style={{ textTransform: 'capitalize' }}>{project.theme || 'botanical'}</span></CardRow>
                   {displayUrl && <CardRow><span className="label">URL</span><UrlValue>{displayUrl}</UrlValue></CardRow>}
+
+                  {/* Hosting Progress Bar */}
+                  {['live', 'std', 'archive'].includes(project.status) && (
+                    <>
+                      <HostingBar>
+                        <HostingProgress
+                          $percent={hostingPercent}
+                          $expired={hosting.isExpired}
+                          $warning={hosting.isExpiringSoon || hosting.isWarning}
+                        />
+                      </HostingBar>
+                      <HostingInfo $expired={hosting.isExpired} $warning={hosting.isExpiringSoon}>
+                        <span className="label">{hosting.hostingMonths} Mon. Hosting</span>
+                        <span className="value">
+                          {hosting.isExpired
+                            ? 'Abgelaufen'
+                            : hosting.daysRemaining <= 0
+                              ? 'Heute'
+                              : `${hosting.daysRemaining} Tage`}
+                        </span>
+                      </HostingInfo>
+                    </>
+                  )}
+
+                  {/* Feature Badges */}
+                  <FeatureBadges>
+                    <FeatureBadge $active={projectHasSTD} $color={colors.purple}>
+                      {projectHasSTD ? '✓ STD' : '– STD'}
+                    </FeatureBadge>
+                    <FeatureBadge $active={projectHasArchive} $color={colors.blue}>
+                      {projectHasArchive ? '✓ Archiv' : '– Archiv'}
+                    </FeatureBadge>
+                  </FeatureBadges>
                 </CardBody>
                 <CardFooter $color={status?.color}>
                   <span className="price">{formatPrice(project.total_price || pkg?.price || 0)}</span>
