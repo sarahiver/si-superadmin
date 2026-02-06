@@ -6,8 +6,8 @@ import { PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from 
 import { generateContractPDF } from './contractPDF';
 import { generateInvoicePDF } from './invoicePDF';
 
-const BREVO_API_KEY = process.env.REACT_APP_BREVO_API_KEY;
-const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+// E-Mail wird jetzt über Backend-API gesendet (API Key nicht im Frontend!)
+const EMAIL_API_URL = '/api/send-email';
 
 // Theme Farben
 const THEME_COLORS = {
@@ -319,32 +319,25 @@ function calculatePricing(project) {
 export async function sendEmail({ to, toName, templateType, variables, theme, projectId, attachments = [] }) {
   try {
     const template = generateEmailHTML(templateType, variables, theme);
-    
-    const emailData = {
-      sender: { name: 'S&I.', email: 'wedding@sarahiver.de' },
-      to: [{ email: to, name: toName || to }],
-      subject: template.subject,
-      htmlContent: template.html,
-    };
-    
-    // Attachments hinzufügen
-    if (attachments.length > 0) {
-      emailData.attachment = attachments;
-    }
-    
-    const response = await fetch(BREVO_API_URL, {
+
+    // E-Mail über sichere Backend-API senden (API Key nicht im Frontend!)
+    const response = await fetch(EMAIL_API_URL, {
       method: 'POST',
       headers: {
-        'accept': 'application/json',
-        'api-key': BREVO_API_KEY,
-        'content-type': 'application/json',
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify(emailData),
+      body: JSON.stringify({
+        to,
+        toName,
+        subject: template.subject,
+        htmlContent: template.html,
+        attachments,
+      }),
     });
 
     const result = await response.json();
 
-    // Log speichern
+    // Log speichern - OHNE sensible Daten (kein html_content, keine variables mit Passwörtern!)
     await supabase.from('email_logs').insert([{
       project_id: projectId,
       recipient_email: to,
@@ -352,10 +345,9 @@ export async function sendEmail({ to, toName, templateType, variables, theme, pr
       subject: template.subject,
       template_type: templateType,
       theme: theme,
-      html_content: template.html,
-      variables: variables,
+      // SICHERHEIT: Keine html_content oder variables mehr speichern!
       status: response.ok ? 'sent' : 'failed',
-      error_message: response.ok ? null : JSON.stringify(result),
+      error_message: response.ok ? null : (result.error || 'Unknown error'),
       brevo_message_id: result.messageId || null,
       sent_at: response.ok ? new Date().toISOString() : null,
     }]);
@@ -558,48 +550,47 @@ export async function sendDataReadyNotification(project) {
     </html>
   `;
   
+  const subject = `🔔 Daten bereit: ${project.couple_names || project.slug}`;
+
   try {
-    const response = await fetch(BREVO_API_URL, {
+    // E-Mail über sichere Backend-API senden
+    const response = await fetch(EMAIL_API_URL, {
       method: 'POST',
       headers: {
-        'accept': 'application/json',
-        'api-key': BREVO_API_KEY,
-        'content-type': 'application/json',
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'S&I. System', email: 'wedding@sarahiver.de' },
-        to: [{ email: adminEmail, name: 'Iver' }],
-        subject: `🔔 Daten bereit: ${project.couple_names || project.slug}`,
-        htmlContent: htmlContent,
+        to: adminEmail,
+        toName: 'Iver',
+        subject,
+        htmlContent,
       }),
     });
 
     const result = await response.json();
 
-    // Log speichern
+    // Log speichern - OHNE sensible Daten
     await supabase.from('email_logs').insert([{
       project_id: project.id,
       recipient_email: adminEmail,
       recipient_name: 'Admin',
-      subject: `Daten bereit: ${project.couple_names || project.slug}`,
+      subject,
       template_type: 'admin_data_ready',
       theme: project.theme,
-      html_content: htmlContent,
-      variables: { project_id: project.id, couple_names: project.couple_names, timestamp },
       status: response.ok ? 'sent' : 'failed',
-      error_message: response.ok ? null : JSON.stringify(result),
+      error_message: response.ok ? null : (result.error || 'Unknown error'),
       brevo_message_id: result.messageId || null,
       sent_at: response.ok ? new Date().toISOString() : null,
     }]);
 
-    return { success: response.ok, messageId: result.messageId, error: result.message };
+    return { success: response.ok, messageId: result.messageId, error: result.error };
   } catch (error) {
-    console.error('Admin notification error:', error);
-    
+    console.error('Admin notification error:', error.message);
+
     await supabase.from('email_logs').insert([{
       project_id: project.id,
       recipient_email: adminEmail,
-      subject: `Daten bereit: ${project.couple_names || project.slug}`,
+      subject,
       template_type: 'admin_data_ready',
       status: 'failed',
       error_message: error.message,

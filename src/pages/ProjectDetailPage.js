@@ -1376,19 +1376,25 @@ export default function ProjectDetailPage() {
     if (!window.confirm('Neues Passwort generieren und per E-Mail senden?')) return;
     setSendingEmail(true);
     
-    const newPw = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 4).toUpperCase();
+    // Sichere Passwort-Generierung mit crypto API
+    const chars = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const array = new Uint8Array(12);
+    crypto.getRandomValues(array);
+    const newPw = Array.from(array).map(x => chars[x % chars.length]).join('');
+
     await updateProject(id, { admin_password: newPw });
     setFormData(prev => ({ ...prev, admin_password: newPw }));
-    
+
     if (formData.client_email) {
       const result = await sendPasswordResetEmail({ ...formData, id }, newPw);
       if (result.success) {
-        toast.success(`Neues Passwort: ${newPw} (E-Mail gesendet!)`);
+        // SICHERHEIT: Passwort NICHT im Toast anzeigen!
+        toast.success('Neues Passwort generiert und per E-Mail versendet');
       } else {
-        toast.success(`Neues Passwort: ${newPw} (E-Mail Fehler: ${result.error})`);
+        toast.error(`E-Mail konnte nicht gesendet werden: ${result.error}`);
       }
     } else {
-      toast.success(`Neues Passwort: ${newPw}`);
+      toast.success('Neues Passwort generiert (keine E-Mail - Kunde hat keine E-Mail-Adresse)');
     }
     loadEmailLogs();
     setSendingEmail(false);

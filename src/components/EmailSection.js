@@ -188,7 +188,8 @@ export default function EmailSection({ project }) {
     setSending(true);
     const result = await adminResetPassword(project.id, true);
     if (result.success) {
-      toast.success(`Neues Passwort: ${result.newPassword}`);
+      // SICHERHEIT: Passwort NICHT im Toast anzeigen!
+      toast.success('Neues Passwort generiert und per E-Mail versendet');
       loadLogs();
     } else {
       toast.error(result.error);

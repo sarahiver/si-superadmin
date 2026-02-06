@@ -4,14 +4,12 @@
 import { supabase } from './supabase';
 import { sendEmail } from './emailService';
 
-// Generiere sicheres Passwort
-function generatePassword(length = 10) {
+// Generiere kryptografisch sicheres Passwort
+function generatePassword(length = 12) {
   const chars = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+  return Array.from(array).map(x => chars[x % chars.length]).join('');
 }
 
 // Generiere Reset Token
