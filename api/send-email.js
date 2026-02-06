@@ -7,7 +7,7 @@ const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 
 // Erlaubte Origins
 const ALLOWED_ORIGINS = [
-  'https://superadmin.siwedding.de',
+  'https://admin.sarahiver.de',
   'https://si-superadmin.vercel.app',
   'http://localhost:3000', // Development
 ];
