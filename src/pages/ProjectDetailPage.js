@@ -515,6 +515,134 @@ const PasswordStatus = styled.div`
   color: ${p => p.$set ? colors.green : colors.gray};
 `;
 
+// Hosting Section Styles
+const HostingSection = styled.div`
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: ${colors.background};
+  border: 2px solid ${colors.lightGray};
+`;
+
+const HostingSectionTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+
+  .icon { font-size: 1.25rem; }
+  .title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+`;
+
+const HostingGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const HostingCard = styled.div`
+  background: ${colors.white};
+  border: 1px solid ${p => p.$warning ? colors.orange : p.$success ? colors.green : colors.lightGray};
+  padding: 1rem;
+
+  .label {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: ${colors.gray};
+    margin-bottom: 0.35rem;
+  }
+
+  .value {
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: ${p => p.$warning ? colors.orange : p.$success ? colors.green : colors.black};
+  }
+
+  .hint {
+    font-size: 0.7rem;
+    color: ${colors.gray};
+    margin-top: 0.25rem;
+  }
+`;
+
+const HostingToggleRow = styled.div`
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+`;
+
+const HostingToggle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+
+  .checkbox {
+    width: 20px;
+    height: 20px;
+    border: 2px solid ${p => p.$active ? colors.green : colors.lightGray};
+    background: ${p => p.$active ? colors.green : 'transparent'};
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+
+  .label {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+`;
+
+const HostingOverrideSection = styled.div`
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed ${colors.lightGray};
+`;
+
+const HostingOverrideToggle = styled.button`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  color: ${colors.gray};
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+
+  &:hover {
+    color: ${colors.black};
+  }
+`;
+
+const HostingOverrideFields = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
 // Sticky Save Bar - immer sichtbar am unteren Bildschirmrand
 const StickyBottomBar = styled.div`
   position: fixed;
@@ -793,6 +921,62 @@ export default function ProjectDetailPage() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [expandedEmailId, setExpandedEmailId] = useState(null);
   const [expandedConfigId, setExpandedConfigId] = useState(null);
+  const [showHostingOverride, setShowHostingOverride] = useState(false);
+
+  // Hosting calculation helpers
+  const getHostingMonths = (pkg) => {
+    switch (pkg) {
+      case 'starter': return 6;
+      case 'standard': return 8;
+      case 'premium': return 12;
+      case 'individual': return 12;
+      default: return 6;
+    }
+  };
+
+  const calculateHostingDates = (weddingDate, pkg, status) => {
+    if (!weddingDate) return { start: null, end: null, stdEnd: null, archiveEnd: null };
+
+    const wedding = new Date(weddingDate);
+    const hostingMonths = getHostingMonths(pkg);
+
+    // STD startet 2 Monate vor Hochzeit, endet bei Hochzeit
+    const stdStart = new Date(wedding);
+    stdStart.setMonth(stdStart.getMonth() - 2);
+
+    // Hosting startet bei STD-Start oder Hochzeit (je nach Paket)
+    const hostingStart = new Date(stdStart);
+
+    // Hosting endet X Monate nach Start
+    const hostingEnd = new Date(hostingStart);
+    hostingEnd.setMonth(hostingEnd.getMonth() + hostingMonths);
+
+    // STD endet bei Hochzeit
+    const stdEnd = new Date(wedding);
+
+    // Archiv endet 3 Monate nach Hochzeit
+    const archiveEnd = new Date(wedding);
+    archiveEnd.setMonth(archiveEnd.getMonth() + 3);
+
+    return {
+      start: hostingStart.toISOString().split('T')[0],
+      end: hostingEnd.toISOString().split('T')[0],
+      stdEnd: stdEnd.toISOString().split('T')[0],
+      archiveEnd: archiveEnd.toISOString().split('T')[0],
+    };
+  };
+
+  const formatDateDE = (dateStr) => {
+    if (!dateStr) return '–';
+    return new Date(dateStr).toLocaleDateString('de-DE');
+  };
+
+  const getDaysRemaining = (endDate) => {
+    if (!endDate) return null;
+    const end = new Date(endDate);
+    const today = new Date();
+    return Math.ceil((end - today) / (24 * 60 * 60 * 1000));
+  };
 
   useEffect(() => {
     loadProject();
@@ -816,6 +1000,13 @@ export default function ProjectDetailPage() {
         active_components: data.active_components || [...CORE_COMPONENTS],
         std_date: data.std_date || '',
         archive_date: data.archive_date || '',
+        // Hosting fields
+        hosting_start_date: data.hosting_start_date || '',
+        hosting_end_date: data.hosting_end_date || '',
+        has_std: data.has_std ?? (PACKAGES[data.package]?.includesSaveTheDate || false),
+        has_archive: data.has_archive ?? (PACKAGES[data.package]?.includesArchive || false),
+        std_end_date: data.std_end_date || '',
+        archive_end_date: data.archive_end_date || '',
       });
     }
     setIsLoading(false);
@@ -830,7 +1021,53 @@ export default function ProjectDetailPage() {
     setEmailLogs(data || []);
   };
 
-  const handleChange = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
+  const handleChange = (field, value) => {
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value };
+
+      // Auto-fill hosting dates when status changes to std/live and dates are empty
+      if (field === 'status' && ['std', 'live'].includes(value) && prev.wedding_date) {
+        const dates = calculateHostingDates(prev.wedding_date, prev.package, value);
+        if (!prev.hosting_start_date) updated.hosting_start_date = dates.start;
+        if (!prev.hosting_end_date) updated.hosting_end_date = dates.end;
+        if (!prev.std_end_date) updated.std_end_date = dates.stdEnd;
+        if (!prev.archive_end_date) updated.archive_end_date = dates.archiveEnd;
+      }
+
+      // Auto-fill when wedding date changes
+      if (field === 'wedding_date' && value && ['std', 'live'].includes(prev.status)) {
+        const dates = calculateHostingDates(value, prev.package, prev.status);
+        if (!prev.hosting_start_date) updated.hosting_start_date = dates.start;
+        if (!prev.hosting_end_date) updated.hosting_end_date = dates.end;
+        if (!prev.std_end_date) updated.std_end_date = dates.stdEnd;
+        if (!prev.archive_end_date) updated.archive_end_date = dates.archiveEnd;
+      }
+
+      // Update has_std/has_archive based on package change
+      if (field === 'package') {
+        const pkg = PACKAGES[value];
+        if (pkg) {
+          // Only auto-set if not manually overridden (check if it was included in old package)
+          const oldPkg = PACKAGES[prev.package];
+          if (!oldPkg?.includesSaveTheDate && !prev.addons?.includes('save_the_date')) {
+            updated.has_std = pkg.includesSaveTheDate || prev.addons?.includes('save_the_date');
+          }
+          if (!oldPkg?.includesArchive && !prev.addons?.includes('archive')) {
+            updated.has_archive = pkg.includesArchive || prev.addons?.includes('archive');
+          }
+        }
+      }
+
+      // Update has_std/has_archive when addons change
+      if (field === 'addons') {
+        const pkg = PACKAGES[prev.package];
+        updated.has_std = pkg?.includesSaveTheDate || value?.includes('save_the_date');
+        updated.has_archive = pkg?.includesArchive || value?.includes('archive');
+      }
+
+      return updated;
+    });
+  };
 
   const selectedPackage = PACKAGES[formData.package] || PACKAGES.starter;
   const isIndividual = formData.package === 'individual';
@@ -1026,6 +1263,13 @@ export default function ProjectDetailPage() {
       component_config: formData.component_config || {},
       std_date: formData.std_date || null, archive_date: formData.archive_date || null,
       password_protected: formData.password_protected || false,
+      // Hosting fields
+      hosting_start_date: formData.hosting_start_date || null,
+      hosting_end_date: formData.hosting_end_date || null,
+      has_std: formData.has_std || false,
+      has_archive: formData.has_archive || false,
+      std_end_date: formData.std_end_date || null,
+      archive_end_date: formData.archive_end_date || null,
     });
     if (error) { toast.error('Fehler beim Speichern'); console.error(error); }
     else { 
@@ -1375,6 +1619,118 @@ export default function ProjectDetailPage() {
                 </PasswordStatus>
               )}
             </PasswordProtectionBox>
+
+            {/* Hosting-Übersicht */}
+            <HostingSection>
+              <HostingSectionTitle>
+                <span className="icon">📅</span>
+                <span className="title">Hosting & Laufzeiten</span>
+              </HostingSectionTitle>
+
+              {(() => {
+                const calculated = calculateHostingDates(formData.wedding_date, formData.package, formData.status);
+                const hostingStart = formData.hosting_start_date || calculated.start;
+                const hostingEnd = formData.hosting_end_date || calculated.end;
+                const daysRemaining = getDaysRemaining(hostingEnd);
+                const isWarning = daysRemaining !== null && daysRemaining <= 60 && daysRemaining > 0;
+                const isExpired = daysRemaining !== null && daysRemaining <= 0;
+
+                return (
+                  <>
+                    <HostingGrid>
+                      <HostingCard>
+                        <div className="label">Hosting Start</div>
+                        <div className="value">{formatDateDE(hostingStart)}</div>
+                        <div className="hint">{getHostingMonths(formData.package)} Monate ({selectedPackage.name})</div>
+                      </HostingCard>
+                      <HostingCard $warning={isWarning} $success={!isWarning && !isExpired && daysRemaining !== null}>
+                        <div className="label">Hosting Ende</div>
+                        <div className="value">
+                          {formatDateDE(hostingEnd)}
+                          {daysRemaining !== null && (
+                            <> ({isExpired ? 'abgelaufen' : `${daysRemaining} Tage`})</>
+                          )}
+                        </div>
+                      </HostingCard>
+                      {formData.has_std && (
+                        <HostingCard>
+                          <div className="label">STD Ende</div>
+                          <div className="value">{formatDateDE(formData.std_end_date || calculated.stdEnd)}</div>
+                          <div className="hint">Save the Date → Live</div>
+                        </HostingCard>
+                      )}
+                      {formData.has_archive && (
+                        <HostingCard>
+                          <div className="label">Archiv Ende</div>
+                          <div className="value">{formatDateDE(formData.archive_end_date || calculated.archiveEnd)}</div>
+                          <div className="hint">3 Monate nach Hochzeit</div>
+                        </HostingCard>
+                      )}
+                    </HostingGrid>
+
+                    <HostingToggleRow>
+                      <HostingToggle $active={formData.has_std} onClick={() => handleChange('has_std', !formData.has_std)}>
+                        <span className="checkbox">{formData.has_std && '✓'}</span>
+                        <span className="label">Save the Date</span>
+                      </HostingToggle>
+                      <HostingToggle $active={formData.has_archive} onClick={() => handleChange('has_archive', !formData.has_archive)}>
+                        <span className="checkbox">{formData.has_archive && '✓'}</span>
+                        <span className="label">Archiv</span>
+                      </HostingToggle>
+                    </HostingToggleRow>
+
+                    <HostingOverrideSection>
+                      <HostingOverrideToggle onClick={() => setShowHostingOverride(!showHostingOverride)}>
+                        {showHostingOverride ? '▼ Manuelle Daten ausblenden' : '▶ Daten manuell überschreiben'}
+                      </HostingOverrideToggle>
+
+                      {showHostingOverride && (
+                        <HostingOverrideFields>
+                          <FormGroup>
+                            <Label>Hosting Start</Label>
+                            <Input
+                              type="date"
+                              value={formData.hosting_start_date?.split('T')[0] || ''}
+                              onChange={e => handleChange('hosting_start_date', e.target.value)}
+                              placeholder="Auto-berechnet"
+                            />
+                          </FormGroup>
+                          <FormGroup>
+                            <Label>Hosting Ende</Label>
+                            <Input
+                              type="date"
+                              value={formData.hosting_end_date?.split('T')[0] || ''}
+                              onChange={e => handleChange('hosting_end_date', e.target.value)}
+                              placeholder="Auto-berechnet"
+                            />
+                          </FormGroup>
+                          <FormGroup>
+                            <Label>STD Ende</Label>
+                            <Input
+                              type="date"
+                              value={formData.std_end_date?.split('T')[0] || ''}
+                              onChange={e => handleChange('std_end_date', e.target.value)}
+                              placeholder="Auto: Hochzeitsdatum"
+                              disabled={!formData.has_std}
+                            />
+                          </FormGroup>
+                          <FormGroup>
+                            <Label>Archiv Ende</Label>
+                            <Input
+                              type="date"
+                              value={formData.archive_end_date?.split('T')[0] || ''}
+                              onChange={e => handleChange('archive_end_date', e.target.value)}
+                              placeholder="Auto: +3 Mon. nach Hochzeit"
+                              disabled={!formData.has_archive}
+                            />
+                          </FormGroup>
+                        </HostingOverrideFields>
+                      )}
+                    </HostingOverrideSection>
+                  </>
+                );
+              })()}
+            </HostingSection>
           </CollapsibleSection>
 
           {/* Section 04: Links */}
