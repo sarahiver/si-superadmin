@@ -5,6 +5,7 @@ import { supabase } from './supabase';
 import { PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from './constants';
 import { generateContractPDF } from './contractPDF';
 import { generateInvoicePDF } from './invoicePDF';
+import { generateWebsiteQRSVG } from './qrGenerator';
 
 // E-Mail wird jetzt über Backend-API gesendet (API Key nicht im Frontend!)
 const EMAIL_API_URL = '/api/send-email';
@@ -426,6 +427,21 @@ export async function sendWelcomeEmails(project) {
 // WEITERE E-MAIL FUNKTIONEN
 // ============================================
 export async function sendGoLiveEmail(project) {
+  const websiteUrl = project.custom_domain || `siwedding.de/${project.slug}`;
+  const hasQR = (project.addons || []).includes('qr_code') || isFeatureIncluded(project.package, 'qr_code');
+  
+  // QR-Code als SVG-Attachment wenn gebucht
+  const attachments = [];
+  if (hasQR) {
+    const qrSvg = generateWebsiteQRSVG({ url: `https://${websiteUrl}`, size: 600, color: '#0A0A0A' });
+    if (qrSvg) {
+      attachments.push({
+        name: `qr-code-${project.slug}.svg`,
+        content: btoa(unescape(encodeURIComponent(qrSvg))),
+      });
+    }
+  }
+
   return sendEmail({
     to: project.client_email,
     toName: project.client_name,
@@ -434,10 +450,12 @@ export async function sendGoLiveEmail(project) {
       partner1_name: project.partner1_name,
       partner2_name: project.partner2_name,
       couple_names: project.couple_names,
-      website_url: project.custom_domain || `siwedding.de/${project.slug}`,
+      website_url: websiteUrl,
+      has_qr: hasQR,
     },
     theme: project.theme,
     projectId: project.id,
+    attachments: attachments.length > 0 ? attachments : undefined,
   });
 }
 

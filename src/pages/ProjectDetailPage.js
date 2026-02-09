@@ -10,6 +10,7 @@ import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_C
 import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail } from '../lib/emailService';
 import { generateContractPDF } from '../lib/contractPDF';
 import { generateInvoicePDF } from '../lib/invoicePDF';
+import { generateWebsiteQRSVG } from '../lib/qrGenerator';
 import AddressAutocomplete, { formatAddress } from '../components/AddressAutocomplete';
 import PhoneInput from '../components/PhoneInput';
 
@@ -868,6 +869,112 @@ const StickyBottomBar = styled.div`
   }
 `;
 
+// QR Code Preview Styles
+const QRPreviewBox = styled.div`
+  margin-top: 1.5rem;
+  border: 2px solid ${colors.lightGray};
+  border-radius: 8px;
+  overflow: hidden;
+`;
+
+const QRPreviewHeader = styled.div`
+  padding: 0.75rem 1rem;
+  background: ${colors.background};
+  border-bottom: 1px solid ${colors.lightGray};
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  .title { font-weight: 700; font-size: 0.85rem; }
+  .hint { font-size: 0.75rem; color: ${colors.gray}; }
+`;
+
+const QRPreviewContent = styled.div`
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+`;
+
+const QRCanvas = styled.div`
+  width: 180px;
+  height: 180px;
+  background: #fff;
+  border: 1px solid ${colors.lightGray};
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  svg { width: 100%; height: 100%; }
+`;
+
+const QRActions = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  button {
+    background: ${colors.black};
+    color: ${colors.white};
+    border: none;
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 4px;
+    white-space: nowrap;
+    &:hover { opacity: 0.8; }
+  }
+`;
+
+// QR Code Helper Functions
+function renderQRPreview(url) {
+  const svg = generateWebsiteQRSVG({ url: `https://${url}`, size: 180, color: '#0A0A0A' });
+  const container = document.getElementById('website-qr-preview');
+  if (container && svg) {
+    container.innerHTML = svg;
+  }
+}
+
+function downloadQRAsSVG(url) {
+  const svg = generateWebsiteQRSVG({ url: `https://${url}`, size: 600, color: '#0A0A0A' });
+  if (!svg) return;
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `qr-${url.replace(/[^a-z0-9]/gi, '-')}.svg`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function downloadQRAsPNG(url) {
+  const svg = generateWebsiteQRSVG({ url: `https://${url}`, size: 600, color: '#0A0A0A' });
+  if (!svg) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = 600;
+  canvas.height = 600;
+  const ctx = canvas.getContext('2d');
+  const img = new Image();
+  img.onload = () => {
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, 600, 600);
+    ctx.drawImage(img, 0, 0);
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `qr-${url.replace(/[^a-z0-9]/gi, '-')}.png`;
+    a.click();
+  };
+  img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+}
+
+function copyQRSVG(url) {
+  const svg = generateWebsiteQRSVG({ url: `https://${url}`, size: 600, color: '#0A0A0A' });
+  if (svg) {
+    navigator.clipboard.writeText(svg).then(() => toast.success('SVG kopiert!'));
+  }
+}
+
 // ============================================
 // COLLAPSIBLE SECTION COMPONENT
 // ============================================
@@ -963,6 +1070,14 @@ export default function ProjectDetailPage() {
     loadProject();
     loadEmailLogs();
   }, [id]);
+
+  // Render QR code when URL changes
+  useEffect(() => {
+    const url = formData.custom_domain || (formData.slug ? `siwedding.de/${formData.slug}` : null);
+    if (url) {
+      setTimeout(() => renderQRPreview(url), 200);
+    }
+  }, [formData.custom_domain, formData.slug]);
 
   const loadProject = async () => {
     const { data } = await getProjectById(id);
@@ -1942,8 +2057,8 @@ export default function ProjectDetailPage() {
             </WorkflowSection>
           </CollapsibleSection>
 
-          {/* Section 05: Links */}
-          <CollapsibleSection number="05" title="Links" defaultOpen={false}>
+          {/* Section 05: Links & QR-Code */}
+          <CollapsibleSection number="05" title="Links & QR-Code" defaultOpen={false}>
             <LinkBox>
               <a href={`https://${baseUrl}`} target="_blank" rel="noopener noreferrer">{baseUrl}</a>
               <button onClick={() => copyToClipboard(`https://${baseUrl}`)}>Copy</button>
@@ -1952,6 +2067,26 @@ export default function ProjectDetailPage() {
               <a href={`https://${baseUrl}/admin`} target="_blank" rel="noopener noreferrer">{baseUrl}/admin</a>
               <button onClick={() => copyToClipboard(`https://${baseUrl}/admin`)}>Copy</button>
             </LinkBox>
+            
+            {/* QR-Code Preview — wird immer generiert */}
+            <QRPreviewBox>
+              <QRPreviewHeader>
+                <span className="title">📱 Website QR-Code</span>
+                <span className="hint">
+                  {(formData.addons || []).includes('qr_code') || isFeatureIncluded(formData.package, 'qr_code')
+                    ? '✅ QR-Code gebucht — wird mit E-Mails verschickt'
+                    : '⚪ QR-Code nicht gebucht — wird nicht verschickt'}
+                </span>
+              </QRPreviewHeader>
+              <QRPreviewContent>
+                <QRCanvas id="website-qr-preview" data-url={`https://${baseUrl}`} />
+                <QRActions>
+                  <button onClick={() => downloadQRAsSVG(baseUrl)}>⬇ SVG Download</button>
+                  <button onClick={() => downloadQRAsPNG(baseUrl)}>⬇ PNG Download</button>
+                  <button onClick={() => copyQRSVG(baseUrl)}>📋 SVG kopieren</button>
+                </QRActions>
+              </QRPreviewContent>
+            </QRPreviewBox>
           </CollapsibleSection>
 
           {/* Section 06: Komponenten */}

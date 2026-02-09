@@ -2,6 +2,7 @@
 // Generiert professionelle Rechnung im S&I. Editorial Stil
 import { jsPDF } from 'jspdf';
 import { PACKAGES, formatPrice } from './constants';
+import { buildEPCPayload, generateQRSVG } from './qrGenerator';
 
 // S&I. Farben
 const COLORS = {
@@ -411,7 +412,7 @@ export function generateInvoicePDF(project, pricing, options = {}) {
 
   y += 10;
   doc.setFillColor(250, 250, 250);
-  doc.rect(m, y, pw - 2*m, 30, 'F');
+  doc.rect(m, y, pw - 2*m, 35, 'F');
   y += 8;
 
   doc.setFontSize(9);
@@ -423,8 +424,33 @@ export function generateInvoicePDF(project, pricing, options = {}) {
   doc.setFont('helvetica', 'normal');
   doc.text(`Kontoinhaber: ${COMPANY.fullName}`, m + 5, y); y += 4;
   doc.text(`IBAN: ${COMPANY.iban}`, m + 5, y); y += 4;
-  doc.text(`BIC: ${COMPANY.bic}`, m + 5, y); y += 4;
+  doc.text(`BIC: ${COMPANY.bic} | Bank: ${COMPANY.bank}`, m + 5, y); y += 4;
   doc.text(`Verwendungszweck: ${invoiceNumber}`, m + 5, y);
+
+  // EPC/GiroCode QR — Banking-App scannt und füllt Überweisung vor
+  try {
+    const epcPayload = buildEPCPayload({
+      iban: COMPANY.iban,
+      bic: COMPANY.bic,
+      name: COMPANY.fullName,
+      amount: pricing.total,
+      reference: invoiceNumber,
+    });
+    const qrSvg = generateQRSVG(epcPayload, { size: 200, color: '#1a1a1a', bgColor: '#fafafa' });
+    if (qrSvg) {
+      const qrDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(qrSvg)));
+      const qrSize = 28;
+      const qrX = pw - m - qrSize - 3;
+      const qrY = y - 18;
+      doc.addImage(qrDataUrl, 'SVG', qrX, qrY, qrSize, qrSize);
+      doc.setFontSize(6);
+      doc.setTextColor(...COLORS.gray);
+      doc.text('QR-Code scannen', qrX + qrSize / 2, qrY + qrSize + 3, { align: 'center' });
+      doc.text('zum Bezahlen', qrX + qrSize / 2, qrY + qrSize + 6, { align: 'center' });
+    }
+  } catch (e) {
+    console.warn('QR generation for invoice failed:', e);
+  }
 
   // ============================================
   // FOOTER
