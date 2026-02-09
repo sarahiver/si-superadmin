@@ -95,7 +95,7 @@ const VERSION_TABLE = [
  * Generate EPC QR Code payload (European Payments Council standard)
  * This is the format banking apps recognize for SEPA payments
  */
-function buildEPCPayload({ iban, bic, name, amount, reference }) {
+export function buildEPCPayload({ iban, bic, name, amount, reference }) {
   // EPC069-12 standard
   const lines = [
     'BCD',                          // Service Tag
@@ -175,7 +175,7 @@ async function generateQRDataURL(content, options = {}) {
 /**
  * Generate QR as SVG string (for email embedding)
  */
-function generateQRSVG(content, options = {}) {
+export function generateQRSVG(content, options = {}) {
   const {
     size = 200,
     color = '#000000',
