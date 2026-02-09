@@ -5,7 +5,54 @@ import { supabase } from './supabase';
 import { PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from './constants';
 import { generateContractPDF } from './contractPDF';
 import { generateInvoicePDF } from './invoicePDF';
-import { generateWebsiteQRSVG } from './qrGenerator';
+import { generateWebsiteQRSVG, encodeToModules } from './qrGenerator';
+
+/**
+ * Generate QR code as PNG base64 (Brevo doesn't accept SVG)
+ * Renders QR modules directly onto a canvas
+ */
+function generateQRPNGBase64(url, size = 600) {
+  try {
+    const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+    // Import encodeToModules to get the QR matrix
+    const modules = encodeToModules(fullUrl);
+    if (!modules || modules.length === 0) return null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    // White background
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, size, size);
+
+    // Draw modules
+    const moduleCount = modules.length;
+    const cellSize = size / (moduleCount + 8); // quiet zone
+    const offset = cellSize * 4;
+
+    ctx.fillStyle = '#0A0A0A';
+    for (let row = 0; row < moduleCount; row++) {
+      for (let col = 0; col < moduleCount; col++) {
+        if (modules[row][col]) {
+          ctx.fillRect(
+            offset + col * cellSize,
+            offset + row * cellSize,
+            cellSize + 0.5, // slight overlap to avoid gaps
+            cellSize + 0.5
+          );
+        }
+      }
+    }
+
+    // Return base64 without the data:image/png;base64, prefix
+    return canvas.toDataURL('image/png').split(',')[1];
+  } catch (e) {
+    console.warn('QR PNG generation failed:', e);
+    return null;
+  }
+}
 
 // E-Mail wird jetzt über Backend-API gesendet (API Key nicht im Frontend!)
 const EMAIL_API_URL = '/api/send-email';
@@ -407,11 +454,11 @@ export async function sendWelcomeEmails(project) {
   ];
 
   if (hasQR) {
-    const qrSvg = generateWebsiteQRSVG({ url: `https://${websiteUrl}`, size: 600, color: '#0A0A0A' });
-    if (qrSvg) {
+    const qrPng = generateQRPNGBase64(`https://${websiteUrl}`);
+    if (qrPng) {
       attachmentList.push({
-        name: `qr-code-${project.slug}.svg`,
-        content: btoa(unescape(encodeURIComponent(qrSvg))),
+        name: `qr-code-${project.slug}.png`,
+        content: qrPng,
       });
     }
   }
@@ -447,14 +494,14 @@ export async function sendGoLiveEmail(project) {
   const websiteUrl = project.custom_domain || `siwedding.de/${project.slug}`;
   const hasQR = (project.addons || []).includes('qr_code') || isFeatureIncluded(project.package, 'qr_code');
   
-  // QR-Code als SVG-Attachment wenn gebucht
+  // QR-Code als PNG-Attachment wenn gebucht
   const attachments = [];
   if (hasQR) {
-    const qrSvg = generateWebsiteQRSVG({ url: `https://${websiteUrl}`, size: 600, color: '#0A0A0A' });
-    if (qrSvg) {
+    const qrPng = generateQRPNGBase64(`https://${websiteUrl}`);
+    if (qrPng) {
       attachments.push({
-        name: `qr-code-${project.slug}.svg`,
-        content: btoa(unescape(encodeURIComponent(qrSvg))),
+        name: `qr-code-${project.slug}.png`,
+        content: qrPng,
       });
     }
   }
