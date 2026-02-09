@@ -9,12 +9,14 @@ const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 const ALLOWED_ORIGINS = [
   'https://admin.sarahiver.de',
   'https://si-superadmin.vercel.app',
+  'https://superadmin.siwedding.de',
   'http://localhost:3000', // Development
 ];
 
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin;
-  if (ALLOWED_ORIGINS.includes(origin)) {
+  const isAllowed = ALLOWED_ORIGINS.includes(origin) || (origin && origin.endsWith('.vercel.app'));
+  if (isAllowed) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -44,8 +46,11 @@ export default async function handler(req, res) {
   try {
     const { to, toName, subject, htmlContent, attachments } = req.body;
 
+    console.log(`[send-email] To: ${to}, Subject: ${subject?.substring(0, 50)}, Attachments: ${attachments?.length || 0}`);
+
     // Validierung
     if (!to || !subject || !htmlContent) {
+      console.log('[send-email] Missing fields:', { to: !!to, subject: !!subject, htmlContent: !!htmlContent });
       return res.status(400).json({ error: 'Missing required fields: to, subject, htmlContent' });
     }
 
@@ -63,6 +68,7 @@ export default async function handler(req, res) {
         name: att.name,
         content: att.content, // Base64
       }));
+      console.log(`[send-email] Attachments: ${attachments.map(a => `${a.name} (${a.content?.length || 0} chars)`).join(', ')}`);
     }
 
     // An Brevo senden
@@ -79,12 +85,14 @@ export default async function handler(req, res) {
     const result = await response.json();
 
     if (!response.ok) {
-      console.error('Brevo error:', result);
+      console.error('[send-email] Brevo error:', JSON.stringify(result));
       return res.status(response.status).json({
         error: 'Email sending failed',
-        details: result.message
+        details: result.message || JSON.stringify(result)
       });
     }
+
+    console.log(`[send-email] Success: messageId=${result.messageId}`);
 
     return res.status(200).json({
       success: true,
