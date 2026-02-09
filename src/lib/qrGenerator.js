@@ -180,31 +180,136 @@ export function generateQRSVG(content, options = {}) {
     size = 200,
     color = '#000000',
     bgColor = '#FFFFFF',
+    style = 'square',      // square | dots | rounded
+    logoText = '',          // Text in center (e.g. "S&I.")
+    logoImage = '',         // Base64 data URL for center image
+    frameText = '',         // Text below QR (e.g. "Scan me!")
+    frameStyle = 'none',    // none | simple | rounded
   } = options;
   
   const modules = encodeToModules(content);
   if (!modules) return null;
   
   const moduleCount = modules.length;
-  const cellSize = size / (moduleCount + 8); // 4 module quiet zone on each side
+  const frameH = frameText ? 28 : 0;
+  const totalH = size + frameH;
+  const cellSize = size / (moduleCount + 8);
   const offset = cellSize * 4;
+  const r = (cellSize * 0.45).toFixed(2); // radius for dots
+  const cr = (cellSize * 0.3).toFixed(2); // corner radius for rounded
   
   let paths = '';
+  
+  // Detect finder pattern areas (skip them for special rendering)
+  const isFinderModule = (row, col) => {
+    return (row < 7 && col < 7) || 
+           (row < 7 && col >= moduleCount - 7) || 
+           (row >= moduleCount - 7 && col < 7);
+  };
+  
+  // Render finder patterns (always square-style for scannability)
+  const renderFinder = (ox, oy) => {
+    let svg = '';
+    // Outer border
+    svg += `<rect x="${ox}" y="${oy}" width="${(cellSize*7).toFixed(2)}" height="${(cellSize*7).toFixed(2)}" rx="${(cellSize*0.5).toFixed(2)}" fill="${color}"/>`;
+    // Inner white
+    svg += `<rect x="${(ox+cellSize).toFixed(2)}" y="${(oy+cellSize).toFixed(2)}" width="${(cellSize*5).toFixed(2)}" height="${(cellSize*5).toFixed(2)}" rx="${(cellSize*0.3).toFixed(2)}" fill="${bgColor}"/>`;
+    // Center dot
+    svg += `<rect x="${(ox+cellSize*2).toFixed(2)}" y="${(oy+cellSize*2).toFixed(2)}" width="${(cellSize*3).toFixed(2)}" height="${(cellSize*3).toFixed(2)}" rx="${(cellSize*0.4).toFixed(2)}" fill="${color}"/>`;
+    return svg;
+  };
+  
+  // Render 3 finder patterns
+  paths += renderFinder(offset, offset);
+  paths += renderFinder(offset + (moduleCount - 7) * cellSize, offset);
+  paths += renderFinder(offset, offset + (moduleCount - 7) * cellSize);
+  
+  // Render data modules
   for (let row = 0; row < moduleCount; row++) {
     for (let col = 0; col < moduleCount; col++) {
-      if (modules[row][col]) {
-        const x = (offset + col * cellSize).toFixed(2);
-        const y = (offset + row * cellSize).toFixed(2);
-        const s = cellSize.toFixed(2);
-        paths += `<rect x="${x}" y="${y}" width="${s}" height="${s}" fill="${color}"/>`;
+      if (isFinderModule(row, col)) continue;
+      if (!modules[row][col]) continue;
+      
+      const x = offset + col * cellSize;
+      const y = offset + row * cellSize;
+      
+      switch (style) {
+        case 'dots':
+          paths += `<circle cx="${(x + cellSize/2).toFixed(2)}" cy="${(y + cellSize/2).toFixed(2)}" r="${r}" fill="${color}"/>`;
+          break;
+        case 'rounded':
+          paths += `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${cellSize.toFixed(2)}" height="${cellSize.toFixed(2)}" rx="${cr}" fill="${color}"/>`;
+          break;
+        default: // square
+          paths += `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${cellSize.toFixed(2)}" height="${cellSize.toFixed(2)}" fill="${color}"/>`;
       }
     }
   }
   
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
-    <rect width="${size}" height="${size}" fill="${bgColor}"/>
-    ${paths}
-  </svg>`;
+  // Logo area (center of QR)
+  let logoPart = '';
+  if (logoText || logoImage) {
+    const logoSize = size * 0.22;
+    const lx = (size - logoSize) / 2;
+    const ly = (size - logoSize) / 2;
+    const pad = logoSize * 0.12;
+    
+    // White background circle for logo
+    logoPart += `<circle cx="${(size/2).toFixed(2)}" cy="${(size/2).toFixed(2)}" r="${(logoSize/2 + pad).toFixed(2)}" fill="${bgColor}"/>`;
+    
+    if (logoImage) {
+      logoPart += `<image href="${logoImage}" x="${lx.toFixed(2)}" y="${ly.toFixed(2)}" width="${logoSize.toFixed(2)}" height="${logoSize.toFixed(2)}" preserveAspectRatio="xMidYMid meet"/>`;
+    } else if (logoText) {
+      const fontSize = logoSize * 0.4;
+      logoPart += `<text x="${(size/2).toFixed(2)}" y="${(size/2 + fontSize * 0.35).toFixed(2)}" text-anchor="middle" font-family="'Helvetica','Arial',sans-serif" font-weight="700" font-size="${fontSize.toFixed(1)}" fill="${color}" letter-spacing="-0.03em">${escapeXml(logoText)}</text>`;
+    }
+  }
+  
+  // Frame with text below QR
+  let framePart = '';
+  if (frameText && frameStyle !== 'none') {
+    const fy = size;
+    const fRadius = frameStyle === 'rounded' ? '8' : '0';
+    
+    // Frame background (extends from bottom of QR)
+    framePart += `<rect x="0" y="${fy}" width="${size}" height="${frameH}" rx="0" fill="${color}"/>`;
+    // Rounded bottom corners
+    if (frameStyle === 'rounded') {
+      framePart += `<rect x="0" y="${fy}" width="${size}" height="10" fill="${color}"/>`;
+      framePart += `<rect x="0" y="${fy + 4}" width="${size}" height="${frameH - 4}" rx="${fRadius}" fill="${color}"/>`;
+    }
+    // Frame text
+    framePart += `<text x="${(size/2).toFixed(2)}" y="${(fy + frameH * 0.62).toFixed(2)}" text-anchor="middle" font-family="'Helvetica','Arial',sans-serif" font-weight="600" font-size="${(frameH * 0.42).toFixed(1)}" fill="${bgColor}" letter-spacing="0.02em">${escapeXml(frameText)}</text>`;
+  }
+  
+  // Full border for frame styles
+  let borderPart = '';
+  if (frameText && frameStyle !== 'none') {
+    const bRadius = frameStyle === 'rounded' ? '12' : '0';
+    borderPart = `<rect x="0" y="0" width="${size}" height="${totalH}" rx="${bRadius}" fill="none" stroke="${color}" stroke-width="3"/>`;
+    // Re-fill QR background inside border
+  }
+  
+  // Build complete SVG
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${totalH}" width="${size}" height="${totalH}">`;
+  
+  if (frameText && frameStyle !== 'none') {
+    const bRadius = frameStyle === 'rounded' ? '12' : '0';
+    svg += `<rect width="${size}" height="${totalH}" rx="${bRadius}" fill="${bgColor}" stroke="${color}" stroke-width="2"/>`;
+  } else {
+    svg += `<rect width="${size}" height="${totalH}" fill="${bgColor}"/>`;
+  }
+  
+  svg += paths;
+  svg += logoPart;
+  svg += framePart;
+  svg += `</svg>`;
+  
+  return svg;
+}
+
+function escapeXml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // ============================================
@@ -482,11 +587,16 @@ export function generateWebsiteQRSVG(options = {}) {
     size = 300,
     color = '#000000',
     bgColor = '#FFFFFF',
+    style = 'square',
+    logoText = '',
+    logoImage = '',
+    frameText = '',
+    frameStyle = 'none',
   } = options;
 
   if (!url) return null;
   const fullUrl = url.startsWith('http') ? url : `https://${url}`;
-  return generateQRSVG(fullUrl, { size, color, bgColor });
+  return generateQRSVG(fullUrl, { size, color, bgColor, style, logoText, logoImage, frameText, frameStyle });
 }
 
 /**

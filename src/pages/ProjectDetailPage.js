@@ -16,6 +16,15 @@ import PhoneInput from '../components/PhoneInput';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
+const THEME_ACCENT_COLORS = {
+  botanical: '#1B4332',
+  editorial: '#C41E3A',
+  contemporary: '#FF6B6B',
+  luxe: '#D4AF37',
+  neon: '#FF006E',
+  video: '#E50914',
+};
+
 // Verfügbare Varianten pro Komponente
 // Hier neue Designs hinzufügen, wenn sie implementiert sind
 const COMPONENT_VARIANTS = {
@@ -869,7 +878,7 @@ const StickyBottomBar = styled.div`
   }
 `;
 
-// QR Code Preview Styles
+// QR Code Designer Styles
 const QRPreviewBox = styled.div`
   margin-top: 1.5rem;
   border: 2px solid ${colors.lightGray};
@@ -890,36 +899,106 @@ const QRPreviewHeader = styled.div`
   .hint { font-size: 0.75rem; color: ${colors.gray}; }
 `;
 
-const QRPreviewContent = styled.div`
+const QRDesignerLayout = styled.div`
   padding: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 2rem;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 200px 1fr auto;
+  gap: 1.5rem;
+  align-items: start;
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const QRCanvas = styled.div`
-  width: 180px;
-  height: 180px;
+  width: 200px;
+  min-height: 200px;
   background: #fff;
   border: 1px solid ${colors.lightGray};
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  svg { width: 100%; height: 100%; }
+  padding: 8px;
+  svg { width: 100%; height: auto; }
+`;
+
+const QRDesignPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+`;
+
+const QROptionGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+`;
+
+const QROptionLabel = styled.span`
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${colors.gray};
+`;
+
+const QRButtonRow = styled.div`
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+`;
+
+const QRToggle = styled.button`
+  padding: ${p => p.$small ? '0.25rem 0.5rem' : '0.3rem 0.6rem'};
+  font-size: ${p => p.$small ? '0.7rem' : '0.75rem'};
+  font-weight: 600;
+  border: 2px solid ${p => p.$active ? colors.black : colors.lightGray};
+  background: ${p => p.$active ? colors.black : 'white'};
+  color: ${p => p.$active ? 'white' : colors.black};
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  &:hover { border-color: ${colors.black}; }
+`;
+
+const QRColorRow = styled.div`
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  input[type="color"] {
+    width: 32px;
+    height: 28px;
+    border: 2px solid ${colors.lightGray};
+    border-radius: 4px;
+    padding: 0;
+    cursor: pointer;
+  }
+`;
+
+const QRImageUpload = styled.div`
+  margin-top: 0.3rem;
+  input { font-size: 0.75rem; }
+  img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    border: 1px solid ${colors.lightGray};
+    border-radius: 4px;
+    margin-top: 0.3rem;
+  }
 `;
 
 const QRActions = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.4rem;
   button {
     background: ${colors.black};
     color: ${colors.white};
     border: none;
-    padding: 0.5rem 1rem;
-    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
     border-radius: 4px;
@@ -929,16 +1008,33 @@ const QRActions = styled.div`
 `;
 
 // QR Code Helper Functions
-function renderQRPreview(url) {
-  const svg = generateWebsiteQRSVG({ url: `https://${url}`, size: 180, color: '#0A0A0A' });
+function getQROptions(formData) {
+  return {
+    size: 600,
+    color: formData.qr_color || '#0A0A0A',
+    style: formData.qr_style || 'square',
+    logoText: formData.qr_logo_type === 'text' ? (formData.qr_logo_text || '') : '',
+    logoImage: formData.qr_logo_type === 'image' ? (formData.qr_logo_image || '') : '',
+    frameText: (formData.qr_frame_style && formData.qr_frame_style !== 'none') ? (formData.qr_frame_text || '') : '',
+    frameStyle: formData.qr_frame_style || 'none',
+  };
+}
+
+function renderQRPreview(url, formData = {}) {
+  const opts = getQROptions(formData);
+  opts.size = 200;
+  opts.url = `https://${url}`;
+  const svg = generateWebsiteQRSVG(opts);
   const container = document.getElementById('website-qr-preview');
   if (container && svg) {
     container.innerHTML = svg;
   }
 }
 
-function downloadQRAsSVG(url) {
-  const svg = generateWebsiteQRSVG({ url: `https://${url}`, size: 600, color: '#0A0A0A' });
+function downloadQRWithOptions(url, formData) {
+  const opts = getQROptions(formData);
+  opts.url = `https://${url}`;
+  const svg = generateWebsiteQRSVG(opts);
   if (!svg) return;
   const blob = new Blob([svg], { type: 'image/svg+xml' });
   const a = document.createElement('a');
@@ -948,17 +1044,23 @@ function downloadQRAsSVG(url) {
   URL.revokeObjectURL(a.href);
 }
 
-function downloadQRAsPNG(url) {
-  const svg = generateWebsiteQRSVG({ url: `https://${url}`, size: 600, color: '#0A0A0A' });
+function downloadQRAsPNG(url, formData) {
+  const opts = getQROptions(formData);
+  opts.url = `https://${url}`;
+  const svg = generateWebsiteQRSVG(opts);
   if (!svg) return;
+  // Parse SVG to get dimensions
+  const match = svg.match(/viewBox="0 0 (\d+) (\d+)"/);
+  const w = match ? parseInt(match[1]) : 600;
+  const h = match ? parseInt(match[2]) : 600;
   const canvas = document.createElement('canvas');
-  canvas.width = 600;
-  canvas.height = 600;
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext('2d');
   const img = new Image();
   img.onload = () => {
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, 600, 600);
+    ctx.fillRect(0, 0, w, h);
     ctx.drawImage(img, 0, 0);
     const a = document.createElement('a');
     a.href = canvas.toDataURL('image/png');
@@ -968,8 +1070,10 @@ function downloadQRAsPNG(url) {
   img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
 }
 
-function copyQRSVG(url) {
-  const svg = generateWebsiteQRSVG({ url: `https://${url}`, size: 600, color: '#0A0A0A' });
+function copyQRSVG(url, formData) {
+  const opts = getQROptions(formData);
+  opts.url = `https://${url}`;
+  const svg = generateWebsiteQRSVG(opts);
   if (svg) {
     navigator.clipboard.writeText(svg).then(() => toast.success('SVG kopiert!'));
   }
@@ -1071,13 +1175,13 @@ export default function ProjectDetailPage() {
     loadEmailLogs();
   }, [id]);
 
-  // Render QR code when URL changes
+  // Render QR code when URL or design options change
   useEffect(() => {
     const url = formData.custom_domain || (formData.slug ? `siwedding.de/${formData.slug}` : null);
     if (url) {
-      setTimeout(() => renderQRPreview(url), 200);
+      setTimeout(() => renderQRPreview(url, formData), 100);
     }
-  }, [formData.custom_domain, formData.slug]);
+  }, [formData.custom_domain, formData.slug, formData.qr_style, formData.qr_color, formData.qr_logo_type, formData.qr_logo_text, formData.qr_logo_image, formData.qr_frame_style, formData.qr_frame_text]);
 
   const loadProject = async () => {
     const { data } = await getProjectById(id);
@@ -1402,6 +1506,14 @@ export default function ProjectDetailPage() {
       final_paid_date: formData.final_paid_date || null,
       final_amount: formData.final_amount || null,
       workflow_notes: formData.workflow_notes || null,
+      // QR-Code Design
+      qr_style: formData.qr_style || 'square',
+      qr_color: formData.qr_color || '#000000',
+      qr_logo_type: formData.qr_logo_type || '',
+      qr_logo_text: formData.qr_logo_text || '',
+      qr_logo_image: formData.qr_logo_image || '',
+      qr_frame_style: formData.qr_frame_style || 'none',
+      qr_frame_text: formData.qr_frame_text || '',
     });
     if (error) { toast.error('Fehler beim Speichern'); console.error(error); }
     else { 
@@ -2068,7 +2180,7 @@ export default function ProjectDetailPage() {
               <button onClick={() => copyToClipboard(`https://${baseUrl}/admin`)}>Copy</button>
             </LinkBox>
             
-            {/* QR-Code Preview — wird immer generiert */}
+            {/* QR-Code Designer */}
             <QRPreviewBox>
               <QRPreviewHeader>
                 <span className="title">📱 Website QR-Code</span>
@@ -2078,14 +2190,85 @@ export default function ProjectDetailPage() {
                     : '⚪ QR-Code nicht gebucht — wird nicht verschickt'}
                 </span>
               </QRPreviewHeader>
-              <QRPreviewContent>
+              <QRDesignerLayout>
+                {/* Live Preview */}
                 <QRCanvas id="website-qr-preview" data-url={`https://${baseUrl}`} />
+                
+                {/* Design Options */}
+                <QRDesignPanel>
+                  <QROptionGroup>
+                    <QROptionLabel>Stil</QROptionLabel>
+                    <QRButtonRow>
+                      {[
+                        { value: 'square', label: '■ Eckig' },
+                        { value: 'rounded', label: '▢ Rund' },
+                        { value: 'dots', label: '● Dots' },
+                      ].map(s => (
+                        <QRToggle key={s.value} $active={(formData.qr_style || 'square') === s.value}
+                          onClick={() => handleChange('qr_style', s.value)}>{s.label}</QRToggle>
+                      ))}
+                    </QRButtonRow>
+                  </QROptionGroup>
+
+                  <QROptionGroup>
+                    <QROptionLabel>Farbe</QROptionLabel>
+                    <QRColorRow>
+                      <input type="color" value={formData.qr_color || '#000000'} onChange={e => handleChange('qr_color', e.target.value)} />
+                      <QRToggle $active={formData.qr_color === THEME_ACCENT_COLORS[formData.theme]} $small
+                        onClick={() => handleChange('qr_color', THEME_ACCENT_COLORS[formData.theme] || '#000000')}>
+                        Theme-Farbe
+                      </QRToggle>
+                      <QRToggle $active={!formData.qr_color || formData.qr_color === '#000000'} $small
+                        onClick={() => handleChange('qr_color', '#000000')}>
+                        Schwarz
+                      </QRToggle>
+                    </QRColorRow>
+                  </QROptionGroup>
+
+                  <QROptionGroup>
+                    <QROptionLabel>Logo (Mitte)</QROptionLabel>
+                    <QRButtonRow>
+                      <QRToggle $active={!formData.qr_logo_type} onClick={() => { handleChange('qr_logo_type', ''); handleChange('qr_logo_text', ''); }}>Keins</QRToggle>
+                      <QRToggle $active={formData.qr_logo_type === 'text'} onClick={() => handleChange('qr_logo_type', 'text')}>Text</QRToggle>
+                      <QRToggle $active={formData.qr_logo_type === 'image'} onClick={() => handleChange('qr_logo_type', 'image')}>Bild</QRToggle>
+                    </QRButtonRow>
+                    {formData.qr_logo_type === 'text' && (
+                      <Input value={formData.qr_logo_text || ''} onChange={e => handleChange('qr_logo_text', e.target.value)} placeholder="z.B. S&I. oder A♡N" style={{ marginTop: '0.4rem' }} />
+                    )}
+                    {formData.qr_logo_type === 'image' && (
+                      <QRImageUpload>
+                        <input type="file" accept="image/*" onChange={e => {
+                          const file = e.target.files[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = ev => handleChange('qr_logo_image', ev.target.result);
+                          reader.readAsDataURL(file);
+                        }} />
+                        {formData.qr_logo_image && <img src={formData.qr_logo_image} alt="Logo" />}
+                      </QRImageUpload>
+                    )}
+                  </QROptionGroup>
+
+                  <QROptionGroup>
+                    <QROptionLabel>Rahmen mit Text</QROptionLabel>
+                    <QRButtonRow>
+                      <QRToggle $active={!formData.qr_frame_style || formData.qr_frame_style === 'none'} onClick={() => handleChange('qr_frame_style', 'none')}>Keiner</QRToggle>
+                      <QRToggle $active={formData.qr_frame_style === 'simple'} onClick={() => handleChange('qr_frame_style', 'simple')}>Eckig</QRToggle>
+                      <QRToggle $active={formData.qr_frame_style === 'rounded'} onClick={() => handleChange('qr_frame_style', 'rounded')}>Rund</QRToggle>
+                    </QRButtonRow>
+                    {formData.qr_frame_style && formData.qr_frame_style !== 'none' && (
+                      <Input value={formData.qr_frame_text || ''} onChange={e => handleChange('qr_frame_text', e.target.value)} placeholder="z.B. Scan me! oder Zur Hochzeitsseite" style={{ marginTop: '0.4rem' }} />
+                    )}
+                  </QROptionGroup>
+                </QRDesignPanel>
+
+                {/* Download Actions */}
                 <QRActions>
-                  <button onClick={() => downloadQRAsSVG(baseUrl)}>⬇ SVG Download</button>
-                  <button onClick={() => downloadQRAsPNG(baseUrl)}>⬇ PNG Download</button>
-                  <button onClick={() => copyQRSVG(baseUrl)}>📋 SVG kopieren</button>
+                  <button onClick={() => downloadQRWithOptions(baseUrl, formData)}>⬇ SVG</button>
+                  <button onClick={() => downloadQRAsPNG(baseUrl, formData)}>⬇ PNG</button>
+                  <button onClick={() => copyQRSVG(baseUrl, formData)}>📋 Copy</button>
                 </QRActions>
-              </QRPreviewContent>
+              </QRDesignerLayout>
             </QRPreviewBox>
           </CollapsibleSection>
 

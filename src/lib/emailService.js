@@ -8,45 +8,92 @@ import { generateInvoicePDF } from './invoicePDF';
 import { generateWebsiteQRSVG, encodeToModules } from './qrGenerator';
 
 /**
- * Generate QR code as PNG base64 (Brevo doesn't accept SVG)
- * Renders QR modules directly onto a canvas
+ * Generate styled QR code as PNG base64 (Brevo doesn't accept SVG)
+ * Uses the styled SVG generator, renders to canvas, exports as PNG
  */
-function generateQRPNGBase64(url, size = 600) {
+function generateQRPNGBase64(url, project = {}) {
   try {
-    const fullUrl = url.startsWith('http') ? url : `https://${url}`;
-    // Import encodeToModules to get the QR matrix
+    const opts = {
+      url: url.startsWith('http') ? url : `https://${url}`,
+      size: 600,
+      color: project.qr_color || '#0A0A0A',
+      style: project.qr_style || 'square',
+      logoText: project.qr_logo_type === 'text' ? (project.qr_logo_text || '') : '',
+      logoImage: project.qr_logo_type === 'image' ? (project.qr_logo_image || '') : '',
+      frameText: (project.qr_frame_style && project.qr_frame_style !== 'none') ? (project.qr_frame_text || '') : '',
+      frameStyle: project.qr_frame_style || 'none',
+    };
+    
+    const svg = generateWebsiteQRSVG(opts);
+    if (!svg) return null;
+
+    // Get dimensions from SVG
+    const match = svg.match(/viewBox="0 0 (\d+) (\d+)"/);
+    const w = match ? parseInt(match[1]) : 600;
+    const h = match ? parseInt(match[2]) : 600;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+
+    // Render SVG to canvas synchronously via data URL
+    const img = new Image();
+    const svgBlob = new Blob([svg], { type: 'image/svg+xml' });
+    const svgUrl = URL.createObjectURL(svgBlob);
+    
+    // For sync rendering, draw white bg first as fallback
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, w, h);
+
+    // Use a simpler fallback: render basic QR modules directly on canvas
+    const fullUrl = opts.url;
     const modules = encodeToModules(fullUrl);
     if (!modules || modules.length === 0) return null;
 
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-
-    // White background
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, size, size);
-
-    // Draw modules
     const moduleCount = modules.length;
-    const cellSize = size / (moduleCount + 8); // quiet zone
+    const cellSize = w / (moduleCount + 8);
     const offset = cellSize * 4;
 
-    ctx.fillStyle = '#0A0A0A';
+    ctx.fillStyle = opts.color;
     for (let row = 0; row < moduleCount; row++) {
       for (let col = 0; col < moduleCount; col++) {
         if (modules[row][col]) {
-          ctx.fillRect(
-            offset + col * cellSize,
-            offset + row * cellSize,
-            cellSize + 0.5, // slight overlap to avoid gaps
-            cellSize + 0.5
-          );
+          if (opts.style === 'dots') {
+            ctx.beginPath();
+            ctx.arc(offset + col * cellSize + cellSize/2, offset + row * cellSize + cellSize/2, cellSize * 0.45, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            const r = opts.style === 'rounded' ? cellSize * 0.3 : 0;
+            if (r > 0) {
+              const x = offset + col * cellSize;
+              const y = offset + row * cellSize;
+              ctx.beginPath();
+              ctx.roundRect(x, y, cellSize, cellSize, r);
+              ctx.fill();
+            } else {
+              ctx.fillRect(offset + col * cellSize, offset + row * cellSize, cellSize + 0.5, cellSize + 0.5);
+            }
+          }
         }
       }
     }
 
-    // Return base64 without the data:image/png;base64, prefix
+    // Logo text in center
+    if (opts.logoText) {
+      const logoSize = w * 0.22;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(w/2, h/2, logoSize/2 + logoSize * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = opts.color;
+      ctx.font = `700 ${logoSize * 0.4}px Helvetica, Arial, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(opts.logoText, w/2, h/2);
+    }
+
+    URL.revokeObjectURL(svgUrl);
     return canvas.toDataURL('image/png').split(',')[1];
   } catch (e) {
     console.warn('QR PNG generation failed:', e);
@@ -454,7 +501,7 @@ export async function sendWelcomeEmails(project) {
   ];
 
   if (hasQR) {
-    const qrPng = generateQRPNGBase64(`https://${websiteUrl}`);
+    const qrPng = generateQRPNGBase64(`https://${websiteUrl}`, project);
     if (qrPng) {
       attachmentList.push({
         name: `qr-code-${project.slug}.png`,
@@ -497,7 +544,7 @@ export async function sendGoLiveEmail(project) {
   // QR-Code als PNG-Attachment wenn gebucht
   const attachments = [];
   if (hasQR) {
-    const qrPng = generateQRPNGBase64(`https://${websiteUrl}`);
+    const qrPng = generateQRPNGBase64(`https://${websiteUrl}`, project);
     if (qrPng) {
       attachments.push({
         name: `qr-code-${project.slug}.png`,
