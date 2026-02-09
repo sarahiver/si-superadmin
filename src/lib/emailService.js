@@ -232,6 +232,7 @@ function generateEmailHTML(type, variables, theme = 'editorial') {
                 <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>📎 Im Anhang findet ihr:</strong></p>
                 <p style="margin: 0; font-size: 14px;">• <strong>Vertrag</strong> – bitte unterschrieben per E-Mail zurücksenden</p>
                 <p style="margin: 4px 0 0 0; font-size: 14px;">• <strong>Rechnung</strong> – mit Zahlungsplan und Bankverbindung</p>
+                ${variables.has_qr ? '<p style="margin: 4px 0 0 0; font-size: 14px;">• <strong>QR-Code</strong> – euer persönlicher QR-Code zur Hochzeitsseite</p>' : ''}
               </div>
 
               <p>Bitte überweist die erste Rate (50%) innerhalb von 14 Tagen auf das in der Rechnung angegebene Konto.</p>
@@ -521,7 +522,9 @@ export async function sendWelcomeEmails(project) {
     attachments: attachmentList,
   });
 
-  // E-Mail 2: Zugangsdaten
+  // E-Mail 2: Zugangsdaten (30 Sekunden Verzögerung)
+  await new Promise(resolve => setTimeout(resolve, 30000));
+  
   const credentials = await sendEmail({
     to: project.client_email,
     toName: project.client_name,
