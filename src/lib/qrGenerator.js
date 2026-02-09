@@ -212,7 +212,7 @@ export function generateQRSVG(content, options = {}) {
 // Encodes text to QR module matrix
 // ============================================
 
-function encodeToModules(text) {
+export function encodeToModules(text) {
   try {
     const data = new TextEncoder().encode(text);
     const byteCount = data.length;

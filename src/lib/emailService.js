@@ -383,6 +383,9 @@ export async function sendWelcomeEmails(project) {
   // Rechnung als PDF generieren (mit Zahlungsplan)
   const invoiceResult = generateInvoicePDF(project, pricing, { returnBase64: true });
 
+  const websiteUrl = project.custom_domain || `siwedding.de/${project.slug}`;
+  const hasQR = (project.addons || []).includes('qr_code') || isFeatureIncluded(project.package, 'qr_code');
+
   const variables = {
     partner1_name: project.partner1_name,
     partner2_name: project.partner2_name,
@@ -391,12 +394,29 @@ export async function sendWelcomeEmails(project) {
     package_name: project.package,
     admin_url: `https://siwedding.de/${project.slug}/admin`,
     admin_password: project.admin_password,
-    website_url: project.custom_domain || `siwedding.de/${project.slug}`,
+    website_url: websiteUrl,
     project: project,
     pricing: pricing,
+    has_qr: hasQR,
   };
 
-  // E-Mail 1: Willkommen + Vertrag + Rechnung
+  // Attachments: Vertrag + Rechnung + optional QR-Code
+  const attachmentList = [
+    { name: contractResult.filename, content: contractResult.base64 },
+    { name: invoiceResult.filename, content: invoiceResult.base64 },
+  ];
+
+  if (hasQR) {
+    const qrSvg = generateWebsiteQRSVG({ url: `https://${websiteUrl}`, size: 600, color: '#0A0A0A' });
+    if (qrSvg) {
+      attachmentList.push({
+        name: `qr-code-${project.slug}.svg`,
+        content: btoa(unescape(encodeURIComponent(qrSvg))),
+      });
+    }
+  }
+
+  // E-Mail 1: Willkommen + Vertrag + Rechnung + QR
   const welcome = await sendEmail({
     to: project.client_email,
     toName: project.client_name,
@@ -404,10 +424,7 @@ export async function sendWelcomeEmails(project) {
     variables,
     theme: project.theme,
     projectId: project.id,
-    attachments: [
-      { name: contractResult.filename, content: contractResult.base64 },
-      { name: invoiceResult.filename, content: invoiceResult.base64 },
-    ],
+    attachments: attachmentList,
   });
 
   // E-Mail 2: Zugangsdaten

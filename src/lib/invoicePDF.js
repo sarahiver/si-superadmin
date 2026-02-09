@@ -2,7 +2,7 @@
 // Generiert professionelle Rechnung im S&I. Editorial Stil
 import { jsPDF } from 'jspdf';
 import { PACKAGES, formatPrice } from './constants';
-import { buildEPCPayload, generateQRSVG } from './qrGenerator';
+import { buildEPCPayload, generateQRSVG, encodeToModules } from './qrGenerator';
 
 // S&I. Farben
 const COLORS = {
@@ -436,13 +436,37 @@ export function generateInvoicePDF(project, pricing, options = {}) {
       amount: pricing.total,
       reference: invoiceNumber,
     });
-    const qrSvg = generateQRSVG(epcPayload, { size: 200, color: '#1a1a1a', bgColor: '#fafafa' });
-    if (qrSvg) {
-      const qrDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(qrSvg)));
-      const qrSize = 28;
+    
+    // QR direkt als Rechtecke in den PDF zeichnen (kein Bild nötig)
+    const modules = encodeToModules(epcPayload);
+    if (modules && modules.length > 0) {
+      const qrSize = 28; // mm
       const qrX = pw - m - qrSize - 3;
       const qrY = y - 18;
-      doc.addImage(qrDataUrl, 'SVG', qrX, qrY, qrSize, qrSize);
+      const moduleCount = modules.length;
+      const cellSize = qrSize / (moduleCount + 8); // quiet zone
+      const offset = cellSize * 4;
+      
+      // White background
+      doc.setFillColor(250, 250, 250);
+      doc.rect(qrX, qrY, qrSize, qrSize, 'F');
+      
+      // Draw modules
+      doc.setFillColor(26, 26, 26);
+      for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+          if (modules[row][col]) {
+            doc.rect(
+              qrX + offset + col * cellSize,
+              qrY + offset + row * cellSize,
+              cellSize,
+              cellSize,
+              'F'
+            );
+          }
+        }
+      }
+      
       doc.setFontSize(6);
       doc.setTextColor(...COLORS.gray);
       doc.text('QR-Code scannen', qrX + qrSize / 2, qrY + qrSize + 3, { align: 'center' });
