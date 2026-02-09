@@ -20,7 +20,7 @@ const COMPANY = {
   city: '22767 Hamburg',
   country: 'Deutschland',
   email: 'wedding@sarahiver.de',
-  website: 'sarahiver.com',
+  website: 'siwedding.de',
 };
 
 /**
@@ -299,6 +299,11 @@ export function generateContractPDF(project, pricing, options = {}) {
   addBullet(`2. Rate (50%): ${formatPrice(pricing.total / 2)} – fällig bei Freigabe der Website (Go-Live)`);
   y += 3;
   addParagraph('Die Rechnungsstellung erfolgt separat per E-Mail. Das Zahlungsziel beträgt 14 Tage.');
+  y += 3;
+  addParagraph('Bankverbindung:');
+  addBullet('Empfänger: Iver Gentz');
+  addBullet('IBAN: DE06 1001 8000 0625 2723 20');
+  addBullet('BIC: FNOMDEB2 | Bank: Finom Payments');
 
   addSection('4', 'Zeitplan und Mitwirkungspflichten');
   addParagraph('Der Auftragnehmer verpflichtet sich, die Website innerhalb von 14 Werktagen nach Erhalt aller erforderlichen Inhalte fertigzustellen.');
@@ -336,7 +341,7 @@ export function generateContractPDF(project, pricing, options = {}) {
 
   addSection('10', 'Datenschutz');
   addParagraph('Der Auftragnehmer verarbeitet personenbezogene Daten des Auftraggebers und der Hochzeitsgäste ausschließlich zur Vertragserfüllung gemäß DSGVO.');
-  addParagraph('Die Datenschutzerklärung unter sarahiver.com/datenschutz ist Bestandteil dieses Vertrags.');
+  addParagraph('Die Datenschutzerklärung unter siwedding.de/datenschutz ist Bestandteil dieses Vertrags.');
   addParagraph('Für die Inhalte der Website (insbesondere Gästedaten aus dem RSVP-Formular) ist der Auftraggeber verantwortlich.');
 
   addSection('11', 'Schlussbestimmungen');

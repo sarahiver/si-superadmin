@@ -20,11 +20,11 @@ const COMPANY = {
   city: '22767 Hamburg',
   country: 'Deutschland',
   email: 'wedding@sarahiver.de',
-  website: 'sarahiver.com',
+  website: 'siwedding.de',
   // Bankverbindung
-  bank: 'N26',
-  iban: 'DE XX XXXX XXXX XXXX XXXX XX', // TODO: Echte IBAN eintragen
-  bic: 'NTSBDEB1XXX',
+  bank: 'Finom Payments',
+  iban: 'DE06 1001 8000 0625 2723 20',
+  bic: 'FNOMDEB2',
   // Steuernummer (wenn vorhanden)
   taxId: '', // TODO: USt-ID eintragen wenn vorhanden
 };

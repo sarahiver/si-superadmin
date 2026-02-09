@@ -229,8 +229,9 @@ export function generateThemedContractPDF(project, pricing) {
   
   doc.setFont('helvetica', 'normal');
   doc.text('Bankverbindung:', m, y); y += 5;
-  doc.text('S&I. wedding – Iver Arntzen', m, y); y += 5;
-  doc.text('IBAN: DE XX XXXX XXXX XXXX XXXX XX', m, y); y += 15;
+  doc.text('Empfänger: Iver Gentz', m, y); y += 5;
+  doc.text('IBAN: DE06 1001 8000 0625 2723 20', m, y); y += 5;
+  doc.text('BIC: FNOMDEB2 | Bank: Finom Payments', m, y); y += 15;
 
   // === WEITERE BESTIMMUNGEN ===
   newPage(60);
