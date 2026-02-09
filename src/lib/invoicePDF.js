@@ -452,7 +452,7 @@ export function generateInvoicePDF(project, pricing, options = {}) {
       iban: COMPANY.iban,
       bic: COMPANY.bic,
       name: COMPANY.fullName,
-      amount: finalAmount,
+      amount: pricing.total * 0.5, // Immer 50% Rate
       reference: invoiceNumber,
     });
     
@@ -487,8 +487,8 @@ export function generateInvoicePDF(project, pricing, options = {}) {
       // Label unter QR
       doc.setFontSize(5.5);
       doc.setTextColor(...COLORS.gray);
-      doc.text('QR-Code scannen', qrX + qrSize / 2, qrY + qrSize + 3.5, { align: 'center' });
-      doc.text('zum Bezahlen', qrX + qrSize / 2, qrY + qrSize + 6.5, { align: 'center' });
+      doc.text('Mit deiner Banking-App', qrX + qrSize / 2, qrY + qrSize + 3.5, { align: 'center' });
+      doc.text('scannen', qrX + qrSize / 2, qrY + qrSize + 6.5, { align: 'center' });
     }
   } catch (e) {
     console.warn('QR generation for invoice failed:', e);
