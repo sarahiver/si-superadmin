@@ -63,6 +63,7 @@ export function generateInvoicePDF(project, pricing, options = {}) {
   const ph = doc.internal.pageSize.getHeight();
   const m = 20; // Margin
   let y = 0;
+  let pageNum = 1;
 
   const invoiceNumber = options.invoiceNumber || generateInvoiceNumber(project);
   const invoiceDate = options.invoiceDate || new Date();
@@ -319,27 +320,10 @@ export function generateInvoicePDF(project, pricing, options = {}) {
 
   const sumX = pw - m - 60;
 
-  // Zwischensumme
-  const nettoTotal = pricing.total / 1.19; // 19% MwSt rausrechnen
-  const mwst = pricing.total - nettoTotal;
-
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...COLORS.gray);
-  doc.text('Zwischensumme (netto):', sumX, y);
-  doc.setTextColor(...COLORS.black);
-  doc.text(formatPrice(nettoTotal), pw - m - 3, y, { align: 'right' });
-  y += 6;
-
-  // MwSt
-  doc.setTextColor(...COLORS.gray);
-  doc.text('MwSt. 19%:', sumX, y);
-  doc.setTextColor(...COLORS.black);
-  doc.text(formatPrice(mwst), pw - m - 3, y, { align: 'right' });
-  y += 8;
-
   // Rabatt
   if (pricing.discount > 0) {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
     doc.setTextColor(...COLORS.red);
     doc.text('Rabatt:', sumX, y);
     doc.text(`-${formatPrice(pricing.discount)}`, pw - m - 3, y, { align: 'right' });
@@ -363,11 +347,32 @@ export function generateInvoicePDF(project, pricing, options = {}) {
 
   doc.text(formatPrice(finalAmount), pw - m - 3, y + 3, { align: 'right' });
 
-  y += 20;
+  y += 10;
 
-  // Zahlungsplan anzeigen (bei normaler Rechnung)
+  // Kleinunternehmerregelung
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(...COLORS.gray);
+  doc.text('Gemäß § 19 UStG wird keine Umsatzsteuer berechnet (Kleinunternehmerregelung).', sumX - 5, y);
+  y += 12;
+
+  // ============================================
+  // ZAHLUNGSPLAN
+  // ============================================
+
+  // Seitenumbruch-Helper
+  const checkPageBreak = (needed) => {
+    if (y + needed > ph - 25) {
+      // Footer auf aktuelle Seite
+      addFooter(doc, pageNum);
+      doc.addPage();
+      pageNum++;
+      y = 25;
+    }
+  };
+
   if (!isDeposit && !isFinal) {
-    y += 5;
+    checkPageBreak(35);
     doc.setFillColor(255, 250, 240);
     doc.rect(m, y, pw - 2*m, 28, 'F');
     doc.setDrawColor(...COLORS.lightGray);
@@ -388,8 +393,8 @@ export function generateInvoicePDF(project, pricing, options = {}) {
     y += 15;
   }
 
-  // Bei Anzahlung: Hinweis
   if (isDeposit) {
+    checkPageBreak(20);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(...COLORS.gray);
@@ -399,6 +404,7 @@ export function generateInvoicePDF(project, pricing, options = {}) {
   }
 
   if (isFinal && options.depositPaid) {
+    checkPageBreak(15);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(...COLORS.gray);
@@ -407,49 +413,60 @@ export function generateInvoicePDF(project, pricing, options = {}) {
   }
 
   // ============================================
-  // ZAHLUNGSINFORMATIONEN
+  // BANKVERBINDUNG + QR-CODE (kombinierter Kasten)
   // ============================================
 
-  y += 10;
-  doc.setFillColor(250, 250, 250);
-  doc.rect(m, y, pw - 2*m, 35, 'F');
-  y += 8;
+  checkPageBreak(55);
+  y += 5;
+  
+  const bankBoxY = y;
+  const bankBoxH = 48;
+  const qrSize = 35;
+  
+  // Hintergrund-Kasten
+  doc.setFillColor(248, 248, 248);
+  doc.roundedRect(m, bankBoxY, pw - 2*m, bankBoxH, 2, 2, 'F');
+  doc.setDrawColor(...COLORS.lightGray);
+  doc.roundedRect(m, bankBoxY, pw - 2*m, bankBoxH, 2, 2, 'S');
 
-  doc.setFontSize(9);
+  // Bankverbindung (links)
+  y = bankBoxY + 8;
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLORS.black);
-  doc.text('Bankverbindung', m + 5, y);
+  doc.text('Bankverbindung', m + 6, y);
   y += 6;
 
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Kontoinhaber: ${COMPANY.fullName}`, m + 5, y); y += 4;
-  doc.text(`IBAN: ${COMPANY.iban}`, m + 5, y); y += 4;
-  doc.text(`BIC: ${COMPANY.bic} | Bank: ${COMPANY.bank}`, m + 5, y); y += 4;
-  doc.text(`Verwendungszweck: ${invoiceNumber}`, m + 5, y);
+  doc.setTextColor(80, 80, 80);
+  doc.text(`Empfänger: ${COMPANY.fullName}`, m + 6, y); y += 4.5;
+  doc.text(`IBAN: ${COMPANY.iban}`, m + 6, y); y += 4.5;
+  doc.text(`BIC: ${COMPANY.bic}`, m + 6, y); y += 4.5;
+  doc.text(`Bank: ${COMPANY.bank}`, m + 6, y); y += 4.5;
+  doc.text(`Verwendungszweck: ${invoiceNumber}`, m + 6, y);
 
-  // EPC/GiroCode QR — Banking-App scannt und füllt Überweisung vor
+  // QR-Code (rechts im Kasten)
   try {
     const epcPayload = buildEPCPayload({
       iban: COMPANY.iban,
       bic: COMPANY.bic,
       name: COMPANY.fullName,
-      amount: pricing.total,
+      amount: finalAmount,
       reference: invoiceNumber,
     });
     
-    // QR direkt als Rechtecke in den PDF zeichnen (kein Bild nötig)
     const modules = encodeToModules(epcPayload);
     if (modules && modules.length > 0) {
-      const qrSize = 28; // mm
-      const qrX = pw - m - qrSize - 3;
-      const qrY = y - 18;
+      const qrX = pw - m - qrSize - 4;
+      const qrY = bankBoxY + (bankBoxH - qrSize) / 2 - 1;
       const moduleCount = modules.length;
-      const cellSize = qrSize / (moduleCount + 8); // quiet zone
-      const offset = cellSize * 4;
+      const cellSize = (qrSize - 2) / (moduleCount + 8);
+      const qrOffset = cellSize * 4;
       
-      // White background
-      doc.setFillColor(250, 250, 250);
-      doc.rect(qrX, qrY, qrSize, qrSize, 'F');
+      // QR white background
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(qrX, qrY, qrSize, qrSize, 1, 1, 'F');
       
       // Draw modules
       doc.setFillColor(26, 26, 26);
@@ -457,8 +474,8 @@ export function generateInvoicePDF(project, pricing, options = {}) {
         for (let col = 0; col < moduleCount; col++) {
           if (modules[row][col]) {
             doc.rect(
-              qrX + offset + col * cellSize,
-              qrY + offset + row * cellSize,
+              qrX + 1 + qrOffset + col * cellSize,
+              qrY + 1 + qrOffset + row * cellSize,
               cellSize,
               cellSize,
               'F'
@@ -467,38 +484,31 @@ export function generateInvoicePDF(project, pricing, options = {}) {
         }
       }
       
-      doc.setFontSize(6);
+      // Label unter QR
+      doc.setFontSize(5.5);
       doc.setTextColor(...COLORS.gray);
-      doc.text('QR-Code scannen', qrX + qrSize / 2, qrY + qrSize + 3, { align: 'center' });
-      doc.text('zum Bezahlen', qrX + qrSize / 2, qrY + qrSize + 6, { align: 'center' });
+      doc.text('QR-Code scannen', qrX + qrSize / 2, qrY + qrSize + 3.5, { align: 'center' });
+      doc.text('zum Bezahlen', qrX + qrSize / 2, qrY + qrSize + 6.5, { align: 'center' });
     }
   } catch (e) {
     console.warn('QR generation for invoice failed:', e);
   }
 
-  // ============================================
-  // FOOTER
-  // ============================================
+  y = bankBoxY + bankBoxH + 8;
 
   // Zahlungshinweis
-  doc.setFontSize(9);
+  checkPageBreak(15);
+  doc.setFontSize(8);
   doc.setTextColor(...COLORS.gray);
-  const footerY = ph - 35;
-  doc.text(`Bitte überweisen Sie den Betrag bis zum ${formatDate(dueDate)} unter Angabe der Rechnungsnummer.`, m, footerY);
-  doc.text('Vielen Dank für Ihr Vertrauen!', m, footerY + 5);
+  doc.text(`Bitte überweisen Sie den Betrag bis zum ${formatDate(dueDate)} unter Angabe der Rechnungsnummer.`, m, y);
+  y += 4;
+  doc.text('Vielen Dank für Ihr Vertrauen!', m, y);
 
-  // Fußzeile
-  doc.setFontSize(7);
-  doc.setTextColor(...COLORS.gray);
-  const footerLine = `${COMPANY.fullName} · ${COMPANY.street} · ${COMPANY.city} · ${COMPANY.email}`;
-  doc.text(footerLine, pw / 2, ph - 15, { align: 'center' });
-
-  if (COMPANY.taxId) {
-    doc.text(`USt-IdNr.: ${COMPANY.taxId}`, pw / 2, ph - 10, { align: 'center' });
-  }
-
-  // Seitenzahl
-  doc.text(`Seite 1 von 1`, pw - m, ph - 10, { align: 'right' });
+  // ============================================
+  // FOOTER (auf jeder Seite)
+  // ============================================
+  
+  addFooter(doc, pageNum);
 
   // ============================================
   // SPEICHERN ODER BASE64 ZURÜCKGEBEN
@@ -507,7 +517,6 @@ export function generateInvoicePDF(project, pricing, options = {}) {
   const typeLabel = isDeposit ? 'Anzahlung' : isFinal ? 'Schluss' : '';
   const filename = `SIwedding-Rechnung${typeLabel}-${project.slug || 'projekt'}-${invoiceNumber}.pdf`;
 
-  // Wenn returnBase64 gesetzt ist, nicht speichern sondern Base64 zurückgeben
   if (options.returnBase64) {
     const base64 = doc.output('datauristring').split(',')[1];
     return { filename, invoiceNumber, invoiceDate: formatDate(invoiceDate), dueDate: formatDate(dueDate), base64 };
@@ -515,6 +524,20 @@ export function generateInvoicePDF(project, pricing, options = {}) {
 
   doc.save(filename);
   return { filename, invoiceNumber, invoiceDate: formatDate(invoiceDate), dueDate: formatDate(dueDate) };
+}
+
+// Footer-Helper (wird auf jeder Seite aufgerufen)
+function addFooter(doc, pageNum) {
+  const pw = doc.internal.pageSize.getWidth();
+  const ph = doc.internal.pageSize.getHeight();
+  const m = 20;
+
+  doc.setFontSize(7);
+  doc.setTextColor(150, 150, 150);
+  const footerLine = `${COMPANY.fullName} · ${COMPANY.street} · ${COMPANY.city} · ${COMPANY.email}`;
+  doc.text(footerLine, pw / 2, ph - 12, { align: 'center' });
+  doc.text('Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.', pw / 2, ph - 8, { align: 'center' });
+  doc.text(`Seite ${pageNum}`, pw - m, ph - 8, { align: 'right' });
 }
 
 export default { generateInvoicePDF };
