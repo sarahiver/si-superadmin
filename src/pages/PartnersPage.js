@@ -720,6 +720,9 @@ function PartnerDetailModal({ partner, emailLogs, onClose, onSaved, onEmail, onD
 
 // ============================================
 // EMAIL COMPOSER MODAL
+// Gemischte Typen: Jeder Partner bekommt automatisch
+// das Template passend zu seinem Typ.
+// Gleicher Typ: Editierbarer Composer wie gewohnt.
 // ============================================
 
 function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
@@ -727,43 +730,85 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
   const targetPartners = bulk ? partners : [partner];
   const firstPartner = targetPartners[0];
 
+  // Prüfe ob gemischte Typen in der Auswahl sind
+  const uniqueTypes = [...new Set(targetPartners.map(p => p.type))];
+  const isMixedTypes = uniqueTypes.length > 1;
+
   const [stage, setStage] = useState('erstansprache');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [previewPartner, setPreviewPartner] = useState(firstPartner);
 
+  // Template laden (bei gemischten Typen: Preview-Partner bestimmt Anzeige)
   useEffect(() => {
-    const type = firstPartner?.type || 'fotograf';
+    const type = (isMixedTypes ? previewPartner?.type : firstPartner?.type) || 'fotograf';
+    const name = (isMixedTypes ? previewPartner?.name : firstPartner?.name) || '[Name]';
     const tmpl = templates[type]?.[stage];
     if (tmpl) {
-      setSubject(tmpl.subject);
-      setBody(tmpl.body.replace(/\{name\}/g, firstPartner?.name || '[Name]'));
+      // Bei gemischten Typen: Subject/Body nur für Preview setzen, nicht editieren
+      if (!isMixedTypes) {
+        setSubject(tmpl.subject);
+        setBody(tmpl.body.replace(/\{name\}/g, name));
+      }
     }
-  }, [stage, firstPartner?.type, firstPartner?.name]);
+  }, [stage, firstPartner?.type, firstPartner?.name, isMixedTypes]);
 
-  const previewHTML = useMemo(() => wrapInEmailHTML(body, firstPartner?.name), [body, firstPartner?.name]);
+  // Preview HTML (bei gemischten Typen: zeigt Template des ausgewählten Preview-Partners)
+  const previewHTML = useMemo(() => {
+    if (isMixedTypes) {
+      const type = previewPartner?.type || 'fotograf';
+      const tmpl = templates[type]?.[stage];
+      if (tmpl) {
+        const text = tmpl.body.replace(/\{name\}/g, previewPartner?.name || '[Name]');
+        return wrapInEmailHTML(text, previewPartner?.name);
+      }
+    }
+    return wrapInEmailHTML(body, firstPartner?.name);
+  }, [body, firstPartner?.name, isMixedTypes, previewPartner, stage]);
+
+  // Zusammenfassung für gemischte Typen
+  const typeSummary = useMemo(() => {
+    if (!isMixedTypes) return null;
+    return uniqueTypes.map(type => {
+      const info = PARTNER_TYPES[type] || {};
+      const count = targetPartners.filter(p => p.type === type).length;
+      return { type, ...info, count };
+    });
+  }, [isMixedTypes, uniqueTypes, targetPartners]);
 
   async function handleSend() {
-    if (!subject || !body) { toast.error('Betreff und Text sind Pflicht'); return; }
     setSending(true);
     let ok = 0, fail = 0;
 
     for (const p of targetPartners) {
       try {
-        const personalizedBody = body.replace(/\{name\}/g, p.name || '[Name]');
-        const html = wrapInEmailHTML(personalizedBody, p.name);
+        // Pro Partner das richtige Template laden (basierend auf SEINEM Typ)
+        const tmpl = templates[p.type]?.[stage];
+        const partnerSubject = isMixedTypes ? (tmpl?.subject || subject) : subject;
+        const partnerBody = isMixedTypes
+          ? (tmpl?.body || '').replace(/\{name\}/g, p.name || '[Name]')
+          : body.replace(/\{name\}/g, p.name || '[Name]');
+
+        if (!partnerSubject || !partnerBody) {
+          console.error(`Kein Template für Typ "${p.type}" / Stufe "${stage}"`);
+          fail++;
+          continue;
+        }
+
+        const html = wrapInEmailHTML(partnerBody, p.name);
 
         const response = await fetch('/api/send-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: p.email, toName: p.name, subject, htmlContent: html }),
+          body: JSON.stringify({ to: p.email, toName: p.name, subject: partnerSubject, htmlContent: html }),
         });
         const result = await response.json();
 
         await supabase.from('email_logs').insert([{
           partner_id: p.id, recipient_email: p.email, recipient_name: p.name,
-          subject, template_type: `partner_${stage}`,
+          subject: partnerSubject, template_type: `partner_${stage}`,
           status: response.ok ? 'sent' : 'failed',
           error_message: response.ok ? null : (result.error || 'Unknown'),
           brevo_message_id: result.messageId || null,
@@ -797,10 +842,27 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
       <Modal $wide onClick={e => e.stopPropagation()}>
         <ModalHeader>✉️ E-Mail Composer {bulk ? `· ${targetPartners.length} Empfänger` : `· ${firstPartner?.name}`}<CloseBtn onClick={onClose}>×</CloseBtn></ModalHeader>
         <ModalBody>
+          {/* Empfänger-Info */}
           <div style={{ background: '#F8FAFC', border: `1px solid ${colors.lightGray}`, padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.8rem' }}>
             <strong>An:</strong> {bulk ? targetPartners.map(p => `${p.name} <${p.email}>`).join(', ') : `${firstPartner?.name} <${firstPartner?.email}>`}
           </div>
 
+          {/* Hinweis bei gemischten Typen */}
+          {isMixedTypes && (
+            <div style={{ background: '#FFF7ED', border: '2px solid #FB923C', padding: '1rem', marginBottom: '1rem', fontSize: '0.8rem', lineHeight: 1.6 }}>
+              <strong style={{ color: '#C2410C' }}>📋 Gemischte Partner-Typen erkannt</strong><br />
+              Jeder Partner bekommt automatisch das Template passend zu seinem Typ:
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                {typeSummary.map(t => (
+                  <Badge key={t.type} $color={t.color} style={{ fontSize: '0.8rem', padding: '0.3rem 0.7rem' }}>
+                    {t.icon} {t.count}× {t.label}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Mail-Stufe */}
           <Label>Mail-Stufe</Label>
           <StageSelector>
             {EMAIL_STAGES.map(s => (
@@ -810,18 +872,44 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
             ))}
           </StageSelector>
 
-          <FormGroup><Label>Betreff (editierbar)</Label><Input value={subject} onChange={e => setSubject(e.target.value)} /></FormGroup>
-
-          <ComposerLayout>
-            <div>
-              <Label>Text (editierbar) · <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}><code style={{ background: '#F3F4F6', padding: '0 4px' }}>{'{name}'}</code> = Platzhalter</span></Label>
-              <TextArea $tall value={body} onChange={e => setBody(e.target.value)} />
-            </div>
-            <div>
-              <Label>Vorschau</Label>
-              <PreviewFrame><div dangerouslySetInnerHTML={{ __html: previewHTML }} /></PreviewFrame>
-            </div>
-          </ComposerLayout>
+          {isMixedTypes ? (
+            /* ── GEMISCHTE TYPEN: Preview-Tabs statt Editor ── */
+            <>
+              <Label>Vorschau pro Typ <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(Text wird automatisch pro Partner-Typ zugewiesen)</span></Label>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                {targetPartners.map(p => {
+                  const ti = PARTNER_TYPES[p.type] || {};
+                  return (
+                    <StageBtn key={p.id} $active={previewPartner?.id === p.id}
+                      onClick={() => setPreviewPartner(p)}>
+                      {ti.icon} {p.name}
+                    </StageBtn>
+                  );
+                })}
+              </div>
+              <PreviewFrame style={{ maxHeight: '400px' }}>
+                <div dangerouslySetInnerHTML={{ __html: previewHTML }} />
+              </PreviewFrame>
+              <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: colors.gray }}>
+                Zeigt: {PARTNER_TYPES[previewPartner?.type]?.icon} {PARTNER_TYPES[previewPartner?.type]?.label}-Template für {previewPartner?.name}
+              </div>
+            </>
+          ) : (
+            /* ── GLEICHER TYP: Editierbarer Composer ── */
+            <>
+              <FormGroup><Label>Betreff (editierbar)</Label><Input value={subject} onChange={e => setSubject(e.target.value)} /></FormGroup>
+              <ComposerLayout>
+                <div>
+                  <Label>Text (editierbar) · <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}><code style={{ background: '#F3F4F6', padding: '0 4px' }}>{'{name}'}</code> = Platzhalter</span></Label>
+                  <TextArea $tall value={body} onChange={e => setBody(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Vorschau</Label>
+                  <PreviewFrame><div dangerouslySetInnerHTML={{ __html: previewHTML }} /></PreviewFrame>
+                </div>
+              </ComposerLayout>
+            </>
+          )}
         </ModalBody>
         <ModalFooter>
           <Button onClick={onClose}>Abbrechen</Button>
