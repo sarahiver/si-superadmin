@@ -17,11 +17,14 @@ export const PARTNER_TYPES = {
 export const PARTNER_STATUS = {
   neu: { label: 'Neu', color: '#9CA3AF' },
   kontaktiert: { label: 'Kontaktiert', color: '#3B82F6' },
+  email_geoeffnet: { label: 'E-Mail geöffnet', color: '#06B6D4' },
   follow_up: { label: 'Follow-up', color: '#F59E0B' },
   angebot: { label: 'Angebot gesendet', color: '#8B5CF6' },
   aktiv: { label: 'Aktiver Partner', color: '#10B981' },
+  geantwortet: { label: 'Geantwortet', color: '#14B8A6' },
   abgelehnt: { label: 'Abgelehnt', color: '#EF4444' },
   pausiert: { label: 'Pausiert', color: '#6B7280' },
+  trash: { label: 'Trash', color: '#991B1B' },
 };
 
 // Status-Flow: Welcher Status kommt nach welcher Mail
@@ -39,6 +42,19 @@ export const FOLLOWUP_DAYS = {
   angebot: 10,
   abschluss: 0,
 };
+
+// Felder für XLSX-Import (Reihenfolge = Spaltenreihenfolge)
+export const IMPORT_FIELDS = [
+  { key: 'name', label: 'Name', required: true },
+  { key: 'email', label: 'E-Mail', required: true },
+  { key: 'company', label: 'Firma', required: false },
+  { key: 'type', label: 'Typ (fotograf/planer/traurednerin/location)', required: true },
+  { key: 'phone', label: 'Telefon', required: false },
+  { key: 'city', label: 'Stadt', required: false },
+  { key: 'website', label: 'Website', required: false },
+  { key: 'instagram', label: 'Instagram', required: false },
+  { key: 'notes', label: 'Notizen', required: false },
+];
 
 // ============================================
 // TEMPLATE TEXTE (Defaults, editierbar)
@@ -333,14 +349,14 @@ export const EMAIL_STAGES = [
 
 // ============================================
 // HTML E-MAIL WRAPPER (S&I Branding)
+// Mit Tracking-Pixel für Öffnungsrate
 // ============================================
 
-export function wrapInEmailHTML(bodyText, partnerName) {
+export function wrapInEmailHTML(bodyText, partnerName, trackingPixelUrl = null) {
   // Konvertiert Plaintext in HTML-Paragraphen
   const htmlBody = bodyText
     .split('\n\n')
     .map(para => {
-      // Bullet points erkennen
       if (para.includes('\n•') || para.startsWith('•')) {
         const lines = para.split('\n').map(l => l.trim());
         const items = lines.filter(l => l.startsWith('•')).map(l => 
@@ -352,6 +368,11 @@ export function wrapInEmailHTML(bodyText, partnerName) {
       return `<p style="margin: 0 0 16px 0;">${para.replace(/\n/g, '<br>')}</p>`;
     })
     .join('');
+
+  // Tracking Pixel (1x1 transparent PNG)
+  const trackingPixel = trackingPixelUrl
+    ? `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />`
+    : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -372,6 +393,7 @@ export function wrapInEmailHTML(bodyText, partnerName) {
       <p style="margin: 6px 0 0 0; font-size: 12px;"><a href="https://siwedding.de" style="color: rgba(255,255,255,0.7); text-decoration: none;">siwedding.de</a></p>
     </div>
   </div>
+  ${trackingPixel}
 </body>
 </html>`;
 }
