@@ -45,7 +45,8 @@ export const FOLLOWUP_DAYS = {
 
 // Felder für XLSX-Import (Reihenfolge = Spaltenreihenfolge)
 export const IMPORT_FIELDS = [
-  { key: 'name', label: 'Name', required: true },
+  { key: 'first_name', label: 'Vorname', required: false },
+  { key: 'last_name', label: 'Nachname', required: false },
   { key: 'email', label: 'E-Mail', required: true },
   { key: 'company', label: 'Firma', required: false },
   { key: 'type', label: 'Typ (fotograf/planer/traurednerin/location)', required: true },
@@ -56,6 +57,19 @@ export const IMPORT_FIELDS = [
   { key: 'notes', label: 'Notizen', required: false },
 ];
 
+// Anrede-Logik: Vorname wenn vorhanden, sonst Firma
+export function getDisplayName(partner) {
+  if (partner.first_name) return partner.first_name;
+  if (partner.company) return partner.company;
+  return partner.name || '[Name]'; // Fallback für alte Einträge
+}
+
+// Voller Name für Tabelle/Übersicht
+export function getFullName(partner) {
+  const parts = [partner.first_name, partner.last_name].filter(Boolean);
+  return parts.length > 0 ? parts.join(' ') : partner.company || partner.name || '–';
+}
+
 // ============================================
 // TEMPLATE TEXTE (Defaults, editierbar)
 // ============================================
@@ -65,10 +79,10 @@ export function getDefaultTemplates() {
     // ── FOTOGRAFEN ──────────────────────────────
     fotograf: {
       erstansprache: {
-        subject: 'Kooperation: Premium-Hochzeitswebsites für deine Paare | S&I Wedding',
+        subject: 'Kooperation: Premium-Hochzeitswebsites für deine Paare | S&I.',
         body: `Hallo {name},
 
-ich bin Iver von S&I Wedding – wir erstellen individuelle Premium-Hochzeitswebsites mit integriertem RSVP, Gästelisten-Management und Foto-Upload.
+ich bin Iver von S&I. – wir erstellen individuelle Premium-Hochzeitswebsites mit integriertem RSVP, Gästelisten-Management und Foto-Upload.
 
 Ich habe eine Idee, die für dich und deine Paare einen echten Mehrwert bieten könnte:
 
@@ -79,16 +93,16 @@ Der integrierte Foto-Upload auf unseren Websites ist übrigens perfekt für Foto
 Hast du Lust, kurz darüber zu sprechen? Ich zeige dir gerne eine Demo.
 
 Beste Grüße
-Iver Gentz
-S&I Wedding | siwedding.de`,
+Iver
+S&I.`,
       },
       followup: {
-        subject: 'Kurze Nachfrage: Kooperation S&I Wedding',
+        subject: 'Kurze Nachfrage: Kooperation S&I.',
         body: `Hallo {name},
 
 ich wollte nur kurz nachfragen, ob meine letzte Nachricht angekommen ist.
 
-Falls du dir einen schnellen Eindruck verschaffen möchtest: Auf siwedding.de findest du unsere sechs Hochzeitsthemes. Das Botanical- und Editorial-Theme kommen besonders gut bei Paaren an, die Wert auf hochwertige Fotografie legen.
+Falls du dir einen schnellen Eindruck verschaffen möchtest: Auf sarahiver.com findest du unsere sechs Hochzeitsthemes. Das Botanical- und Editorial-Theme kommen besonders gut bei Paaren an, die Wert auf hochwertige Fotografie legen.
 
 Falls das Timing gerade nicht passt – kein Problem. Ich freue mich auch später über einen Austausch.
 
@@ -96,10 +110,10 @@ Beste Grüße
 Iver`,
       },
       angebot: {
-        subject: 'Partnerschaftsangebot: 15% Provision pro Buchung | S&I Wedding',
+        subject: 'Partnerschaftsangebot: 15% Provision pro Buchung | S&I.',
         body: `Hallo {name},
 
-ich möchte dir nochmal konkret zeigen, wie eine Partnerschaft mit S&I Wedding für dich aussehen könnte:
+ich möchte dir nochmal konkret zeigen, wie eine Partnerschaft mit S&I. für dich aussehen könnte:
 
 • 15% Provision pro vermittelter Buchung (190–300 €)
 • Deine Paare nennen einfach deinen Namen – sie erhalten 10% Rabatt
@@ -112,11 +126,11 @@ Unser Foto-Upload-Feature macht es deinen Paaren leicht, deine Bilder direkt auf
 Sollen wir einen kurzen Call machen? 15 Minuten reichen völlig.
 
 Beste Grüße
-Iver Gentz
-S&I Wedding | siwedding.de`,
+Iver
+S&I.`,
       },
       abschluss: {
-        subject: 'Letzte Nachfrage: Kooperation S&I Wedding',
+        subject: 'Letzte Nachfrage: Kooperation S&I.',
         body: `Hallo {name},
 
 ich melde mich ein letztes Mal zum Thema Kooperation. Ich verstehe, wenn das Timing gerade nicht passt.
@@ -133,24 +147,24 @@ Iver`,
     // ── HOCHZEITSPLANER ─────────────────────────
     planer: {
       erstansprache: {
-        subject: 'Digitale Hochzeitswebsites für deine Paare | Kooperation mit S&I Wedding',
+        subject: 'Digitale Hochzeitswebsites für deine Paare | Kooperation mit S&I.',
         body: `Hallo {name},
 
 als Hochzeitsplaner/in weißt du, wie viel Kommunikation und Organisation hinter einer perfekten Hochzeit steckt. Genau da setzen wir an.
 
-Ich bin Iver von S&I Wedding. Wir bieten Premium-Hochzeitswebsites mit Features, die dir die Arbeit erleichtern: digitales RSVP mit automatischer Auswertung, Gästelisten-Management, interaktive Location-Karten und individuelles Design.
+Ich bin Iver von S&I. Wir bieten Premium-Hochzeitswebsites mit Features, die dir die Arbeit erleichtern: digitales RSVP mit automatischer Auswertung, Gästelisten-Management, interaktive Location-Karten und individuelles Design.
 
 Mein Vorschlag für eine Zusammenarbeit:
 
-Du empfiehlst S&I Wedding als Teil deines Planungspakets oder als Add-on. Dafür erhältst du 15% Provision pro Buchung. Deine Paare nennen einfach deinen Namen bei der Anfrage und bekommen 10% Rabatt.
+Du empfiehlst S&I. als Teil deines Planungspakets oder als Add-on. Dafür erhältst du 15% Provision pro Buchung. Deine Paare nennen einfach deinen Namen bei der Anfrage und bekommen 10% Rabatt.
 
 Gerade das RSVP-System spart dir und deinen Paaren enorm viel Zeit bei der Gästeplanung. Keine Excel-Listen mehr, keine Nachfass-Anrufe.
 
 Ich zeige dir gerne in 15 Minuten, wie das System funktioniert. Wann passt es dir?
 
 Beste Grüße
-Iver Gentz
-S&I Wedding | siwedding.de`,
+Iver
+S&I.`,
       },
       followup: {
         subject: 'Nachfrage: Kooperation Hochzeitsplanung + digitales RSVP',
@@ -166,13 +180,13 @@ Beste Grüße
 Iver`,
       },
       angebot: {
-        subject: 'Partnerschaftsmodell für Hochzeitsplaner | S&I Wedding',
+        subject: 'Partnerschaftsmodell für Hochzeitsplaner | S&I.',
         body: `Hallo {name},
 
 hier nochmal das konkrete Partnerschaftsmodell:
 
 • 15% Provision pro vermittelter Buchung (190–300 €)
-• S&I Wedding als fester Bestandteil deines Planungspakets
+• S&I. als fester Bestandteil deines Planungspakets
 • Deine Paare nennen deinen Namen bei der Anfrage – 10% Rabatt
 • Dein Profil auf unserer Partner-Seite
 • Direkter Draht zu mir für Rückfragen deiner Paare
@@ -182,11 +196,11 @@ Das RSVP-System mit Echtzeit-Auswertung, Gästeliste und Allergien-Tracking spar
 Hast du 15 Minuten für eine Demo? Ich richte dir gerne auch einen Test-Account ein.
 
 Beste Grüße
-Iver Gentz
-S&I Wedding | siwedding.de`,
+Iver
+S&I.`,
       },
       abschluss: {
-        subject: 'Letzte Nachfrage: Kooperation S&I Wedding',
+        subject: 'Letzte Nachfrage: Kooperation S&I.',
         body: `Hallo {name},
 
 ich melde mich ein letztes Mal zu unserem Kooperationsangebot. Falls das Timing gerade nicht passt, ist das völlig in Ordnung.
@@ -203,38 +217,38 @@ Iver`,
     // ── TRAUREDNER/INNEN ────────────────────────
     traurednerin: {
       erstansprache: {
-        subject: 'Kooperation: Hochzeitswebsites mit persönlicher Note | S&I Wedding',
+        subject: 'Kooperation: Hochzeitswebsites mit persönlicher Note | S&I.',
         body: `Hallo {name},
 
-als Trauredner/in schaffst du einzigartige, persönliche Momente für Brautpaare. Genau diesen Anspruch teilen wir bei S&I Wedding – mit individuell gestalteten Premium-Hochzeitswebsites.
+als Trauredner/in schaffst du einzigartige, persönliche Momente für Brautpaare. Genau diesen Anspruch teilen wir bei S&I. – mit individuell gestalteten Premium-Hochzeitswebsites.
 
-Ich bin Iver von S&I Wedding. Unsere Websites bieten Paaren alles aus einer Hand: RSVP-Management, Tagesablauf, Locationinfos und vieles mehr – mit hochwertigen Designs, die zur Persönlichkeit des Paares passen.
+Ich bin Iver von S&I. Unsere Websites bieten Paaren alles aus einer Hand: RSVP-Management, Tagesablauf, Locationinfos und vieles mehr – mit hochwertigen Designs, die zur Persönlichkeit des Paares passen.
 
-Meine Idee: Du empfiehlst S&I Wedding an deine Brautpaare, die oft noch am Anfang der Planung stehen. Dafür erhältst du 15% Provision pro Buchung (ca. 190–300 €). Deine Paare nennen einfach deinen Namen bei der Anfrage und erhalten 10% Rabatt.
+Meine Idee: Du empfiehlst S&I. an deine Brautpaare, die oft noch am Anfang der Planung stehen. Dafür erhältst du 15% Provision pro Buchung (ca. 190–300 €). Deine Paare nennen einfach deinen Namen bei der Anfrage und erhalten 10% Rabatt.
 
 Gerade Trauredner/innen sind oft die erste Anlaufstelle für Paare – und damit in der perfekten Position, hilfreiche Tools wie eine Hochzeitswebsite zu empfehlen.
 
 Hast du Lust auf einen kurzen Austausch? Ich zeige dir gerne, wie unsere Themes aussehen.
 
 Beste Grüße
-Iver Gentz
-S&I Wedding | siwedding.de`,
+Iver
+S&I.`,
       },
       followup: {
-        subject: 'Kurze Nachfrage: Kooperation S&I Wedding + Trauung',
+        subject: 'Kurze Nachfrage: Kooperation S&I.',
         body: `Hallo {name},
 
 ich wollte kurz an meine letzte Nachricht anknüpfen.
 
 Wir haben auf unseren Hochzeitswebsites übrigens auch eine "Tagesablauf"-Komponente, in der die freie Trauung prominent dargestellt wird – mit deinem Namen und ggf. einem kurzen Text von dir. Das ist eine schöne Möglichkeit für zusätzliche Sichtbarkeit.
 
-Schau gerne mal auf siwedding.de vorbei, um dir die Themes anzusehen. Ich freue mich über Feedback!
+Schau gerne mal auf sarahiver.com vorbei, um dir die Themes anzusehen. Ich freue mich über Feedback!
 
 Beste Grüße
 Iver`,
       },
       angebot: {
-        subject: 'Partnerschaftsangebot für Trauredner/innen | S&I Wedding',
+        subject: 'Partnerschaftsangebot für Trauredner/innen | S&I.',
         body: `Hallo {name},
 
 hier das konkrete Kooperationsmodell:
@@ -245,16 +259,16 @@ hier das konkrete Kooperationsmodell:
 • Verlinkung auf unserer Partner-Seite
 • Gemeinsame Sichtbarkeit auf Social Media
 
-Unsere Paare planen gerne digital, und eine persönliche Hochzeitswebsite ist für viele der zentrale Planungs-Hub. Als Trauredner/in bist du oft eine der ersten Anlaufstellen – das macht dich zur idealen Partnerin.
+Unsere Paare planen gerne digital, und eine persönliche Hochzeitswebsite ist für viele der zentrale Planungs-Hub. Als Trauredner/in bist du oft eine der ersten Anlaufstellen – das macht dich zum idealen Partner.
 
 Magst du dich einmal kurz austauschen? 15 Minuten reichen.
 
 Beste Grüße
-Iver Gentz
-S&I Wedding | siwedding.de`,
+Iver
+S&I.`,
       },
       abschluss: {
-        subject: 'Letzte Nachfrage: Partnerschaft S&I Wedding',
+        subject: 'Letzte Nachfrage: Partnerschaft S&I.',
         body: `Hallo {name},
 
 ein letztes Mal zum Thema Kooperation – falls es gerade nicht passt, völlig verständlich.
@@ -271,67 +285,67 @@ Iver`,
     // ── LOCATIONS ────────────────────────────────
     location: {
       erstansprache: {
-        subject: 'Kooperation: Digitale Hochzeitswebsites mit interaktiver Location-Karte | S&I Wedding',
-        body: `Sehr geehrte/r {name},
+        subject: 'Kooperation: Digitale Hochzeitswebsites mit interaktiver Location-Karte | S&I.',
+        body: `Hallo {name},
 
-mein Name ist Iver Gentz von S&I Wedding. Wir erstellen individuelle Premium-Hochzeitswebsites für Brautpaare – inklusive interaktiver Location-Karten, die den Weg zu Ihrer Location optimal darstellen.
+ich bin Iver von S&I. – wir erstellen individuelle Premium-Hochzeitswebsites für Brautpaare, inklusive interaktiver Location-Karten, die den Weg zu eurer Location optimal darstellen.
 
-Viele Locations nutzen bereits digitale Lösungen, um ihren Paaren einen Mehrwert zu bieten. Mit S&I Wedding können Ihre Brautpaare ihre gesamte Hochzeitsplanung auf einer eleganten Website bündeln, inklusive einer interaktiven Karte mit Wegbeschreibung zu Ihrer Location.
+Viele Locations bieten ihren Paaren inzwischen digitale Services als Mehrwert an. Mit S&I. können eure Brautpaare ihre gesamte Hochzeitsplanung auf einer eleganten Website bündeln – inklusive interaktiver Karte mit Wegbeschreibung.
 
-Ich würde mich freuen, Ihnen in einem kurzen Gespräch zu zeigen, wie das aussehen könnte. Für jede erfolgreiche Empfehlung erhalten Sie eine Provision von 15%. Ihre Paare nennen einfach Ihren Namen bei der Anfrage und erhalten 10% Rabatt.
+Für jede erfolgreiche Empfehlung gibt es 15% Provision. Eure Paare nennen einfach euren Namen bei der Anfrage und erhalten 10% Rabatt.
 
-Falls Sie Interesse haben, stehe ich gerne für ein kurzes Telefonat zur Verfügung.
+Ich würde mich freuen, euch kurz zu zeigen, wie das aussehen könnte. Habt ihr Lust auf ein kurzes Telefonat?
 
-Mit freundlichen Grüßen
-Iver Gentz
-S&I Wedding | siwedding.de`,
+Beste Grüße
+Iver
+S&I.`,
       },
       followup: {
-        subject: 'Nachfrage: Kooperation S&I Wedding + Location-Feature',
-        body: `Sehr geehrte/r {name},
+        subject: 'Nachfrage: Kooperation S&I. + Location-Feature',
+        body: `Hallo {name},
 
-ich erlaube mir, an meine letzte Nachricht anzuknüpfen.
+ich wollte kurz an meine letzte Nachricht anknüpfen.
 
-Auf unserer Website siwedding.de können Sie sich einen Eindruck von unseren sechs Hochzeitsthemes verschaffen. Die Location-Komponente zeigt eine interaktive Karte mit Wegbeschreibung – ideal, um Ihren Gästen die Anreise zu erleichtern.
+Auf sarahiver.com könnt ihr euch einen Eindruck von unseren sechs Hochzeitsthemes verschaffen. Die Location-Komponente zeigt eine interaktive Karte mit Wegbeschreibung – ideal, um euren Gästen die Anreise zu erleichtern.
 
-Falls das Timing gerade nicht passt, melde ich mich gerne zu einem späteren Zeitpunkt nochmals.
+Falls das Timing gerade nicht passt – kein Problem. Ich melde mich gerne später nochmal.
 
-Mit freundlichen Grüßen
-Iver Gentz`,
+Beste Grüße
+Iver`,
       },
       angebot: {
-        subject: 'Partnerschaftsangebot für Locations | S&I Wedding',
-        body: `Sehr geehrte/r {name},
+        subject: 'Partnerschaftsangebot für Locations | S&I.',
+        body: `Hallo {name},
 
 hier unser konkretes Kooperationsangebot:
 
 • 15% Provision pro vermittelter Buchung
-• Ihre Paare nennen einfach Ihren Namen bei der Anfrage – 10% Rabatt
-• Ihre Location prominent auf unserer Partner-Seite
-• Interaktive Location-Karte auf den Hochzeitswebsites Ihrer Paare
-• Flyer/QR-Code für Ihre Auslage vor Ort
-• Gemeinsame Sichtbarkeit in Social Media und auf der Website
+• Eure Paare nennen einfach euren Namen bei der Anfrage – 10% Rabatt
+• Eure Location prominent auf unserer Partner-Seite
+• Interaktive Location-Karte auf den Hochzeitswebsites eurer Paare
+• Flyer/QR-Code für eure Auslage vor Ort
+• Gemeinsame Sichtbarkeit auf Social Media und Website
 
-Viele Paare suchen gezielt nach Locations, die digitale Services mitanbieten. Eine Empfehlung Ihrer Location inklusive hochwertiger Hochzeitswebsite hebt Sie von der Konkurrenz ab.
+Viele Paare suchen gezielt nach Locations, die digitale Services mitanbieten. Eine Empfehlung eurer Location inklusive hochwertiger Hochzeitswebsite hebt euch von der Konkurrenz ab.
 
 Ich freue mich über ein kurzes Gespräch zu den Details.
 
-Mit freundlichen Grüßen
-Iver Gentz
-S&I Wedding | siwedding.de`,
+Beste Grüße
+Iver
+S&I.`,
       },
       abschluss: {
-        subject: 'Letzte Anfrage: Partnerschaft S&I Wedding',
-        body: `Sehr geehrte/r {name},
+        subject: 'Letzte Anfrage: Partnerschaft S&I.',
+        body: `Hallo {name},
 
-ich möchte mich ein letztes Mal bezüglich unseres Kooperationsangebots melden.
+ich melde mich ein letztes Mal zum Thema Kooperation. Falls es gerade nicht passt, völlig verständlich.
 
-Sollte sich zu einem späteren Zeitpunkt Interesse ergeben, stehe ich Ihnen gerne unter wedding@sarahiver.de zur Verfügung.
+Ihr erreicht mich jederzeit unter wedding@sarahiver.de, falls sich in Zukunft etwas ergibt.
 
-Ich wünsche Ihnen eine erfolgreiche Saison!
+Ich wünsche euch eine erfolgreiche Saison!
 
-Mit freundlichen Grüßen
-Iver Gentz`,
+Beste Grüße
+Iver`,
       },
     },
   };
@@ -389,9 +403,19 @@ export function wrapInEmailHTML(bodyText, partnerName, trackingPixelUrl = null) 
     <div style="padding: 40px 30px; color: #333333; font-size: 15px; line-height: 1.7;">
       ${htmlBody}
     </div>
-    <div style="background: #0A0A0A; padding: 24px 30px; text-align: center;">
-      <p style="margin: 0; font-size: 12px; color: rgba(255,255,255,0.5);">S&I. | Premium Hochzeits-Websites</p>
-      <p style="margin: 6px 0 0 0; font-size: 12px;"><a href="https://siwedding.de" style="color: rgba(255,255,255,0.7); text-decoration: none;">siwedding.de</a></p>
+    <div style="padding: 0 30px 36px 30px; text-align: center;">
+      <a href="https://www.sarahiver.com" style="display: inline-block; background: #0A0A0A; color: #FFFFFF; padding: 16px 40px; text-decoration: none; font-family: 'Helvetica Neue', Arial, sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.5px;">UNSERE THEMES ANSEHEN →</a>
+    </div>
+    <div style="background: #0A0A0A; padding: 28px 30px; text-align: center;">
+      <div style="font-family: 'Helvetica Neue', 'Arial Black', sans-serif; font-size: 18px; font-weight: 700; color: #FFFFFF; letter-spacing: -1.5px; margin-bottom: 12px;">S&I.</div>
+      <p style="margin: 0; font-size: 12px; color: rgba(255,255,255,0.5);">Premium Hochzeits-Websites</p>
+      <div style="margin: 14px 0; border-top: 1px solid rgba(255,255,255,0.15);"></div>
+      <p style="margin: 0; font-size: 12px;">
+        <a href="https://www.sarahiver.com" style="color: rgba(255,255,255,0.7); text-decoration: none;">sarahiver.com</a>
+      </p>
+      <p style="margin: 6px 0 0 0; font-size: 12px;">
+        <a href="mailto:wedding@sarahiver.de" style="color: rgba(255,255,255,0.7); text-decoration: none;">wedding@sarahiver.de</a>
+      </p>
     </div>
   </div>
   ${trackingPixel}

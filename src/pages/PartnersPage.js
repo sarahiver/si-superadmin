@@ -16,6 +16,8 @@ import {
   IMPORT_FIELDS,
   getDefaultTemplates,
   wrapInEmailHTML,
+  getDisplayName,
+  getFullName,
 } from '../lib/partnerEmailTemplates';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5', purple: '#8B5CF6', blue: '#3B82F6', pink: '#EC4899' };
@@ -153,8 +155,8 @@ async function parseXLSX(file) {
           return entry;
         });
 
-        // Filter out empty rows
-        const valid = mapped.filter(r => r.name && r.email);
+        // Filter out empty rows (need at least email + first_name or company)
+        const valid = mapped.filter(r => r.email && (r.first_name || r.company));
         resolve(valid);
       } catch (err) {
         reject(err);
@@ -209,6 +211,8 @@ export default function PartnersPage() {
     if (search) {
       const s = search.toLowerCase();
       list = list.filter(p =>
+        (p.first_name || '').toLowerCase().includes(s) ||
+        (p.last_name || '').toLowerCase().includes(s) ||
         (p.name || '').toLowerCase().includes(s) ||
         (p.company || '').toLowerCase().includes(s) ||
         (p.email || '').toLowerCase().includes(s) ||
@@ -354,8 +358,8 @@ export default function PartnersPage() {
               <TableRow key={partner.id} $trash={isTrash}>
                 <div onClick={e => e.stopPropagation()}><Checkbox type="checkbox" checked={selected.has(partner.id)} onChange={() => toggleSelect(partner.id)} /></div>
                 <div onClick={() => setShowDetailModal(partner)}>
-                  <strong>{partner.name}</strong>
-                  {partner.company && <span style={{ color: colors.gray, marginLeft: '0.4rem', fontSize: '0.75rem' }}>{partner.company}</span>}
+                  <strong>{getFullName(partner)}</strong>
+                  {partner.company && partner.first_name && <span style={{ color: colors.gray, marginLeft: '0.4rem', fontSize: '0.75rem' }}>{partner.company}</span>}
                 </div>
                 <div style={{ fontSize: '0.8rem' }}>{partner.email}</div>
                 <div><TypeIcon>{typeInfo.icon}</TypeIcon><span style={{ fontSize: '0.75rem' }}>{typeInfo.label}</span></div>
@@ -442,7 +446,9 @@ function ImportModal({ existingEmails, onClose, onImported }) {
     setImporting(true);
 
     const toInsert = newEntries.map(r => ({
-      name: r.name,
+      first_name: r.first_name || null,
+      last_name: r.last_name || null,
+      name: [r.first_name, r.last_name].filter(Boolean).join(' ') || r.company || '',
       email: r.email,
       company: r.company || null,
       type: r.type.toLowerCase(),
@@ -473,8 +479,8 @@ function ImportModal({ existingEmails, onClose, onImported }) {
           {/* Info */}
           <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', padding: '1rem', marginBottom: '1rem', fontSize: '0.8rem', lineHeight: 1.6 }}>
             <strong>Spaltenreihenfolge in der XLSX:</strong><br />
-            Name* | E-Mail* | Firma | Typ* (fotograf/planer/traurednerin/location) | Telefon | Stadt | Website | Instagram | Notizen<br />
-            <span style={{ color: colors.gray }}>* = Pflichtfelder. Duplikate (gleiche E-Mail) werden automatisch erkannt und übersprungen.</span>
+            Vorname | Nachname | E-Mail* | Firma | Typ* (fotograf/planer/traurednerin/location) | Telefon | Stadt | Website | Instagram | Notizen<br />
+            <span style={{ color: colors.gray }}>* = Pflichtfelder. Vorname oder Firma muss gesetzt sein. Duplikate (gleiche E-Mail) werden automatisch übersprungen.</span>
           </div>
 
           {/* Drop Zone */}
@@ -519,7 +525,7 @@ function ImportModal({ existingEmails, onClose, onImported }) {
                 </ImportRow>
                 {parsed.map((r, i) => (
                   <ImportRow key={i} style={{ background: r.isDuplicate ? '#FEF2F2' : r.typeValid ? 'transparent' : '#FFFBEB' }}>
-                    <div>{r.name}</div>
+                    <div>{[r.first_name, r.last_name].filter(Boolean).join(' ') || r.company || '–'}</div>
                     <div>{r.email}{r.isDuplicate && <DuplicateTag>Duplikat</DuplicateTag>}{!r.isDuplicate && r.typeValid && <NewTag>Neu</NewTag>}</div>
                     <div style={{ color: r.typeValid ? 'inherit' : '#B45309' }}>{r.type || '–'}{!r.typeValid && !r.isDuplicate && ' ⚠'}</div>
                     <div>{r.isDuplicate ? 'Übersprungen' : r.typeValid ? 'Wird importiert' : 'Typ ungültig'}</div>
@@ -552,21 +558,29 @@ function ImportModal({ existingEmails, onClose, onImported }) {
 // ============================================
 
 function AddPartnerModal({ partners, onClose, onSaved }) {
-  const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', type: 'fotograf', city: '', website: '', instagram: '', notes: '' });
+  const [form, setForm] = useState({ first_name: '', last_name: '', company: '', email: '', phone: '', type: 'fotograf', city: '', website: '', instagram: '', notes: '' });
   const [saving, setSaving] = useState(false);
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
   // Live duplicate check
   const isDuplicate = form.email && partners.some(p => p.email.toLowerCase() === form.email.toLowerCase());
+  // Mindestens Vorname oder Firma muss gesetzt sein
+  const hasIdentifier = form.first_name || form.company;
 
   async function handleSave() {
-    if (!form.name || !form.email) { toast.error('Name und E-Mail sind Pflicht'); return; }
+    if (!hasIdentifier) { toast.error('Vorname oder Firma muss ausgefüllt sein'); return; }
+    if (!form.email) { toast.error('E-Mail ist Pflicht'); return; }
     if (isDuplicate) { toast.error(`E-Mail ${form.email} existiert bereits!`); return; }
     setSaving(true);
     const code = `SI-${form.type.substring(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
-    const { error } = await supabase.from('partners').insert([{ ...form, status: 'neu', referral_code: code }]);
+    const { error } = await supabase.from('partners').insert([{
+      ...form,
+      name: getFullName(form), // Legacy-Feld für Kompatibilität
+      status: 'neu',
+      referral_code: code,
+    }]);
     if (error) { toast.error('Fehler: ' + error.message); setSaving(false); return; }
-    toast.success(`${form.name} hinzugefügt`);
+    toast.success(`${getDisplayName(form)} hinzugefügt`);
     onSaved();
   }
 
@@ -575,10 +589,12 @@ function AddPartnerModal({ partners, onClose, onSaved }) {
       <Modal onClick={e => e.stopPropagation()}>
         <ModalHeader>Partner hinzufügen<CloseBtn onClick={onClose}>×</CloseBtn></ModalHeader>
         <ModalBody>
-          <FormGrid>
-            <FormGroup $noMargin><Label>Name *</Label><Input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Max Mustermann" /></FormGroup>
+          <FormGrid $cols="1fr 1fr 1fr">
+            <FormGroup $noMargin><Label>Vorname</Label><Input value={form.first_name} onChange={e => set('first_name', e.target.value)} placeholder="Anna" /></FormGroup>
+            <FormGroup $noMargin><Label>Nachname</Label><Input value={form.last_name} onChange={e => set('last_name', e.target.value)} placeholder="Schmidt" /></FormGroup>
             <FormGroup $noMargin><Label>Firma</Label><Input value={form.company} onChange={e => set('company', e.target.value)} placeholder="Fotostudio XY" /></FormGroup>
           </FormGrid>
+          {!hasIdentifier && <div style={{ color: colors.orange, fontSize: '0.75rem', marginBottom: '0.5rem' }}>Bitte Vorname oder Firma ausfüllen</div>}
           <FormGrid>
             <FormGroup $noMargin>
               <Label>E-Mail *</Label>
@@ -600,7 +616,7 @@ function AddPartnerModal({ partners, onClose, onSaved }) {
         </ModalBody>
         <ModalFooter>
           <Button onClick={onClose}>Abbrechen</Button>
-          <Button $primary disabled={saving || isDuplicate} onClick={handleSave}>{saving ? 'Speichern...' : 'Speichern'}</Button>
+          <Button $primary disabled={saving || isDuplicate || !hasIdentifier} onClick={handleSave}>{saving ? 'Speichern...' : 'Speichern'}</Button>
         </ModalFooter>
       </Modal>
     </Overlay>
@@ -622,7 +638,8 @@ function PartnerDetailModal({ partner, emailLogs, onClose, onSaved, onEmail, onD
   async function handleSave() {
     setSaving(true);
     const { error } = await supabase.from('partners').update({
-      name: form.name, company: form.company, email: form.email, phone: form.phone,
+      first_name: form.first_name, last_name: form.last_name, name: getFullName(form),
+      company: form.company, email: form.email, phone: form.phone,
       type: form.type, status: form.status, city: form.city, website: form.website,
       instagram: form.instagram, notes: form.notes, provision_percent: form.provision_percent,
     }).eq('id', partner.id);
@@ -634,12 +651,13 @@ function PartnerDetailModal({ partner, emailLogs, onClose, onSaved, onEmail, onD
   return (
     <Overlay onClick={onClose}>
       <Modal $wide onClick={e => e.stopPropagation()}>
-        <ModalHeader>{typeInfo.icon} {partner.name} {partner.company && `· ${partner.company}`}<CloseBtn onClick={onClose}>×</CloseBtn></ModalHeader>
+        <ModalHeader>{typeInfo.icon} {getFullName(partner)} {partner.company && partner.first_name && `· ${partner.company}`}<CloseBtn onClick={onClose}>×</CloseBtn></ModalHeader>
         <ModalBody>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
             <div>
-              <FormGrid>
-                <FormGroup $noMargin><Label>Name</Label><Input value={form.name} onChange={e => set('name', e.target.value)} /></FormGroup>
+              <FormGrid $cols="1fr 1fr 1fr">
+                <FormGroup $noMargin><Label>Vorname</Label><Input value={form.first_name || ''} onChange={e => set('first_name', e.target.value)} /></FormGroup>
+                <FormGroup $noMargin><Label>Nachname</Label><Input value={form.last_name || ''} onChange={e => set('last_name', e.target.value)} /></FormGroup>
                 <FormGroup $noMargin><Label>Firma</Label><Input value={form.company || ''} onChange={e => set('company', e.target.value)} /></FormGroup>
               </FormGrid>
               <FormGrid>
@@ -744,7 +762,7 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
   // Template laden (bei gemischten Typen: Preview-Partner bestimmt Anzeige)
   useEffect(() => {
     const type = (isMixedTypes ? previewPartner?.type : firstPartner?.type) || 'fotograf';
-    const name = (isMixedTypes ? previewPartner?.name : firstPartner?.name) || '[Name]';
+    const name = (isMixedTypes ? getDisplayName(previewPartner || {}) : getDisplayName(firstPartner || {})) || '[Name]';
     const tmpl = templates[type]?.[stage];
     if (tmpl) {
       // Bei gemischten Typen: Subject/Body nur für Preview setzen, nicht editieren
@@ -761,12 +779,12 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
       const type = previewPartner?.type || 'fotograf';
       const tmpl = templates[type]?.[stage];
       if (tmpl) {
-        const text = tmpl.body.replace(/\{name\}/g, previewPartner?.name || '[Name]');
-        return wrapInEmailHTML(text, previewPartner?.name);
+        const text = tmpl.body.replace(/\{name\}/g, getDisplayName(previewPartner || {}));
+        return wrapInEmailHTML(text, getDisplayName(previewPartner || {}));
       }
     }
-    return wrapInEmailHTML(body, firstPartner?.name);
-  }, [body, firstPartner?.name, isMixedTypes, previewPartner, stage]);
+    return wrapInEmailHTML(body, getDisplayName(firstPartner || {}));
+  }, [body, firstPartner, isMixedTypes, previewPartner, stage]);
 
   // Zusammenfassung für gemischte Typen
   const typeSummary = useMemo(() => {
@@ -786,10 +804,12 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
       try {
         // Pro Partner das richtige Template laden (basierend auf SEINEM Typ)
         const tmpl = templates[p.type]?.[stage];
+        const displayName = getDisplayName(p);
+        const fullName = getFullName(p);
         const partnerSubject = isMixedTypes ? (tmpl?.subject || subject) : subject;
         const partnerBody = isMixedTypes
-          ? (tmpl?.body || '').replace(/\{name\}/g, p.name || '[Name]')
-          : body.replace(/\{name\}/g, p.name || '[Name]');
+          ? (tmpl?.body || '').replace(/\{name\}/g, displayName)
+          : body.replace(/\{name\}/g, displayName);
 
         if (!partnerSubject || !partnerBody) {
           console.error(`Kein Template für Typ "${p.type}" / Stufe "${stage}"`);
@@ -797,17 +817,17 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
           continue;
         }
 
-        const html = wrapInEmailHTML(partnerBody, p.name);
+        const html = wrapInEmailHTML(partnerBody, displayName);
 
         const response = await fetch('/api/send-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: p.email, toName: p.name, subject: partnerSubject, htmlContent: html }),
+          body: JSON.stringify({ to: p.email, toName: fullName, subject: partnerSubject, htmlContent: html }),
         });
         const result = await response.json();
 
         await supabase.from('email_logs').insert([{
-          partner_id: p.id, recipient_email: p.email, recipient_name: p.name,
+          partner_id: p.id, recipient_email: p.email, recipient_name: fullName,
           subject: partnerSubject, template_type: `partner_${stage}`,
           status: response.ok ? 'sent' : 'failed',
           error_message: response.ok ? null : (result.error || 'Unknown'),
@@ -840,11 +860,11 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
   return (
     <Overlay onClick={onClose}>
       <Modal $wide onClick={e => e.stopPropagation()}>
-        <ModalHeader>✉️ E-Mail Composer {bulk ? `· ${targetPartners.length} Empfänger` : `· ${firstPartner?.name}`}<CloseBtn onClick={onClose}>×</CloseBtn></ModalHeader>
+        <ModalHeader>✉️ E-Mail Composer {bulk ? `· ${targetPartners.length} Empfänger` : `· ${getDisplayName(firstPartner || {})}`}<CloseBtn onClick={onClose}>×</CloseBtn></ModalHeader>
         <ModalBody>
           {/* Empfänger-Info */}
           <div style={{ background: '#F8FAFC', border: `1px solid ${colors.lightGray}`, padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.8rem' }}>
-            <strong>An:</strong> {bulk ? targetPartners.map(p => `${p.name} <${p.email}>`).join(', ') : `${firstPartner?.name} <${firstPartner?.email}>`}
+            <strong>An:</strong> {bulk ? targetPartners.map(p => `${getFullName(p)} <${p.email}>`).join(', ') : `${getFullName(firstPartner || {})} <${firstPartner?.email}>`}
           </div>
 
           {/* Hinweis bei gemischten Typen */}
@@ -882,7 +902,7 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
                   return (
                     <StageBtn key={p.id} $active={previewPartner?.id === p.id}
                       onClick={() => setPreviewPartner(p)}>
-                      {ti.icon} {p.name}
+                      {ti.icon} {getDisplayName(p)}
                     </StageBtn>
                   );
                 })}
@@ -891,7 +911,7 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
                 <div dangerouslySetInnerHTML={{ __html: previewHTML }} />
               </PreviewFrame>
               <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: colors.gray }}>
-                Zeigt: {PARTNER_TYPES[previewPartner?.type]?.icon} {PARTNER_TYPES[previewPartner?.type]?.label}-Template für {previewPartner?.name}
+                Zeigt: {PARTNER_TYPES[previewPartner?.type]?.icon} {PARTNER_TYPES[previewPartner?.type]?.label}-Template für {getDisplayName(previewPartner || {})}
               </div>
             </>
           ) : (
