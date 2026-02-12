@@ -1,100 +1,107 @@
-# S&I Wedding - SuperAdmin Dashboard
+# S&I SuperAdmin – Kooperationen-Modul
 
-Separates Admin-Dashboard zur Verwaltung aller Hochzeitsprojekte.
+## Was ist dabei?
+
+### Neue Dateien
+- `src/pages/PartnersPage.js` – Komplette Kooperationen-Seite mit CRM + E-Mail-Composer
+- `src/lib/partnerEmailTemplates.js` – Alle E-Mail-Templates (Fotografen, Planer, Trauredner, Locations)
+- `scripts/create-partners-table.sql` – Datenbank-Migration
+
+### Geänderte Dateien
+- `src/App.js` – Route `/partners` hinzugefügt
+- `src/components/Layout.js` – Nav-Item "Kooperationen" hinzugefügt
+
+---
+
+## Installation
+
+### 1. SQL-Migration in Supabase ausführen
+Gehe zu Supabase → SQL Editor → Neue Query → Inhalt von `scripts/create-partners-table.sql` einfügen und ausführen.
+
+### 2. Dateien kopieren
+```bash
+# Neue Dateien
+cp src/pages/PartnersPage.js       <dein-repo>/src/pages/
+cp src/lib/partnerEmailTemplates.js <dein-repo>/src/lib/
+
+# Geänderte Dateien (ERSETZEN!)
+cp src/App.js                       <dein-repo>/src/
+cp src/components/Layout.js         <dein-repo>/src/components/
+```
+
+### 3. Deploy
+```bash
+git add .
+git commit -m "feat: Kooperationen-Modul mit CRM + E-Mail-Composer"
+git push
+```
+
+---
 
 ## Features
 
-- 🔐 Sichere Authentifizierung (Credentials in Supabase)
-- 📊 Dashboard mit Statistiken
-- 💒 Alle Projekte verwalten
-- ➕ Neue Projekte anlegen
-- 🌐 Custom Domains zuweisen
-- 🧩 Komponenten aktivieren/deaktivieren
-- 📨 Kontaktanfragen verwalten
+### Kooperationen-Seite (/partners)
+- **KPI-Übersicht**: Gesamt, Aktive Partner, Pipeline, Follow-ups fällig, Neu
+- **Filterable Tabelle**: Nach Typ (Fotograf/Planer/Traurednerin/Location) und Status
+- **Suche**: Nach Name, Firma, E-Mail, Stadt
+- **Bulk-Aktionen**: Mehrere Partner auswählen → Sammelmail senden oder löschen
 
-## Setup
+### Partner hinzufügen
+- Name + E-Mail (Pflicht)
+- Firma, Telefon, Typ, Stadt, Website, Instagram, Notizen
+- Referral-Code wird automatisch generiert
 
-### 1. Projekt klonen & Abhängigkeiten installieren
+### Partner-Detail
+- Alle Felder editierbar
+- Status-Änderung direkt
+- E-Mail-Verlauf mit Timestamp und Erfolgsstatus
+- Direkter Link zum E-Mail-Composer
 
-```bash
-git clone https://github.com/YOUR_USERNAME/si-wedding-superadmin.git
-cd si-wedding-superadmin
-npm install
+### E-Mail-Composer
+- **4 Mail-Stufen**: Erstansprache → Follow-up → Angebot → Abschluss
+- **4 Zielgruppen**: Fotografen, Planer, Trauredner/innen, Locations
+- **Komplett editierbar**: Subject + Body können vor dem Senden angepasst werden
+- **Platzhalter `{name}`**: Wird automatisch durch den Partner-Namen ersetzt
+- **Live-Vorschau**: Rechte Seite zeigt das fertige S&I-gebrandete HTML
+- **Automatisches Status-Update**: Nach Versand wird Status + Datum aktualisiert
+- **Follow-up-Datum**: Wird automatisch gesetzt (Erstansprache → +5 Tage, Follow-up → +7 Tage, etc.)
+- **Bulk-Versand**: Mehrere Partner auswählen → eine Mail an alle (mit 1s Delay)
+
+### Flow
+```
+Partner in Tabelle eintragen (Name, Email, Typ)
+       ↓
+✉️ Klick → E-Mail-Composer öffnet sich
+       ↓
+Template wird automatisch geladen (passend zum Typ + Stufe)
+       ↓
+{name} wird durch Partner-Name ersetzt
+       ↓
+Text + Betreff sind editierbar
+       ↓
+"Jetzt senden" → /api/send-email → Brevo
+       ↓
+Status-Update in partners-Tabelle
+Follow-up-Datum wird gesetzt
+E-Mail wird in email_logs geloggt
 ```
 
-### 2. Supabase Admin-User anlegen
+---
 
-Führe folgendes SQL in Supabase aus:
+## E-Mail-Templates (Default-Texte)
 
-```sql
--- Tabelle erstellen
-CREATE TABLE IF NOT EXISTS admin_users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  username TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+Alle Templates sind **vorausgefüllt aber editierbar**. Für jede der 4 Zielgruppen gibt es:
 
--- Admin-User anlegen (admin / admin123)
-INSERT INTO admin_users (username, password_hash) 
-VALUES ('admin', '240be518fabd2724ddb6f04eeb9d5b075cd116b1f3e2ea5df48c45a6db2d7e18')
-ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash;
-```
+| Stufe | Tag | Neuer Status | Nächster Follow-up |
+|-------|-----|--------------|--------------------|
+| Erstansprache | 0 | kontaktiert | +5 Tage |
+| Follow-up | 5 | follow_up | +7 Tage |
+| Angebot | 12 | angebot | +10 Tage |
+| Abschluss | 22 | aktiv | – |
 
-### 3. Environment Variables
+### Platzhalter
+- `{name}` → Partner-Name (wird automatisch ersetzt)
 
-Erstelle `.env` Datei:
-
-```
-REACT_APP_SUPABASE_URL=https://wikxhpvikelfgzdgndlf.supabase.co
-REACT_APP_SUPABASE_ANON_KEY=your-key
-```
-
-### 4. Lokal starten
-
-```bash
-npm start
-```
-
-## Deployment (Vercel)
-
-### Option A: Als Subdomain (empfohlen)
-
-1. Neues Vercel Projekt erstellen
-2. GitHub Repo verbinden
-3. Environment Variables setzen
-4. Custom Domain: `superadmin.siweddings.de`
-
-### Option B: Als Pfad unter siweddings.de
-
-Nicht empfohlen - besser als separates Projekt.
-
-## Login
-
-- **URL:** `superadmin.siweddings.de`
-- **User:** `admin`
-- **Passwort:** `admin123`
-
-## Passwort ändern
-
-1. Hash generieren (Browser-Konsole):
-```javascript
-const encoder = new TextEncoder();
-const data = encoder.encode('DEIN_NEUES_PASSWORT');
-const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-const hashArray = Array.from(new Uint8Array(hashBuffer));
-console.log(hashArray.map(b => b.toString(16).padStart(2, '0')).join(''));
-```
-
-2. In Supabase aktualisieren:
-```sql
-UPDATE admin_users SET password_hash = 'NEUER_HASH' WHERE username = 'admin';
-```
-
-## Tech Stack
-
-- React 18
-- React Router v6
-- Styled Components
-- Supabase
-- React Hot Toast
+### Tonalität
+- **Fotografen, Planer, Trauredner**: Du-Form, locker-professionell
+- **Locations**: Sie-Form, formeller

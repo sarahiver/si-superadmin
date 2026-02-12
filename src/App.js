@@ -11,6 +11,7 @@ import ProjectDetailPage from './pages/ProjectDetailPage';
 import RequestsPage from './pages/RequestsPage';
 import NewProjectPage from './pages/NewProjectPage';
 import SettingsPage from './pages/SettingsPage';
+import PartnersPage from './pages/PartnersPage'; // NEU: Kooperationen
 
 // Auth Context
 const AuthContext = React.createContext(null);
@@ -75,6 +76,9 @@ function App() {
           } />
           <Route path="/projects/:id" element={
             <ProtectedRoute><ProjectDetailPage /></ProtectedRoute>
+          } />
+          <Route path="/partners" element={
+            <ProtectedRoute><PartnersPage /></ProtectedRoute>
           } />
           <Route path="/requests" element={
             <ProtectedRoute><RequestsPage /></ProtectedRoute>

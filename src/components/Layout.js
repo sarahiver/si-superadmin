@@ -24,14 +24,21 @@ export default function Layout({ children }) {
   const { logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const handleLogout = () => { logout(); navigate('/login'); };
-  const navItems = [{ path: '/', label: 'Dashboard' }, { path: '/projects', label: 'Projekte' }, { path: '/projects/new', label: 'Neu' }, { path: '/requests', label: 'Anfragen' }, { path: '/settings', label: 'Settings' }];
+  const navItems = [
+    { path: '/', label: 'Dashboard' },
+    { path: '/projects', label: 'Projekte' },
+    { path: '/projects/new', label: 'Neu' },
+    { path: '/partners', label: 'Kooperationen' },  // NEU
+    { path: '/requests', label: 'Anfragen' },
+    { path: '/settings', label: 'Settings' },
+  ];
 
   return (
     <Container>
       <Nav>
         <Logo to="/">S&I.</Logo>
         <DesktopNav>
-          <NavLinks>{navItems.map(item => (<NavLink key={item.path} to={item.path} $active={location.pathname === item.path}>{item.label}</NavLink>))}</NavLinks>
+          <NavLinks>{navItems.map(item => (<NavLink key={item.path} to={item.path} $active={location.pathname === item.path || (item.path === '/partners' && location.pathname.startsWith('/partners'))}>{item.label}</NavLink>))}</NavLinks>
           <NavRight><LogoutButton onClick={handleLogout}>Logout</LogoutButton></NavRight>
         </DesktopNav>
         <MobileMenuButton onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? '✕' : '☰'}</MobileMenuButton>
