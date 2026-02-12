@@ -72,7 +72,7 @@ ich bin Iver von S&I Wedding – wir erstellen individuelle Premium-Hochzeitsweb
 
 Ich habe eine Idee, die für dich und deine Paare einen echten Mehrwert bieten könnte:
 
-Für jede Empfehlung, die zu einer Buchung führt, erhältst du eine Provision von 15% (ca. 190–300 €). Deine Paare bekommen über deinen persönlichen Link einen exklusiven Rabatt von 10%.
+Für jede Empfehlung, die zu einer Buchung führt, erhältst du eine Provision von 15% (ca. 190–300 €). Deine Paare nennen einfach deinen Namen bei der Anfrage und erhalten 10% Rabatt.
 
 Der integrierte Foto-Upload auf unseren Websites ist übrigens perfekt für Fotografen: Deine Kunden können ihre Hochzeitsbilder direkt auf ihrer Website teilen – was auch deine Reichweite als Fotograf/in erhöht.
 
@@ -96,13 +96,13 @@ Beste Grüße
 Iver`,
       },
       angebot: {
-        subject: 'Partnerschaftsangebot: 15% Provision + exklusive Vorteile | S&I Wedding',
+        subject: 'Partnerschaftsangebot: 15% Provision pro Buchung | S&I Wedding',
         body: `Hallo {name},
 
 ich möchte dir nochmal konkret zeigen, wie eine Partnerschaft mit S&I Wedding für dich aussehen könnte:
 
 • 15% Provision pro vermittelter Buchung (190–300 €)
-• Persönlicher Empfehlungslink mit 10% Rabatt für deine Paare
+• Deine Paare nennen einfach deinen Namen – sie erhalten 10% Rabatt
 • Dein Logo + Link auf unserer Partner-Seite
 • Gemeinsame Social-Media-Features (gegenseitiges Taggen, Story-Shares)
 • Prioritäts-Support für deine empfohlenen Paare
@@ -142,7 +142,7 @@ Ich bin Iver von S&I Wedding. Wir bieten Premium-Hochzeitswebsites mit Features,
 
 Mein Vorschlag für eine Zusammenarbeit:
 
-Du empfiehlst S&I Wedding als Teil deines Planungspakets oder als Add-on. Dafür erhältst du 15% Provision pro Buchung. Deine Paare profitieren von 10% Rabatt über deinen persönlichen Link.
+Du empfiehlst S&I Wedding als Teil deines Planungspakets oder als Add-on. Dafür erhältst du 15% Provision pro Buchung. Deine Paare nennen einfach deinen Namen bei der Anfrage und bekommen 10% Rabatt.
 
 Gerade das RSVP-System spart dir und deinen Paaren enorm viel Zeit bei der Gästeplanung. Keine Excel-Listen mehr, keine Nachfass-Anrufe.
 
@@ -173,7 +173,7 @@ hier nochmal das konkrete Partnerschaftsmodell:
 
 • 15% Provision pro vermittelter Buchung (190–300 €)
 • S&I Wedding als fester Bestandteil deines Planungspakets
-• Persönlicher Empfehlungslink mit 10% Kundenrabatt
+• Deine Paare nennen deinen Namen bei der Anfrage – 10% Rabatt
 • Dein Profil auf unserer Partner-Seite
 • Direkter Draht zu mir für Rückfragen deiner Paare
 
@@ -210,7 +210,7 @@ als Trauredner/in schaffst du einzigartige, persönliche Momente für Brautpaare
 
 Ich bin Iver von S&I Wedding. Unsere Websites bieten Paaren alles aus einer Hand: RSVP-Management, Tagesablauf, Locationinfos und vieles mehr – mit hochwertigen Designs, die zur Persönlichkeit des Paares passen.
 
-Meine Idee: Du empfiehlst S&I Wedding an deine Brautpaare, die oft noch am Anfang der Planung stehen. Dafür erhältst du 15% Provision pro Buchung (ca. 190–300 €). Deine Paare bekommen über deinen Link 10% Rabatt.
+Meine Idee: Du empfiehlst S&I Wedding an deine Brautpaare, die oft noch am Anfang der Planung stehen. Dafür erhältst du 15% Provision pro Buchung (ca. 190–300 €). Deine Paare nennen einfach deinen Namen bei der Anfrage und erhalten 10% Rabatt.
 
 Gerade Trauredner/innen sind oft die erste Anlaufstelle für Paare – und damit in der perfekten Position, hilfreiche Tools wie eine Hochzeitswebsite zu empfehlen.
 
@@ -239,8 +239,8 @@ Iver`,
 
 hier das konkrete Kooperationsmodell:
 
-• 15% Provision pro Buchung über deinen Empfehlungslink (190–300 €)
-• 10% Rabatt für deine Paare
+• 15% Provision pro vermittelter Buchung (190–300 €)
+• Deine Paare nennen einfach deinen Namen – sie erhalten 10% Rabatt
 • Namentliche Erwähnung im Tagesablauf der Website
 • Verlinkung auf unserer Partner-Seite
 • Gemeinsame Sichtbarkeit auf Social Media
@@ -278,7 +278,7 @@ mein Name ist Iver Gentz von S&I Wedding. Wir erstellen individuelle Premium-Hoc
 
 Viele Locations nutzen bereits digitale Lösungen, um ihren Paaren einen Mehrwert zu bieten. Mit S&I Wedding können Ihre Brautpaare ihre gesamte Hochzeitsplanung auf einer eleganten Website bündeln, inklusive einer interaktiven Karte mit Wegbeschreibung zu Ihrer Location.
 
-Ich würde mich freuen, Ihnen in einem kurzen Gespräch zu zeigen, wie das aussehen könnte. Für jede erfolgreiche Empfehlung erhalten Sie eine Provision von 15%.
+Ich würde mich freuen, Ihnen in einem kurzen Gespräch zu zeigen, wie das aussehen könnte. Für jede erfolgreiche Empfehlung erhalten Sie eine Provision von 15%. Ihre Paare nennen einfach Ihren Namen bei der Anfrage und erhalten 10% Rabatt.
 
 Falls Sie Interesse haben, stehe ich gerne für ein kurzes Telefonat zur Verfügung.
 
@@ -306,6 +306,7 @@ Iver Gentz`,
 hier unser konkretes Kooperationsangebot:
 
 • 15% Provision pro vermittelter Buchung
+• Ihre Paare nennen einfach Ihren Namen bei der Anfrage – 10% Rabatt
 • Ihre Location prominent auf unserer Partner-Seite
 • Interaktive Location-Karte auf den Hochzeitswebsites Ihrer Paare
 • Flyer/QR-Code für Ihre Auslage vor Ort
