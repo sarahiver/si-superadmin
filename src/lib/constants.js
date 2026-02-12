@@ -12,6 +12,7 @@ export const THEMES = {
   luxe: { id: 'luxe', name: 'Luxe', description: 'Luxuriös, Gold-Akzente' },
   neon: { id: 'neon', name: 'Neon', description: 'Bold, Leuchtfarben, Party' },
   video: { id: 'video', name: 'Video', description: 'Horizontal Scroll, Cinematic' },
+  classic: { id: 'classic', name: 'Classic', description: 'Warm, Elegant, Zeitlos' },
 };
 
 // ============================================
