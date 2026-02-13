@@ -274,6 +274,13 @@ export default function PartnersPage() {
 
         const partner = partnersByEmail[email];
         
+        // Deduplicate: skip if same email+event+timestamp already exists
+        const evtTimestamp = evt.date || new Date().toISOString();
+        const { data: existing } = await supabase.from('email_events')
+          .select('id').eq('email', email).eq('event', normalized)
+          .eq('timestamp', evtTimestamp).limit(1);
+        if (existing?.length) continue;
+
         // Insert event
         const { error } = await supabase.from('email_events').insert([{
           partner_id: partner?.id || null,
@@ -281,7 +288,7 @@ export default function PartnersPage() {
           event: normalized,
           brevo_message_id: evt.messageId || null,
           subject: evt.subject || null,
-          timestamp: evt.date || new Date().toISOString(),
+          timestamp: evtTimestamp,
           raw_data: evt,
         }]).select();
 

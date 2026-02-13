@@ -97,6 +97,12 @@ export default async function handler(req, res) {
         .eq('email', email)
         .maybeSingle();
 
+      // Deduplicate
+      const { data: dup } = await supabase.from('email_events')
+        .select('id').eq('email', email).eq('event', normalizedEvent)
+        .eq('timestamp', timestamp).limit(1);
+      if (dup?.length) continue;
+
       // Insert event
       await supabase.from('email_events').insert([{
         partner_id: partner?.id || null,
