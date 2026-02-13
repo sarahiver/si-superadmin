@@ -58,12 +58,28 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Token auth (if configured in Brevo + Vercel env)
+  // Debug: Log all headers and body keys to find where Brevo puts the token
+  console.log('[brevo-webhook] Headers:', JSON.stringify(req.headers));
+  console.log('[brevo-webhook] Body type:', typeof req.body, Array.isArray(req.body) ? 'array' : 'object');
+  if (req.body && !Array.isArray(req.body)) {
+    console.log('[brevo-webhook] Body keys:', Object.keys(req.body));
+  }
+
+  // Token auth - try every known method Brevo might use
   if (WEBHOOK_SECRET) {
-    const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
-    if (token !== WEBHOOK_SECRET) {
+    const candidates = [
+      req.headers['authorization']?.replace('Bearer ', ''),
+      req.headers['x-brevo-token'],
+      req.headers['x-sib-token'],
+      req.headers['token'],
+      req.query.token,
+    ];
+    const matched = candidates.some(t => t === WEBHOOK_SECRET);
+    if (!matched) {
+      console.log('[brevo-webhook] Auth FAILED. Candidates:', JSON.stringify(candidates));
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    console.log('[brevo-webhook] Auth OK');
   }
 
   try {
