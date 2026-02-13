@@ -338,6 +338,17 @@ export default function PartnersPage() {
     return icons[event] || '📧';
   }
 
+  function eventLabel(event) {
+    const labels = {
+      'delivered': 'Zugestellt', 'opened': 'Geöffnet', 'unique_opened': 'Geöffnet', 'proxy_open': 'Geöffnet',
+      'clicked': 'Geklickt', 'soft_bounce': 'Soft Bounce', 'hard_bounce': 'Hard Bounce',
+      'spam': 'Spam', 'blocked': 'Blocked', 'deferred': 'Deferred', 'error': 'Error',
+      'email_geoeffnet': 'Geöffnet', 'bounce': 'Bounce', 'kontaktiert': 'Gesendet',
+      'geantwortet': 'Geantwortet',
+    };
+    return labels[event] || event;
+  }
+
   // ── FILTERING ─────────────────────────────
   const filtered = useMemo(() => {
     let list = partners;
@@ -516,15 +527,15 @@ export default function PartnersPage() {
                 </div>
                 <div style={{ fontSize: '0.7rem' }}>
                   {partner.last_email_event ? (
-                    <span title={`${partner.last_email_event} – ${partner.last_email_event_at ? new Date(partner.last_email_event_at).toLocaleString('de-DE') : ''}`}>
-                      {eventIcon(partner.last_email_event)}
+                    <span title={partner.last_email_event_at ? new Date(partner.last_email_event_at).toLocaleString('de-DE') : ''}>
+                      {eventIcon(partner.last_email_event)} {eventLabel(partner.last_email_event)}
                       {partner.email_bounce_count > 0 && <span style={{color:'#DC2626',marginLeft:'0.2rem',fontWeight:700}}>×{partner.email_bounce_count}</span>}
                     </span>
                   ) : (
                     ['delivered','opened','clicked','soft_bounce','hard_bounce','blocked','spam','deferred','error','email_geoeffnet','bounce'].includes(partner.status) 
-                      ? <span title={partner.status}>{eventIcon(partner.status)}</span>
-                    : partner.status === 'geantwortet' ? <span title="Geantwortet">💬</span> 
-                    : partner.status === 'kontaktiert' ? <span title="Kontaktiert">📤</span>
+                      ? <span>{eventIcon(partner.status)} {eventLabel(partner.status)}</span>
+                    : partner.status === 'geantwortet' ? <span>💬 Geantwortet</span> 
+                    : partner.status === 'kontaktiert' ? <span>📤 Gesendet</span>
                     : '–'
                   )}
                 </div>
