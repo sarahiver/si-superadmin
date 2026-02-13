@@ -46,6 +46,8 @@ function normalizeEvent(brevoEvent) {
   return map[brevoEvent] || null;
 }
 
+const WEBHOOK_SECRET = process.env.BREVO_WEBHOOK_SECRET || null;
+
 export default async function handler(req, res) {
   // Accept POST only
   if (req.method === 'OPTIONS') {
@@ -54,6 +56,14 @@ export default async function handler(req, res) {
   
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Token auth (if configured in Brevo + Vercel env)
+  if (WEBHOOK_SECRET) {
+    const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
+    if (token !== WEBHOOK_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
   }
 
   try {

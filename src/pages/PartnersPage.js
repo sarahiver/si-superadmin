@@ -108,6 +108,22 @@ const DropZone = styled.div`
   &:hover { border-color: ${colors.red}; background: ${colors.red}08; }
 `;
 
+const ProgressOverlay = styled.div`
+  position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+  z-index: 2000; min-width: 420px; max-width: 600px;
+  background: ${colors.black}; border: 2px solid ${colors.red};
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4); padding: 1.25rem 1.5rem;
+  font-family: 'Inter', sans-serif; color: ${colors.white};
+  animation: slideUp 0.3s ease;
+  @keyframes slideUp { from { transform: translateX(-50%) translateY(100px); opacity: 0; } to { transform: translateX(-50%) translateY(0); opacity: 1; } }
+`;
+const ProgressHeader = styled.div`display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;`;
+const ProgressTitle = styled.div`font-family: 'Oswald', sans-serif; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;`;
+const ProgressCount = styled.div`font-size: 0.75rem; color: rgba(255,255,255,0.6);`;
+const ProgressBarOuter = styled.div`height: 6px; background: rgba(255,255,255,0.15); width: 100%; overflow: hidden;`;
+const ProgressBarInner = styled.div`height: 100%; background: ${p => p.$color || colors.red}; transition: width 0.3s ease; width: ${p => p.$pct || 0}%;`;
+const ProgressDetail = styled.div`font-size: 0.7rem; color: rgba(255,255,255,0.5); margin-top: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
+
 // ============================================
 // XLSX PARSER (SheetJS via CDN – already in dependencies or load manually)
 // ============================================
@@ -207,17 +223,22 @@ export default function PartnersPage() {
   // ── BREVO SYNC ────────────────────────────
   const [syncing, setSyncing] = useState(false);
   const [emailEvents, setEmailEvents] = useState([]);
+  const [progress, setProgress] = useState(null); // { title, current, total, detail, color }
 
   async function syncBrevoEvents() {
     setSyncing(true);
+    setProgress({ title: '🔄 Brevo Sync', current: 0, total: 100, detail: 'Events abrufen…', color: '#3B82F6' });
     try {
       const response = await fetch('/api/brevo-sync?days=14&limit=100');
       const data = await response.json();
       if (!data.success || !data.events?.length) {
         toast(data.events?.length === 0 ? 'Keine neuen Events' : `Fehler: ${data.error}`);
         setSyncing(false);
+        setProgress(null);
         return;
       }
+
+      setProgress(p => ({ ...p, detail: `${data.events.length} Events gefunden, verarbeite…`, current: 10 }));
 
       // Normalize & deduplicate
       const eventMap = {
@@ -240,11 +261,16 @@ export default function PartnersPage() {
       let inserted = 0, updated = 0;
       const partnersByEmail = {};
       partners.forEach(p => { partnersByEmail[p.email.toLowerCase()] = p; });
+      const total = data.events.length;
 
-      for (const evt of data.events) {
+      for (let i = 0; i < total; i++) {
+        const evt = data.events[i];
         const email = (evt.email || '').toLowerCase();
         const normalized = eventMap[evt.event] || null;
         if (!email || !normalized) continue;
+
+        const pct = 10 + Math.round((i / total) * 85);
+        setProgress(p => ({ ...p, current: pct, detail: `${i + 1}/${total} · ${email} · ${normalized}` }));
 
         const partner = partnersByEmail[email];
         
@@ -282,11 +308,14 @@ export default function PartnersPage() {
         }
       }
 
-      toast.success(`Sync: ${data.events.length} Events, ${inserted} gespeichert, ${updated} Status-Updates`);
+      setProgress({ title: '✓ Sync abgeschlossen', current: 100, total: 100, detail: `${inserted} gespeichert · ${updated} Status-Updates`, color: '#10B981' });
+      toast.success(`Sync: ${total} Events, ${inserted} gespeichert, ${updated} Status-Updates`);
       loadData();
+      setTimeout(() => setProgress(null), 3000);
     } catch (err) {
       console.error('Brevo sync error:', err);
       toast.error('Sync fehlgeschlagen: ' + err.message);
+      setProgress(null);
     }
     setSyncing(false);
   }
@@ -521,6 +550,20 @@ export default function PartnersPage() {
       )}
       {showComposer && <EmailComposerModal {...showComposer} onClose={() => setShowComposer(null)} onSent={() => { setShowComposer(null); loadData(); }} />}
       {showImportModal && <ImportModal existingEmails={partners.map(p => p.email.toLowerCase())} onClose={() => setShowImportModal(false)} onImported={() => { setShowImportModal(false); loadData(); }} />}
+
+      {/* Global Progress Bar */}
+      {progress && (
+        <ProgressOverlay>
+          <ProgressHeader>
+            <ProgressTitle>{progress.title}</ProgressTitle>
+            <ProgressCount>{progress.current}/{progress.total}</ProgressCount>
+          </ProgressHeader>
+          <ProgressBarOuter>
+            <ProgressBarInner $pct={Math.round((progress.current / progress.total) * 100)} $color={progress.color || colors.red} />
+          </ProgressBarOuter>
+          <ProgressDetail>{progress.detail}</ProgressDetail>
+        </ProgressOverlay>
+      )}
     </Layout>
   );
 }
@@ -900,6 +943,7 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [sendProgress, setSendProgress] = useState(null);
   const [previewPartner, setPreviewPartner] = useState(firstPartner);
 
   // Template laden (bei gemischten Typen: Preview-Partner bestimmt Anzeige)
@@ -941,9 +985,13 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
 
   async function handleSend() {
     setSending(true);
+    const total = targetPartners.length;
+    setSendProgress({ current: 0, total, detail: 'Starte Versand…' });
     let ok = 0, fail = 0;
 
-    for (const p of targetPartners) {
+    for (let i = 0; i < total; i++) {
+      const p = targetPartners[i];
+      setSendProgress({ current: i + 1, total, detail: `${getDisplayName(p)} · ${p.email}` });
       try {
         // Pro Partner das richtige Template laden (basierend auf SEINEM Typ)
         const tmpl = templates[p.type]?.[stage];
@@ -995,9 +1043,10 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
     }
 
     setSending(false); setSent(true);
+    setSendProgress({ current: total, total, detail: fail === 0 ? `✓ ${ok} E-Mails gesendet` : `${ok} gesendet, ${fail} fehlgeschlagen` });
     if (fail === 0) toast.success(`${ok} E-Mail(s) gesendet!`);
     else toast.error(`${ok} gesendet, ${fail} fehlgeschlagen`);
-    setTimeout(() => onSent(), 1500);
+    setTimeout(() => { setSendProgress(null); onSent(); }, 2000);
   }
 
   return (
@@ -1075,9 +1124,21 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
           )}
         </ModalBody>
         <ModalFooter>
+          {sendProgress && (
+            <div style={{ flex: '1 1 100%', marginBottom: '0.75rem' }}>
+              <ProgressHeader>
+                <ProgressTitle style={{ color: colors.black, fontSize: '0.75rem' }}>✉️ Versand</ProgressTitle>
+                <ProgressCount style={{ color: colors.gray }}>{sendProgress.current}/{sendProgress.total}</ProgressCount>
+              </ProgressHeader>
+              <ProgressBarOuter style={{ height: '4px' }}>
+                <ProgressBarInner $pct={Math.round((sendProgress.current / sendProgress.total) * 100)} $color={sendProgress.current === sendProgress.total ? '#10B981' : colors.red} />
+              </ProgressBarOuter>
+              <ProgressDetail style={{ color: colors.gray }}>{sendProgress.detail}</ProgressDetail>
+            </div>
+          )}
           <Button onClick={onClose}>Abbrechen</Button>
           <Button $primary disabled={sending || sent} onClick={handleSend}>
-            {sent ? '✓ Gesendet!' : sending ? `Sende... (${targetPartners.length})` : `✉️ Jetzt senden (${targetPartners.length})`}
+            {sent ? '✓ Gesendet!' : sending ? `Sende... (${sendProgress?.current || 0}/${targetPartners.length})` : `✉️ Jetzt senden (${targetPartners.length})`}
           </Button>
         </ModalFooter>
       </Modal>
