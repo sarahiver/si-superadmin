@@ -333,6 +333,7 @@ export default function PartnersPage() {
       'delivered': '📬', 'opened': '👁', 'unique_opened': '👁', 'proxy_open': '👁',
       'clicked': '🔗', 'soft_bounce': '⚠️', 'hard_bounce': '❌',
       'spam': '🚫', 'blocked': '🔒', 'deferred': '⏳', 'error': '💥',
+      'email_geoeffnet': '👁', 'bounce': '❌', 'kontaktiert': '📤',
     };
     return icons[event] || '📧';
   }
@@ -520,8 +521,11 @@ export default function PartnersPage() {
                       {partner.email_bounce_count > 0 && <span style={{color:'#DC2626',marginLeft:'0.2rem',fontWeight:700}}>×{partner.email_bounce_count}</span>}
                     </span>
                   ) : (
-                    partner.status === 'email_geoeffnet' ? <span title="Geöffnet">👁</span> :
-                    partner.status === 'geantwortet' ? <span title="Geantwortet">💬</span> : '–'
+                    ['delivered','opened','clicked','soft_bounce','hard_bounce','blocked','spam','deferred','error','email_geoeffnet','bounce'].includes(partner.status) 
+                      ? <span title={partner.status}>{eventIcon(partner.status)}</span>
+                    : partner.status === 'geantwortet' ? <span title="Geantwortet">💬</span> 
+                    : partner.status === 'kontaktiert' ? <span title="Kontaktiert">📤</span>
+                    : '–'
                   )}
                 </div>
                 <div onClick={e => e.stopPropagation()}>
