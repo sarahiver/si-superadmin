@@ -10,15 +10,20 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-// Brevo Event → Partner-Status Mapping
+// Brevo Event → Partner-Status: 1:1 Übernahme
 const EVENT_STATUS_MAP = {
-  'opened':        'email_geoeffnet',
-  'unique_opened': 'email_geoeffnet',
-  'proxy_open':    'email_geoeffnet',
-  'clicked':       'email_geoeffnet',  // Klick = auch geöffnet
-  'hard_bounce':   'bounce',
-  // soft_bounce: Status nicht ändern, nur loggen
-  // delivered: Status nicht ändern, nur loggen
+  'delivered':     'delivered',
+  'opened':        'opened',
+  'unique_opened': 'opened',
+  'proxy_open':    'opened',
+  'clicked':       'clicked',
+  'soft_bounce':   'soft_bounce',
+  'hard_bounce':   'hard_bounce',
+  'blocked':       'blocked',
+  'spam':          'spam',
+  'unsubscribed':  'unsubscribed',
+  'deferred':      'deferred',
+  'error':         'error',
 };
 
 // Normalize Brevo event names to our schema
@@ -139,16 +144,14 @@ export default async function handler(req, res) {
           last_email_event_at: timestamp,
         };
 
-        // Only upgrade status, never downgrade (unless bounce)
-        if (newStatus === 'bounce') {
-          updates.status = 'bounce';
-          updates.email_bounce_count = (partner.email_bounce_count || 0) + 1;
-        } else if (newStatus && shouldUpgradeStatus(partner.status, newStatus)) {
+        // Set status 1:1 from Brevo, but never overwrite manually set statuses
+        const manualStatuses = ['geantwortet', 'aktiv', 'abgelehnt', 'pausiert', 'trash', 'angebot', 'follow_up'];
+        if (newStatus && !manualStatuses.includes(partner.status)) {
           updates.status = newStatus;
         }
 
-        // Increment bounce counter for soft bounces too
-        if (normalizedEvent === 'soft_bounce') {
+        // Increment bounce counter for bounces
+        if (normalizedEvent === 'soft_bounce' || normalizedEvent === 'hard_bounce') {
           updates.email_bounce_count = (partner.email_bounce_count || 0) + 1;
         }
 
@@ -169,30 +172,4 @@ export default async function handler(req, res) {
     console.error('[brevo-webhook] Error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
-}
-
-// Status-Hierarchie: höhere Nummern = weiter im Funnel
-function statusPriority(status) {
-  const priorities = {
-    'neu': 0,
-    'kontaktiert': 1,
-    'email_geoeffnet': 2,
-    'follow_up': 3,
-    'angebot': 4,
-    'geantwortet': 5,
-    'aktiv': 6,
-    'bounce': -1,
-    'abgelehnt': -2,
-    'pausiert': -3,
-    'trash': -4,
-  };
-  return priorities[status] ?? 0;
-}
-
-function shouldUpgradeStatus(currentStatus, newStatus) {
-  // Never overwrite geantwortet, aktiv, or manually set statuses
-  if (['geantwortet', 'aktiv', 'abgelehnt', 'pausiert', 'trash'].includes(currentStatus)) {
-    return false;
-  }
-  return statusPriority(newStatus) > statusPriority(currentStatus);
 }

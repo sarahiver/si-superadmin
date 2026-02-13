@@ -252,11 +252,12 @@ export default function PartnersPage() {
         'loadedByProxy': 'proxy_open', 'proxy_open': 'proxy_open',
       };
       const statusUpgrade = {
-        'opened': 'email_geoeffnet', 'unique_opened': 'email_geoeffnet',
-        'proxy_open': 'email_geoeffnet', 'clicked': 'email_geoeffnet',
-        'hard_bounce': 'bounce',
+        'delivered': 'delivered', 'opened': 'opened', 'unique_opened': 'opened',
+        'proxy_open': 'opened', 'clicked': 'clicked',
+        'soft_bounce': 'soft_bounce', 'hard_bounce': 'hard_bounce',
+        'blocked': 'blocked', 'spam': 'spam', 'deferred': 'deferred', 'error': 'error',
       };
-      const statusPri = { 'neu': 0, 'kontaktiert': 1, 'email_geoeffnet': 2, 'follow_up': 3, 'angebot': 4, 'geantwortet': 5, 'aktiv': 6 };
+      const manualStatuses = ['geantwortet', 'aktiv', 'abgelehnt', 'pausiert', 'trash', 'angebot', 'follow_up'];
 
       let inserted = 0, updated = 0;
       const partnersByEmail = {};
@@ -294,21 +295,15 @@ export default function PartnersPage() {
 
         if (!error) inserted++;
 
-        // Update partner
+        // Update partner - 1:1 Brevo status
         if (partner) {
           const updates = { last_email_event: normalized, last_email_event_at: evt.date || new Date().toISOString() };
           const newStatus = statusUpgrade[normalized];
-          if (newStatus === 'bounce') {
-            updates.status = 'bounce';
-            updates.email_bounce_count = (partner.email_bounce_count || 0) + 1;
+          if (newStatus && !manualStatuses.includes(partner.status)) {
+            updates.status = newStatus;
             updated++;
-          } else if (newStatus && !['geantwortet','aktiv','abgelehnt','pausiert','trash'].includes(partner.status)) {
-            if ((statusPri[newStatus] || 0) > (statusPri[partner.status] || 0)) {
-              updates.status = newStatus;
-              updated++;
-            }
           }
-          if (normalized === 'soft_bounce') {
+          if (normalized === 'soft_bounce' || normalized === 'hard_bounce') {
             updates.email_bounce_count = (partner.email_bounce_count || 0) + 1;
           }
           await supabase.from('partners').update(updates).eq('id', partner.id);

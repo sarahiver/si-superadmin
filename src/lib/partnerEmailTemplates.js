@@ -17,14 +17,26 @@ export const PARTNER_TYPES = {
 export const PARTNER_STATUS = {
   neu: { label: 'Neu', color: '#9CA3AF' },
   kontaktiert: { label: 'Kontaktiert', color: '#3B82F6' },
+  // Brevo Events 1:1
+  delivered: { label: 'Zugestellt', color: '#60A5FA' },
+  opened: { label: 'Geöffnet', color: '#06B6D4' },
+  clicked: { label: 'Geklickt', color: '#0EA5E9' },
+  soft_bounce: { label: 'Soft Bounce', color: '#F97316' },
+  hard_bounce: { label: 'Hard Bounce', color: '#DC2626' },
+  blocked: { label: 'Blocked', color: '#B91C1C' },
+  spam: { label: 'Spam', color: '#991B1B' },
+  deferred: { label: 'Deferred', color: '#D97706' },
+  error: { label: 'Error', color: '#DC2626' },
+  // Legacy
   email_geoeffnet: { label: 'E-Mail geöffnet', color: '#06B6D4' },
+  bounce: { label: 'Bounce', color: '#DC2626' },
+  // Manuelle Status
   follow_up: { label: 'Follow-up', color: '#F59E0B' },
   angebot: { label: 'Angebot gesendet', color: '#8B5CF6' },
   aktiv: { label: 'Aktiver Partner', color: '#10B981' },
   geantwortet: { label: 'Geantwortet', color: '#14B8A6' },
   abgelehnt: { label: 'Abgelehnt', color: '#EF4444' },
   pausiert: { label: 'Pausiert', color: '#6B7280' },
-  bounce: { label: 'Bounce', color: '#DC2626' },
   trash: { label: 'Trash', color: '#991B1B' },
 };
 
