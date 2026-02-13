@@ -193,13 +193,117 @@ export default function PartnersPage() {
 
   async function loadData() {
     setLoading(true);
-    const [{ data: p }, { data: logs }] = await Promise.all([
+    const [{ data: p }, { data: logs }, { data: evts }] = await Promise.all([
       supabase.from('partners').select('*').order('created_at', { ascending: false }),
       supabase.from('email_logs').select('*').not('partner_id', 'is', null).order('created_at', { ascending: false }),
+      supabase.from('email_events').select('*').order('timestamp', { ascending: false }).limit(500),
     ]);
     setPartners(p || []);
     setEmailLogs(logs || []);
+    setEmailEvents(evts || []);
     setLoading(false);
+  }
+
+  // ── BREVO SYNC ────────────────────────────
+  const [syncing, setSyncing] = useState(false);
+  const [emailEvents, setEmailEvents] = useState([]);
+
+  async function syncBrevoEvents() {
+    setSyncing(true);
+    try {
+      const response = await fetch('/api/brevo-sync?days=14&limit=100');
+      const data = await response.json();
+      if (!data.success || !data.events?.length) {
+        toast(data.events?.length === 0 ? 'Keine neuen Events' : `Fehler: ${data.error}`);
+        setSyncing(false);
+        return;
+      }
+
+      // Normalize & deduplicate
+      const eventMap = {
+        'delivered': 'delivered', 'request': 'delivered', 'requests': 'delivered',
+        'opened': 'opened', 'uniqueOpened': 'unique_opened', 'unique_opened': 'unique_opened',
+        'click': 'clicked', 'clicks': 'clicked',
+        'softBounces': 'soft_bounce', 'softBounce': 'soft_bounce', 'soft_bounce': 'soft_bounce',
+        'hardBounces': 'hard_bounce', 'hardBounce': 'hard_bounce', 'hard_bounce': 'hard_bounce',
+        'spam': 'spam', 'complaints': 'spam',
+        'blocked': 'blocked', 'deferred': 'deferred', 'error': 'error',
+        'loadedByProxy': 'proxy_open', 'proxy_open': 'proxy_open',
+      };
+      const statusUpgrade = {
+        'opened': 'email_geoeffnet', 'unique_opened': 'email_geoeffnet',
+        'proxy_open': 'email_geoeffnet', 'clicked': 'email_geoeffnet',
+        'hard_bounce': 'bounce',
+      };
+      const statusPri = { 'neu': 0, 'kontaktiert': 1, 'email_geoeffnet': 2, 'follow_up': 3, 'angebot': 4, 'geantwortet': 5, 'aktiv': 6 };
+
+      let inserted = 0, updated = 0;
+      const partnersByEmail = {};
+      partners.forEach(p => { partnersByEmail[p.email.toLowerCase()] = p; });
+
+      for (const evt of data.events) {
+        const email = (evt.email || '').toLowerCase();
+        const normalized = eventMap[evt.event] || null;
+        if (!email || !normalized) continue;
+
+        const partner = partnersByEmail[email];
+        
+        // Insert event
+        const { error } = await supabase.from('email_events').insert([{
+          partner_id: partner?.id || null,
+          email,
+          event: normalized,
+          brevo_message_id: evt.messageId || null,
+          subject: evt.subject || null,
+          timestamp: evt.date || new Date().toISOString(),
+          raw_data: evt,
+        }]).select();
+
+        if (!error) inserted++;
+
+        // Update partner
+        if (partner) {
+          const updates = { last_email_event: normalized, last_email_event_at: evt.date || new Date().toISOString() };
+          const newStatus = statusUpgrade[normalized];
+          if (newStatus === 'bounce') {
+            updates.status = 'bounce';
+            updates.email_bounce_count = (partner.email_bounce_count || 0) + 1;
+            updated++;
+          } else if (newStatus && !['geantwortet','aktiv','abgelehnt','pausiert','trash'].includes(partner.status)) {
+            if ((statusPri[newStatus] || 0) > (statusPri[partner.status] || 0)) {
+              updates.status = newStatus;
+              updated++;
+            }
+          }
+          if (normalized === 'soft_bounce') {
+            updates.email_bounce_count = (partner.email_bounce_count || 0) + 1;
+          }
+          await supabase.from('partners').update(updates).eq('id', partner.id);
+        }
+      }
+
+      toast.success(`Sync: ${data.events.length} Events, ${inserted} gespeichert, ${updated} Status-Updates`);
+      loadData();
+    } catch (err) {
+      console.error('Brevo sync error:', err);
+      toast.error('Sync fehlgeschlagen: ' + err.message);
+    }
+    setSyncing(false);
+  }
+
+  // Helper: Get latest events for a partner
+  function getPartnerEvents(partnerId) {
+    return emailEvents.filter(e => e.partner_id === partnerId);
+  }
+
+  // Event icon mapping
+  function eventIcon(event) {
+    const icons = {
+      'delivered': '📬', 'opened': '👁', 'unique_opened': '👁', 'proxy_open': '👁',
+      'clicked': '🔗', 'soft_bounce': '⚠️', 'hard_bounce': '❌',
+      'spam': '🚫', 'blocked': '🔒', 'deferred': '⏳', 'error': '💥',
+    };
+    return icons[event] || '📧';
   }
 
   // ── FILTERING ─────────────────────────────
@@ -234,6 +338,7 @@ export default function PartnersPage() {
       geantwortet: partners.filter(p => p.status === 'geantwortet').length,
       followupFaellig: partners.filter(p => p.status !== 'trash' && p.next_followup_date && new Date(p.next_followup_date) <= today).length,
       trash: partners.filter(p => p.status === 'trash').length,
+      bounce: partners.filter(p => p.status === 'bounce').length,
     };
   }, [partners]);
 
@@ -270,6 +375,9 @@ export default function PartnersPage() {
           <Subtitle>Partner-CRM · E-Mail-Outreach · XLSX-Import · Tracking</Subtitle>
         </div>
         <HeaderActions>
+          <Button onClick={syncBrevoEvents} disabled={syncing}>
+            {syncing ? '⏳ Sync...' : '🔄 Brevo Sync'}
+          </Button>
           <Button onClick={() => setShowImportModal(true)}>📥 XLSX Import</Button>
           <Button $primary onClick={() => setShowAddModal(true)}>+ Partner</Button>
         </HeaderActions>
@@ -284,6 +392,7 @@ export default function PartnersPage() {
         <StatCard><StatNumber $color="#14B8A6">{stats.geantwortet}</StatNumber><StatLabel>Geantwortet</StatLabel></StatCard>
         <StatCard><StatNumber $color={colors.orange}>{stats.followupFaellig}</StatNumber><StatLabel>Follow-up fällig</StatLabel></StatCard>
         <StatCard><StatNumber $color="#991B1B">{stats.trash}</StatNumber><StatLabel>Trash</StatLabel></StatCard>
+        <StatCard><StatNumber $color="#DC2626">{stats.bounce}</StatNumber><StatLabel>Bounced</StatLabel></StatCard>
       </StatsRow>
 
       {/* Typ-Filter */}
@@ -374,8 +483,15 @@ export default function PartnersPage() {
                   ) : '–'}
                 </div>
                 <div style={{ fontSize: '0.7rem' }}>
-                  {partner.status === 'email_geoeffnet' && <span title="Geöffnet">👁</span>}
-                  {partner.status === 'geantwortet' && <span title="Geantwortet">💬</span>}
+                  {partner.last_email_event ? (
+                    <span title={`${partner.last_email_event} – ${partner.last_email_event_at ? new Date(partner.last_email_event_at).toLocaleString('de-DE') : ''}`}>
+                      {eventIcon(partner.last_email_event)}
+                      {partner.email_bounce_count > 0 && <span style={{color:'#DC2626',marginLeft:'0.2rem',fontWeight:700}}>×{partner.email_bounce_count}</span>}
+                    </span>
+                  ) : (
+                    partner.status === 'email_geoeffnet' ? <span title="Geöffnet">👁</span> :
+                    partner.status === 'geantwortet' ? <span title="Geantwortet">💬</span> : '–'
+                  )}
                 </div>
                 <div onClick={e => e.stopPropagation()}>
                   {!isTrash && (
@@ -395,6 +511,8 @@ export default function PartnersPage() {
         <PartnerDetailModal
           partner={showDetailModal}
           emailLogs={emailLogs.filter(l => l.partner_id === showDetailModal.id)}
+          emailEvents={getPartnerEvents(showDetailModal.id)}
+          eventIcon={eventIcon}
           onClose={() => setShowDetailModal(null)}
           onSaved={() => { setShowDetailModal(null); loadData(); }}
           onEmail={(p) => { setShowDetailModal(null); setShowComposer({ partner: p, bulk: false }); }}
@@ -628,7 +746,7 @@ function AddPartnerModal({ partners, onClose, onSaved }) {
 // PARTNER DETAIL MODAL
 // ============================================
 
-function PartnerDetailModal({ partner, emailLogs, onClose, onSaved, onEmail, onDelete }) {
+function PartnerDetailModal({ partner, emailLogs, emailEvents = [], eventIcon, onClose, onSaved, onEmail, onDelete }) {
   const [form, setForm] = useState({ ...partner });
   const [saving, setSaving] = useState(false);
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
@@ -719,6 +837,31 @@ function PartnerDetailModal({ partner, emailLogs, onClose, onSaved, onEmail, onD
                         <Badge $color={log.status === 'sent' ? colors.green : '#EF4444'}>{log.status === 'sent' ? '✓' : '✗'}</Badge>
                       </EmailLogItem>
                     ))
+                  )}
+                </div>
+              </div>
+              {/* Brevo Event Timeline */}
+              <div style={{ marginTop: '1.5rem' }}>
+                <Label>Brevo Events ({emailEvents.length})</Label>
+                <div style={{ border: `1px solid ${colors.lightGray}`, maxHeight: '200px', overflowY: 'auto', marginTop: '0.5rem' }}>
+                  {emailEvents.length === 0 ? (
+                    <div style={{ padding: '1rem', textAlign: 'center', color: colors.gray, fontSize: '0.8rem' }}>Keine Events – klicke "🔄 Brevo Sync"</div>
+                  ) : (
+                    emailEvents.map(evt => {
+                      const evtColors = { delivered: colors.green, opened: '#06B6D4', unique_opened: '#06B6D4', proxy_open: '#06B6D4', clicked: colors.blue, soft_bounce: colors.orange, hard_bounce: '#DC2626', spam: '#DC2626', blocked: '#DC2626' };
+                      return (
+                        <EmailLogItem key={evt.id}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.8rem' }}>
+                              {eventIcon ? eventIcon(evt.event) : '📧'} {evt.event.replace(/_/g, ' ')}
+                              {evt.subject && <span style={{ fontWeight: 400, color: colors.gray, marginLeft: '0.5rem' }}>– {evt.subject}</span>}
+                            </div>
+                            <div style={{ color: colors.gray, fontSize: '0.7rem' }}>{new Date(evt.timestamp).toLocaleString('de-DE')}</div>
+                          </div>
+                          <Badge $color={evtColors[evt.event] || colors.gray}>{evt.event.replace(/_/g, ' ')}</Badge>
+                        </EmailLogItem>
+                      );
+                    })
                   )}
                 </div>
               </div>

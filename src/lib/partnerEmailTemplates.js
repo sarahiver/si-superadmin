@@ -24,6 +24,7 @@ export const PARTNER_STATUS = {
   geantwortet: { label: 'Geantwortet', color: '#14B8A6' },
   abgelehnt: { label: 'Abgelehnt', color: '#EF4444' },
   pausiert: { label: 'Pausiert', color: '#6B7280' },
+  bounce: { label: 'Bounce', color: '#DC2626' },
   trash: { label: 'Trash', color: '#991B1B' },
 };
 
