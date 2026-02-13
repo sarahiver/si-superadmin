@@ -56,13 +56,13 @@ const HiddenInput = styled.input`display: none;`;
 
 const Table = styled.div`background: #fff; border: 2px solid ${colors.black}; overflow-x: auto;`;
 const TableHeader = styled.div`
-  display: grid; grid-template-columns: 40px 1.2fr 1fr 0.7fr 0.7fr 110px 90px 70px 60px;
+  display: grid; grid-template-columns: 40px 1.2fr 0.8fr 0.7fr 0.6fr 110px 90px 110px 60px;
   background: ${colors.black}; color: ${colors.white}; font-family: 'Inter', sans-serif;
   font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; min-width: 900px;
   & > div { padding: 0.75rem 0.75rem; }
 `;
 const TableRow = styled.div`
-  display: grid; grid-template-columns: 40px 1.2fr 1fr 0.7fr 0.7fr 110px 90px 70px 60px;
+  display: grid; grid-template-columns: 40px 1.2fr 0.8fr 0.7fr 0.6fr 110px 90px 110px 60px;
   border-bottom: 1px solid ${colors.lightGray}; align-items: center; font-family: 'Inter', sans-serif;
   font-size: 0.85rem; cursor: pointer; min-width: 900px; transition: background 0.1s;
   background: ${p => p.$trash ? '#FEF2F2' : 'transparent'};
@@ -513,7 +513,7 @@ export default function PartnersPage() {
                   <strong>{getFullName(partner)}</strong>
                   {partner.company && partner.first_name && <span style={{ color: colors.gray, marginLeft: '0.4rem', fontSize: '0.75rem' }}>{partner.company}</span>}
                 </div>
-                <div style={{ fontSize: '0.8rem' }}>{partner.email}</div>
+                <div style={{ fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={partner.email}>{partner.email}</div>
                 <div><TypeIcon>{typeInfo.icon}</TypeIcon><span style={{ fontSize: '0.75rem' }}>{typeInfo.label}</span></div>
                 <div style={{ fontSize: '0.8rem' }}>{partner.city || '–'}</div>
                 <div><Badge $color={statusInfo.color}>{statusInfo.label}</Badge></div>
