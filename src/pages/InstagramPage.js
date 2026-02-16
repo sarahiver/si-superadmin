@@ -401,6 +401,64 @@ const CopyButton = styled.button`
   &:hover { background: ${colors.red}; color: #fff; }
 `;
 
+const ActionBar = styled.div`
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+`;
+
+const InstagramButton = styled.button`
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.85rem 2rem;
+  cursor: pointer;
+  border: none;
+  background: linear-gradient(135deg, #833AB4, #E1306C, #F77737);
+  color: #fff;
+  transition: all 0.2s;
+  &:hover { opacity: 0.9; transform: translateY(-1px); }
+`;
+
+const IgReadyBox = styled.div`
+  margin-top: 0.75rem;
+  background: #fff;
+  border: 2px solid #10B981;
+  padding: 1.25rem;
+`;
+
+const IgReadySteps = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+`;
+
+const IgStep = styled.div`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  color: ${p => p.$done ? '#10B981' : colors.black};
+  font-weight: ${p => p.$done ? 500 : 600};
+`;
+
+const IgOpenLink = styled.a`
+  display: inline-block;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.75rem 2rem;
+  background: linear-gradient(135deg, #833AB4, #E1306C, #F77737);
+  color: #fff;
+  text-decoration: none;
+  transition: all 0.2s;
+  &:hover { opacity: 0.9; }
+`;
+
 const PreviewSticky = styled.div`
   position: sticky;
   top: 80px;
@@ -456,6 +514,7 @@ export default function InstagramPage() {
   const [suggestions, setSuggestions] = useState([]);
   const [caption, setCaption] = useState('');
   const [captionCopied, setCaptionCopied] = useState(false);
+  const [igReady, setIgReady] = useState(false);
   const postRef = useRef(null);
 
   const t = THEMES[theme];
@@ -549,6 +608,18 @@ Antworte NUR mit validem JSON Array, kein Markdown:
       setCaptionCopied(true);
       setTimeout(() => setCaptionCopied(false), 2000);
     });
+  };
+
+  const prepareForInstagram = async () => {
+    // 1. Download PNG
+    await downloadPNG();
+    // 2. Copy caption to clipboard
+    if (caption) {
+      await navigator.clipboard.writeText(caption);
+    }
+    // 3. Show ready state
+    setIgReady(true);
+    setTimeout(() => setIgReady(false), 30000); // Hide after 30s
   };
 
   // ==========================================
@@ -839,10 +910,25 @@ Antworte NUR mit validem JSON Array, kein Markdown:
             )}
           </Panel>
 
-          {/* Download */}
-          <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.75rem' }}>
+          {/* Download + Instagram */}
+          <ActionBar>
             <SecondaryButton onClick={downloadPNG}>⬇ PNG Download (1080×1350)</SecondaryButton>
-          </div>
+            <InstagramButton onClick={prepareForInstagram}>
+              📱 Für Instagram vorbereiten
+            </InstagramButton>
+          </ActionBar>
+          {igReady && (
+            <IgReadyBox>
+              <IgReadySteps>
+                <IgStep $done={true}>✅ PNG heruntergeladen</IgStep>
+                <IgStep $done={true}>✅ Caption in Zwischenablage kopiert</IgStep>
+                <IgStep $done={false}>📱 Öffne Instagram → Neuer Post → Bild einfügen → Caption einfügen (⌘V / Strg+V)</IgStep>
+              </IgReadySteps>
+              <IgOpenLink href="https://www.instagram.com/create/style/" target="_blank" rel="noopener noreferrer">
+                Instagram öffnen →
+              </IgOpenLink>
+            </IgReadyBox>
+          )}
           <Hint>Tipp: Bei Bildern im Post ggf. Screenshot als Alternative (⌘+Shift+4 / Win+Shift+S)</Hint>
         </div>
 
