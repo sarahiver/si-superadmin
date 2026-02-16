@@ -185,6 +185,42 @@ const FileLabel = styled.label`display: inline-flex; align-items: center; gap: 0
 const StatusMsg = styled.div`font-family: 'Inter', sans-serif; font-size: 0.75rem; color: ${p => p.$error ? colors.red : colors.green}; margin-top: 0.5rem; font-weight: 500;`;
 const Hint = styled.p`font-size: 0.6rem; color: ${colors.gray}; margin-top: 0.35rem; line-height: 1.5;`;
 
+const CaptionGenBtn = styled.button`
+  font-family: 'Oswald', sans-serif; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 0.85rem 2rem; cursor: pointer; border: none; width: 100%;
+  background: ${colors.red}; color: #fff; transition: all 0.2s;
+  &:hover { opacity: 0.9; }
+  &:disabled { background: ${colors.gray}; cursor: wait; }
+`;
+const CaptionArea = styled.textarea`
+  width: 100%; padding: 0.75rem; border: 1px solid ${colors.lightGray}; font-family: 'Inter', sans-serif;
+  font-size: 0.8rem; line-height: 1.6; background: #F9F9F7; resize: vertical; outline: none;
+  &:focus { border-color: ${colors.red}; }
+`;
+const CopyBtn = styled.button`
+  font-family: 'Oswald', sans-serif; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 0.6rem 1.25rem; cursor: pointer; border: 2px solid ${colors.red}; background: transparent; color: ${colors.red};
+  transition: all 0.2s; &:hover { background: ${colors.red}; color: #fff; }
+`;
+const IgBtn = styled.button`
+  font-family: 'Oswald', sans-serif; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 0.6rem 1.25rem; cursor: pointer; border: none;
+  background: linear-gradient(135deg, #833AB4, #E1306C, #F77737); color: #fff;
+  transition: all 0.2s; &:hover { opacity: 0.9; }
+`;
+const IgReadyBox = styled.div`
+  margin-top: 0.75rem; background: #fff; border: 2px solid ${colors.green}; padding: 1rem;
+`;
+const IgStep = styled.div`
+  font-family: 'Inter', sans-serif; font-size: 0.75rem; color: ${colors.black}; margin-bottom: 0.4rem; line-height: 1.5;
+`;
+const IgLink = styled.a`
+  display: inline-block; font-family: 'Oswald', sans-serif; font-size: 0.75rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase; padding: 0.6rem 1.5rem; margin-top: 0.5rem;
+  background: linear-gradient(135deg, #833AB4, #E1306C, #F77737); color: #fff; text-decoration: none;
+  transition: all 0.2s; &:hover { opacity: 0.9; }
+`;
+
 const LayerCard = styled.div`
   background: ${p => p.$active ? '#f9f8f6' : '#fff'}; 
   border: 1px solid ${p => p.$active ? colors.red : colors.lightGray};
@@ -224,6 +260,10 @@ export default function ReelsPage() {
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('');
   const [nextId, setNextId] = useState(7);
+  const [caption, setCaption] = useState('');
+  const [captionCopied, setCaptionCopied] = useState(false);
+  const [captionLoading, setCaptionLoading] = useState(false);
+  const [igReady, setIgReady] = useState(false);
 
   const videoRef = useRef(null);
   const hiddenVideoRef = useRef(null);
@@ -508,6 +548,67 @@ export default function ReelsPage() {
     });
   }, [videoSrc, videoDuration, layers, overlayOpacity]);
 
+  // ==========================================
+  // AI CAPTION + HASHTAG GENERATION
+  // ==========================================
+  const generateCaption = async () => {
+    setCaptionLoading(true);
+    const layerTexts = layers.map(l => l.text).join(' | ');
+    const prompt = `Du bist Social Media Manager für S&I. Wedding (siwedding.com) — ein Premium-Hochzeitswebsite-Service aus Hamburg von Sarah & Iver.
+
+Kontext:
+- S&I. bietet handgemachte Hochzeitswebsites mit eigener Domain ab 1.290€
+- 7 Design-Themes: Classic, Editorial, Botanical, Contemporary, Luxe, Neon, Video
+- Features: RSVP, Gästeliste, Love Story, Countdown, Foto-Upload, Musik-Wünsche, Passwortschutz
+- Pakete: Starter (1.290€/6Mo), Standard (1.490€/8Mo), Premium (1.990€/12Mo)
+- Zielgruppe: Verlobte Paare, 25-40 Jahre, DACH-Raum
+- Tonalität: Warm aber selbstbewusst, nie billig oder kitschig, leicht editorial
+
+Das Reel zeigt folgende Texte: "${layerTexts}"
+
+Schreibe eine Instagram Reel Caption:
+1. Hook-Satz (erste Zeile, die zum Weiterlesen animiert — z.B. eine Frage oder provokante Aussage)
+2. 3-5 Sätze Haupttext (warm, persönlich, mit Emoji, Mehrwert bieten)
+3. Call-to-Action (z.B. "Link in Bio", "Schreibt uns eine DM", "Speichert euch das Reel")
+4. 15-20 relevante Hashtags (Mix: 5 große #hochzeit #wedding, 5 mittlere #hochzeitsplanung, 5 nischige #hochzeitswebsite, plus thematisch passende)
+
+Antworte NUR mit JSON:
+{"caption":"...","hashtags":"#tag1 #tag2 ..."}`;
+
+    try {
+      const response = await fetch('/api/ai-suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await response.json();
+      const text = (data.content || []).filter(i => i.type === 'text').map(i => i.text || '').join('\n');
+      const clean = text.replace(/```json|```/g, '').trim();
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const result = JSON.parse(jsonMatch[0]);
+        setCaption((result.caption || '') + '\n\n' + (result.hashtags || ''));
+      }
+    } catch (err) {
+      console.error('Caption generation error:', err);
+      setCaption('⚠️ Caption konnte nicht generiert werden. Bitte nochmal versuchen.');
+    }
+    setCaptionLoading(false);
+  };
+
+  const copyCaption = () => {
+    navigator.clipboard.writeText(caption).then(() => {
+      setCaptionCopied(true);
+      setTimeout(() => setCaptionCopied(false), 2000);
+    });
+  };
+
+  const prepareForInstagram = async () => {
+    if (caption) await navigator.clipboard.writeText(caption);
+    setIgReady(true);
+    setTimeout(() => setIgReady(false), 30000);
+  };
+
   const sel = layers.find(l => l.id === selectedLayer);
 
   return (
@@ -693,6 +794,38 @@ export default function ReelsPage() {
             <ProgressBar><div style={{ width: `${progress * 100}%` }} /></ProgressBar>
             {status && <StatusMsg $error={status.includes('Bitte')}>{status}</StatusMsg>}
             <Hint>Exportiert als 1080×1920 MP4. Direkt als Instagram Reel hochladbar.</Hint>
+          </Panel>
+
+          {/* Caption + Hashtags */}
+          <Panel>
+            <SectionLabel>Caption + Hashtags</SectionLabel>
+            <CaptionGenBtn onClick={generateCaption} disabled={captionLoading}>
+              {captionLoading ? '⏳ Generiere Caption...' : '🤖 KI-Caption generieren'}
+            </CaptionGenBtn>
+            <Hint style={{ marginTop: '0.25rem', marginBottom: '0.5rem' }}>Generiert eine Instagram-Caption mit Hook, Beschreibung, CTA und trendenden Hashtags basierend auf deinen Reel-Texten.</Hint>
+
+            {caption && (
+              <>
+                <CaptionArea value={caption} onChange={e => setCaption(e.target.value)} rows={10} />
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                  <CopyBtn onClick={copyCaption}>
+                    {captionCopied ? '✓ Kopiert!' : '📋 Caption kopieren'}
+                  </CopyBtn>
+                  <IgBtn onClick={prepareForInstagram}>
+                    📱 Für Instagram vorbereiten
+                  </IgBtn>
+                </div>
+                {igReady && (
+                  <IgReadyBox>
+                    <IgStep>✅ Caption in Zwischenablage kopiert</IgStep>
+                    <IgStep>📱 Öffne Instagram → Neues Reel → Video auswählen → Caption einfügen (Strg+V)</IgStep>
+                    <IgLink href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer">
+                      Instagram öffnen →
+                    </IgLink>
+                  </IgReadyBox>
+                )}
+              </>
+            )}
           </Panel>
         </div>
 
