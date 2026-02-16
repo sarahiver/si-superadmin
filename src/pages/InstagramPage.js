@@ -15,8 +15,8 @@ const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', gray: '#666
 // ============================================
 const THEMES = {
   classic: {
-    name: 'Classic', bg: '#FDFCFA', bgDark: '#1A1A1A', text: '#1A1A1A', textDark: '#FDFCFA',
-    accent: '#B8976A', accentDark: '#C4A87C', muted: '#999', body: '#555',
+    name: 'Classic', bg: '#FFFFFF', bgDark: '#000000', text: '#000000', textDark: '#FFFFFF',
+    accent: '#000000', accentDark: '#FFFFFF', muted: '#999', body: '#555',
     headlineFont: "'Cormorant Garamond', Georgia, serif", headlineWeight: 300,
     scriptFont: "'Mrs Saint Delafield', cursive",
     bodyFont: "'Josefin Sans', sans-serif", bodyWeight: 300,
