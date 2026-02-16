@@ -466,14 +466,10 @@ Antworte NUR mit validem JSON Array:
 [{"eyebrow":"...","headline":"...","accentWord":"...","body":"..."},{"eyebrow":"...","headline":"...","accentWord":"...","body":"..."},{"eyebrow":"...","headline":"...","accentWord":"...","body":"..."}]`;
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/ai-suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: prompt }],
-        }),
+        body: JSON.stringify({ prompt }),
       });
       const data = await response.json();
       const text = data.content?.map(i => i.text || '').join('\n') || '';
