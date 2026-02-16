@@ -16,7 +16,7 @@ const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', gray: '#666
 const THEMES = {
   classic: {
     name: 'Classic', bg: '#FDFCFA', bgDark: '#1A1A1A', text: '#1A1A1A', textDark: '#FDFCFA',
-    accent: '#C4A87C', muted: '#999', body: '#555',
+    accent: '#B8976A', accentDark: '#C4A87C', muted: '#999', body: '#555',
     headlineFont: "'Cormorant Garamond', Georgia, serif", headlineWeight: 300,
     scriptFont: "'Mrs Saint Delafield', cursive",
     bodyFont: "'Josefin Sans', sans-serif", bodyWeight: 300,
@@ -363,6 +363,44 @@ const ApplyLabel = styled.div`
   margin-top: 0.4rem;
 `;
 
+const SuggestionCaption = styled.div`
+  font-size: 0.6rem;
+  color: ${colors.gray};
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid ${colors.lightGray};
+  line-height: 1.4;
+`;
+
+const SuggestionHashtags = styled.div`
+  font-size: 0.55rem;
+  color: #3B82F6;
+  margin-top: 0.2rem;
+`;
+
+const CaptionBox = styled.div`
+  background: #F9F9F7;
+  border: 1px solid ${colors.lightGray};
+  padding: 1rem;
+  margin-top: 0.25rem;
+`;
+
+const CopyButton = styled.button`
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.6rem 1.25rem;
+  margin-top: 0.5rem;
+  cursor: pointer;
+  border: 2px solid ${colors.red};
+  background: transparent;
+  color: ${colors.red};
+  transition: all 0.2s;
+  &:hover { background: ${colors.red}; color: #fff; }
+`;
+
 const PreviewSticky = styled.div`
   position: sticky;
   top: 80px;
@@ -416,6 +454,8 @@ export default function InstagramPage() {
   const [customPrompt, setCustomPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
+  const [caption, setCaption] = useState('');
+  const [captionCopied, setCaptionCopied] = useState(false);
   const postRef = useRef(null);
 
   const t = THEMES[theme];
@@ -442,28 +482,31 @@ export default function InstagramPage() {
     const cat = CATEGORIES.find(c => c.id === aiCategory);
     const topicContext = aiCategory === 'custom' ? customPrompt : cat.desc;
 
-    const prompt = `Du bist Copywriter für S&I. Wedding (siwedding.com) — ein Premium-Hochzeitswebsite-Service aus Hamburg von Sarah & Iver.
+    const prompt = `Du bist Social Media Manager und Copywriter für S&I. Wedding (siwedding.com) — ein Premium-Hochzeitswebsite-Service aus Hamburg von Sarah & Iver.
 
 Kontext:
 - S&I. bietet handgemachte Hochzeitswebsites mit eigener Domain ab 1.290€
 - 7 Design-Themes: Classic, Editorial, Botanical, Contemporary, Luxe, Neon, Video
 - Features: RSVP, Gästeliste, Love Story, Countdown, Foto-Upload, Musik-Wünsche, Passwortschutz, Admin-Dashboard
 - Pakete: Starter (1.290€/6Mo), Standard (1.490€/8Mo), Premium (1.990€/12Mo)
-- Zielgruppe: Verlobte Paare mit Anspruch an Design, 25-40 Jahre
+- Zielgruppe: Verlobte Paare mit Anspruch an Design, 25-40 Jahre, DACH-Raum
 - Tonalität: Warm aber selbstbewusst, nie billig oder kitschig, leicht editorial
+- Website: siwedding.com
 
 Theme: "${THEMES[theme].name}" — Layout: "${LAYOUTS[layout].name}"
 Kategorie: "${cat.label}" — ${topicContext}
 
-Erstelle genau 3 Textvorschläge für einen Instagram-Post:
+Erstelle genau 3 verschiedene Vorschläge. Jeder Vorschlag braucht:
 - eyebrow: Kurzer Overline-Text (2-4 Wörter)
 - headline: Haupttext (max 10 Wörter, emotional & knapp)
-- accentWord: Ein Wort aus der Headline das hervorgehoben wird
+- accentWord: EXAKT ein Wort aus der Headline das hervorgehoben wird (muss wortwörtlich in headline vorkommen)
 - body: Beschreibung (1-2 Sätze, max 25 Wörter)
+- caption: Instagram-Caption (3-5 Sätze, warm & persönlich, mit Emoji, endet mit CTA wie "Link in Bio" oder "Schreibt uns eine DM")
+- hashtags: 15-20 relevante Hashtags (Mix aus: 5 große wie #hochzeit #wedding, 5 mittlere wie #hochzeitsplanung #weddingwebsite, 5 nischige wie #hochzeitswebsite #premiumwedding, plus 2-3 zum Thema passende)
 ${layout === 'list' ? "List-Layout: body = 5-7 Items, eins pro Zeile. Format: 'Titel|Beschreibung'" : ''}
 
-Antworte NUR mit validem JSON Array:
-[{"eyebrow":"...","headline":"...","accentWord":"...","body":"..."},{"eyebrow":"...","headline":"...","accentWord":"...","body":"..."},{"eyebrow":"...","headline":"...","accentWord":"...","body":"..."}]`;
+Antworte NUR mit validem JSON Array, kein Markdown:
+[{"eyebrow":"...","headline":"...","accentWord":"...","body":"...","caption":"...","hashtags":"#tag1 #tag2 ..."},{"eyebrow":"...","headline":"...","accentWord":"...","body":"...","caption":"...","hashtags":"#tag1 #tag2 ..."},{"eyebrow":"...","headline":"...","accentWord":"...","body":"...","caption":"...","hashtags":"#tag1 #tag2 ..."}]`;
 
     try {
       const response = await fetch('/api/ai-suggest', {
@@ -472,8 +515,19 @@ Antworte NUR mit validem JSON Array:
         body: JSON.stringify({ prompt }),
       });
       const data = await response.json();
-      const text = data.content?.map(i => i.text || '').join('\n') || '';
-      setSuggestions(JSON.parse(text.replace(/```json|```/g, '').trim()));
+      // Extract text from all content blocks (may include tool_use, tool_result, text)
+      const text = (data.content || [])
+        .filter(i => i.type === 'text')
+        .map(i => i.text || '')
+        .join('\n');
+      const clean = text.replace(/```json|```/g, '').trim();
+      // Find the JSON array in the response
+      const jsonMatch = clean.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        setSuggestions(JSON.parse(jsonMatch[0]));
+      } else {
+        throw new Error('No JSON found in response');
+      }
     } catch (err) {
       console.error(err);
       setSuggestions([{ eyebrow: 'Fehler', headline: 'API nicht erreichbar', accentWord: 'erreichbar', body: 'Bitte nochmal versuchen.' }]);
@@ -486,7 +540,15 @@ Antworte NUR mit validem JSON Array:
     setHeadline(s.headline);
     setAccentWord(s.accentWord);
     setBodyText(s.body);
+    setCaption(s.caption + '\n\n' + (s.hashtags || ''));
     setTab('edit');
+  };
+
+  const copyCaption = () => {
+    navigator.clipboard.writeText(caption).then(() => {
+      setCaptionCopied(true);
+      setTimeout(() => setCaptionCopied(false), 2000);
+    });
   };
 
   // ==========================================
@@ -579,7 +641,8 @@ Antworte NUR mit validem JSON Array:
   const renderHeadline = () => {
     if (!accentWord || !headline.includes(accentWord)) return headline;
     const parts = headline.split(accentWord);
-    return (<>{parts[0]}<span style={{ fontFamily: t.scriptFont || t.headlineFont, fontStyle: t.scriptStyle || 'normal', color: t.accent, fontWeight: t.scriptFont ? 400 : t.headlineWeight, textTransform: 'none', textShadow: t.glow ? `0 0 15px ${t.secondary || t.accent}` : 'none' }}>{accentWord}</span>{parts.slice(1).join(accentWord)}</>);
+    const accentColor = isDark ? (t.accentDark || t.accent) : t.accent;
+    return (<>{parts[0]}<span style={{ fontFamily: t.scriptFont || t.headlineFont, fontStyle: t.scriptStyle || 'normal', color: accentColor, fontWeight: t.scriptFont ? 400 : t.headlineWeight, textTransform: 'none', textShadow: t.glow ? `0 0 15px ${t.secondary || t.accent}` : 'none', display: 'inline' }}>{accentWord}</span>{parts.slice(1).join(accentWord)}</>);
   };
 
   // ==========================================
@@ -721,6 +784,15 @@ Antworte NUR mit validem JSON Array:
                   <Label>Seitenzahl</Label>
                   <Input value={pageNum} onChange={e => setPageNum(e.target.value)} placeholder="z.B. 1/4" style={{ maxWidth: 120 }} />
                 </Field>
+                {caption && (
+                  <CaptionBox>
+                    <Label>Caption + Hashtags</Label>
+                    <Textarea value={caption} onChange={e => setCaption(e.target.value)} rows={8} style={{ fontSize: '0.8rem', lineHeight: 1.6 }} />
+                    <CopyButton onClick={copyCaption}>
+                      {captionCopied ? '✓ Kopiert!' : '📋 Caption kopieren'}
+                    </CopyButton>
+                  </CaptionBox>
+                )}
               </>
             ) : (
               <>
@@ -756,7 +828,9 @@ Antworte NUR mit validem JSON Array:
                           ) : s.headline}
                         </SuggestionHeadline>
                         <SuggestionBody>{s.body.length > 100 ? s.body.substring(0, 100) + '…' : s.body}</SuggestionBody>
-                        <ApplyLabel>→ Übernehmen</ApplyLabel>
+                        {s.caption && <SuggestionCaption>📝 {s.caption.length > 80 ? s.caption.substring(0, 80) + '…' : s.caption}</SuggestionCaption>}
+                        {s.hashtags && <SuggestionHashtags>{s.hashtags.substring(0, 60)}…</SuggestionHashtags>}
+                        <ApplyLabel>→ Übernehmen (Post + Caption + Hashtags)</ApplyLabel>
                       </SuggestionCard>
                     ))}
                   </div>
