@@ -609,6 +609,9 @@ Antworte NUR mit JSON:
     setTimeout(() => setIgReady(false), 30000);
   };
 
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const igLink = isMobile ? 'instagram://camera' : 'https://www.instagram.com/';
+
   const sel = layers.find(l => l.id === selectedLayer);
 
   return (
@@ -818,8 +821,11 @@ Antworte NUR mit JSON:
                 {igReady && (
                   <IgReadyBox>
                     <IgStep>✅ Caption in Zwischenablage kopiert</IgStep>
-                    <IgStep>📱 Öffne Instagram → Neues Reel → Video auswählen → Caption einfügen (Strg+V)</IgStep>
-                    <IgLink href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer">
+                    <IgStep>{isMobile
+                      ? '📱 Instagram öffnen → + → Reel → Video aus Galerie wählen → Caption einfügen (lange drücken → Einsetzen)'
+                      : '📱 Instagram öffnen → + → Reel → Video hochladen → Caption einfügen (Strg+V)'
+                    }</IgStep>
+                    <IgLink href={igLink} target="_blank" rel="noopener noreferrer">
                       Instagram öffnen →
                     </IgLink>
                   </IgReadyBox>

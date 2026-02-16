@@ -611,7 +611,7 @@ Antworte NUR mit validem JSON Array, kein Markdown:
   };
 
   const prepareForInstagram = async () => {
-    // 1. Download PNG
+    // 1. Download PNG (saves to gallery on mobile)
     await downloadPNG();
     // 2. Copy caption to clipboard
     if (caption) {
@@ -619,8 +619,11 @@ Antworte NUR mit validem JSON Array, kein Markdown:
     }
     // 3. Show ready state
     setIgReady(true);
-    setTimeout(() => setIgReady(false), 30000); // Hide after 30s
+    setTimeout(() => setIgReady(false), 30000);
   };
+
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const igLink = isMobile ? 'instagram://camera' : 'https://www.instagram.com/';
 
   // ==========================================
   // DOWNLOAD
@@ -920,11 +923,14 @@ Antworte NUR mit validem JSON Array, kein Markdown:
           {igReady && (
             <IgReadyBox>
               <IgReadySteps>
-                <IgStep $done={true}>✅ PNG heruntergeladen</IgStep>
+                <IgStep $done={true}>✅ Bild heruntergeladen {isMobile ? '(in Fotos/Galerie)' : ''}</IgStep>
                 <IgStep $done={true}>✅ Caption in Zwischenablage kopiert</IgStep>
-                <IgStep $done={false}>📱 Öffne Instagram → Neuer Post → Bild einfügen → Caption einfügen (⌘V / Strg+V)</IgStep>
+                <IgStep $done={false}>{isMobile
+                  ? '📱 Instagram öffnen → + → Post → Bild aus Galerie wählen → Caption einfügen (lange drücken → Einsetzen)'
+                  : '📱 Instagram öffnen → + → Post → Bild einfügen → Caption einfügen (Strg+V)'
+                }</IgStep>
               </IgReadySteps>
-              <IgOpenLink href="https://www.instagram.com/create/style/" target="_blank" rel="noopener noreferrer">
+              <IgOpenLink href={igLink} target="_blank" rel="noopener noreferrer">
                 Instagram öffnen →
               </IgOpenLink>
             </IgReadyBox>
