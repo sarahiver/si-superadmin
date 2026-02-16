@@ -442,7 +442,7 @@ export default function InstagramPage() {
     const cat = CATEGORIES.find(c => c.id === aiCategory);
     const topicContext = aiCategory === 'custom' ? customPrompt : cat.desc;
 
-    const prompt = `Du bist Copywriter für S&I. Wedding (siwedding.de) — ein Premium-Hochzeitswebsite-Service aus Hamburg von Sarah & Iver.
+    const prompt = `Du bist Copywriter für S&I. Wedding (siwedding.com) — ein Premium-Hochzeitswebsite-Service aus Hamburg von Sarah & Iver.
 
 Kontext:
 - S&I. bietet handgemachte Hochzeitswebsites mit eigener Domain ab 1.290€
@@ -496,7 +496,7 @@ Antworte NUR mit validem JSON Array:
     const el = postRef.current;
     if (!el) return;
 
-    // Dynamically load html2canvas from CDN if not loaded yet
+    // Load html2canvas if needed
     if (!window.html2canvas) {
       await new Promise((resolve, reject) => {
         const script = document.createElement('script');
@@ -508,21 +508,68 @@ Antworte NUR mit validem JSON Array:
     }
 
     try {
-      const canvas = await window.html2canvas(el, {
-        scale: 3, // 360×450 × 3 = 1080×1350
+      // Create a full-size (1080×1350) offscreen clone for sharp rendering
+      const clone = el.cloneNode(true);
+      clone.style.width = '1080px';
+      clone.style.height = '1350px';
+      clone.style.transform = 'scale(1)';
+      clone.style.position = 'fixed';
+      clone.style.left = '-9999px';
+      clone.style.top = '0';
+      clone.style.zIndex = '-1';
+
+      // Scale all inner styles by 3x
+      const scaleInner = (node) => {
+        if (node.style) {
+          const fs = node.style.fontSize;
+          if (fs && fs.includes('rem')) {
+            const val = parseFloat(fs);
+            node.style.fontSize = (val * 3) + 'rem';
+          }
+          // Scale padding, margin, gap, width, height in px
+          ['padding', 'paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight',
+           'margin', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight',
+           'top', 'left', 'right', 'bottom', 'gap', 'borderRadius',
+          ].forEach(prop => {
+            const v = node.style[prop];
+            if (v && v.includes('px') && !v.includes('calc')) {
+              node.style[prop] = (parseFloat(v) * 3) + 'px';
+            }
+          });
+          // Scale fixed dimensions
+          ['width', 'height'].forEach(prop => {
+            const v = node.style[prop];
+            if (v && v.includes('px') && !v.includes('calc') && !v.includes('100')) {
+              node.style[prop] = (parseFloat(v) * 3) + 'px';
+            }
+          });
+        }
+        Array.from(node.children || []).forEach(scaleInner);
+      };
+      // Don't scale inner — let html2canvas handle it with scale:3
+      
+      document.body.appendChild(clone);
+
+      const canvas = await window.html2canvas(clone, {
+        scale: 3,
         useCORS: true,
         allowTaint: true,
         backgroundColor: null,
         width: 360,
         height: 450,
+        imageTimeout: 0,
+        logging: false,
       });
+
+      document.body.removeChild(clone);
+
       const a = document.createElement('a');
       a.download = `si-${theme}-${layout}.png`;
-      a.href = canvas.toDataURL('image/png');
+      a.href = canvas.toDataURL('image/png', 1.0);
       a.click();
     } catch (err) {
       console.error('Download error:', err);
-      alert('Download fehlgeschlagen. Nutze Screenshot als Alternative: Mac ⌘+Shift+4 / Win Win+Shift+S');
+      alert('Nutze Screenshot als Alternative: Mac ⌘+Shift+4 / Win Win+Shift+S');
     }
   }, [theme, layout]);
 
@@ -546,7 +593,7 @@ Antworte NUR mit validem JSON Array:
   const ft = { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 24px', display: 'flex', justifyContent: 'space-between', zIndex: 5, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` };
   const ftx = { fontFamily: t.uiFont, fontSize: '0.35rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.2)' : t.muted };
   const corner = <div style={{ position: 'absolute', top: 0, right: 0, width: 60, height: 60, borderRight: `1.5px solid ${t.accent}`, borderTop: `1.5px solid ${t.accent}`, opacity: 0.3 }} />;
-  const footer = <div style={ft}><span style={{ ...ftx, color: t.accent, opacity: isDark ? 0.5 : 1 }}>siwedding.de</span><span style={ftx}>{pageNum}</span></div>;
+  const footer = <div style={ft}><span style={{ ...ftx, color: t.accent, opacity: isDark ? 0.5 : 1 }}>siwedding.com</span><span style={ftx}>{pageNum}</span></div>;
   const W = 360, H = 450;
 
   const renderPost = () => {
@@ -563,7 +610,7 @@ Antworte NUR mit validem JSON Array:
       case 'split':
         return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden', display: 'grid', gridTemplateColumns: '42% 1fr' }}>
           <div style={{ background: t.alwaysDark ? bg : '#1A1A1A', position: 'relative', overflow: 'hidden' }}>
-            {image ? <div style={{ width: '100%', height: '100%', backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'grayscale(100%)', opacity: 0.8 }} />
+            {image ? <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}><img src={image} alt="" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', minWidth: '100%', minHeight: '100%', width: 'auto', height: '100%', filter: 'grayscale(100%)', opacity: 0.8 }} /></div>
               : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #111, #333)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontFamily: t.uiFont, fontSize: '0.45rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Bild</span></div>}
           </div>
           <div style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -595,13 +642,13 @@ Antworte NUR mit validem JSON Array:
       case 'fullbleed':
         return (<div style={{ background: '#1A1A1A', width: W, height: H, position: 'relative', overflow: 'hidden' }}>
           <div style={{ ...logo, ...(t.logoDarkStyle) }}>S&I.</div>
-          {image ? <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'grayscale(100%)', opacity: 0.5 }} />
+          {image ? <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}><img src={image} alt="" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', minWidth: '100%', minHeight: '100%', width: 'auto', height: '100%', filter: 'grayscale(100%)', opacity: 0.5 }} /></div>
             : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #1a1a1a, #333)' }} />}
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 30%, rgba(26,26,26,0.85) 100%)' }} />
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 24, zIndex: 5 }}>
             <div style={al} /><div style={{ ...hl, fontSize: '1.3rem', color: '#FDFCFA' }}>{renderHeadline()}</div>
             <div style={{ ...bd, color: 'rgba(253,252,250,0.6)', marginBottom: 8 }}>{bodyText}</div>
-            <div style={{ fontFamily: t.uiFont, fontSize: '0.35rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: t.accent, opacity: 0.7 }}>siwedding.de</div>
+            <div style={{ fontFamily: t.uiFont, fontSize: '0.35rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: t.accent, opacity: 0.7 }}>siwedding.com</div>
           </div></div>);
       default: return null;
     }
