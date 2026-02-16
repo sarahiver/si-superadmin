@@ -563,7 +563,7 @@ Antworte NUR mit validem JSON Array:
       case 'split':
         return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden', display: 'grid', gridTemplateColumns: '42% 1fr' }}>
           <div style={{ background: t.alwaysDark ? bg : '#1A1A1A', position: 'relative', overflow: 'hidden' }}>
-            {image ? <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(100%)', opacity: 0.8 }} />
+            {image ? <div style={{ width: '100%', height: '100%', backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'grayscale(100%)', opacity: 0.8 }} />
               : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #111, #333)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontFamily: t.uiFont, fontSize: '0.45rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Bild</span></div>}
           </div>
           <div style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -595,7 +595,7 @@ Antworte NUR mit validem JSON Array:
       case 'fullbleed':
         return (<div style={{ background: '#1A1A1A', width: W, height: H, position: 'relative', overflow: 'hidden' }}>
           <div style={{ ...logo, ...(t.logoDarkStyle) }}>S&I.</div>
-          {image ? <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(100%)', opacity: 0.5 }} />
+          {image ? <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'grayscale(100%)', opacity: 0.5 }} />
             : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #1a1a1a, #333)' }} />}
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 30%, rgba(26,26,26,0.85) 100%)' }} />
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 24, zIndex: 5 }}>
