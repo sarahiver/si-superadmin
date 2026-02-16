@@ -353,32 +353,123 @@ export default function ReelsPage() {
     if (selectedLayer === id) setSelectedLayer(null);
   };
 
-  // Generate video
+  // Generate video as MP4
   const generateVideo = useCallback(async () => {
     if (!videoSrc) { setStatus('Bitte zuerst ein Video hochladen'); return; }
     setGenerating(true);
-    setStatus('Video wird generiert...');
     setProgress(0);
+    setStatus('Encoder laden...');
 
+    // Load mp4-muxer from CDN (still works fine, just deprecated in favor of mediabunny)
+    if (!window.Mp4Muxer) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.min.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    setStatus('Video wird generiert...');
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
     const fps = 30;
 
-    // Create offscreen video for frame extraction
     const vid = document.createElement('video');
     vid.src = videoSrc;
     vid.muted = true;
+    vid.preload = 'auto';
     await new Promise(r => { vid.onloadeddata = r; vid.load(); });
 
+    const totalFrames = Math.ceil(videoDuration * fps);
+
+    // Try VideoEncoder + mp4-muxer for real MP4
+    if (typeof VideoEncoder !== 'undefined' && window.Mp4Muxer) {
+      try {
+        const muxer = new window.Mp4Muxer.Muxer({
+          target: new window.Mp4Muxer.ArrayBufferTarget(),
+          video: { codec: 'avc', width: W, height: H },
+          fastStart: 'in-memory',
+        });
+
+        const encoder = new VideoEncoder({
+          output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+          error: (e) => console.error('Encode error:', e),
+        });
+
+        encoder.configure({
+          codec: 'avc1.640033',
+          width: W,
+          height: H,
+          bitrate: 8_000_000,
+          framerate: fps,
+        });
+
+        let frame = 0;
+        const processFrame = () => {
+          return new Promise((resolve) => {
+            const next = () => {
+              if (frame >= totalFrames) { resolve(); return; }
+              const t = (frame / totalFrames) * videoDuration;
+              vid.currentTime = t;
+
+              const onSeeked = () => {
+                vid.removeEventListener('seeked', onSeeked);
+                ctx.clearRect(0, 0, W, H);
+                ctx.drawImage(vid, 0, 0, W, H);
+                drawOverlay(ctx, overlayOpacity);
+                layers.forEach(layer => drawTextLayer(ctx, layer, t, videoDuration));
+
+                const vf = new VideoFrame(canvas, {
+                  timestamp: frame * (1_000_000 / fps),
+                  duration: 1_000_000 / fps,
+                });
+                const isKeyFrame = frame % (fps * 2) === 0;
+                encoder.encode(vf, { keyFrame: isKeyFrame });
+                vf.close();
+
+                setProgress(frame / totalFrames);
+                frame++;
+                setTimeout(next, 5);
+              };
+              vid.addEventListener('seeked', onSeeked);
+            };
+            next();
+          });
+        };
+
+        await processFrame();
+        await encoder.flush();
+        encoder.close();
+        muxer.finalize();
+
+        const { buffer } = muxer.target;
+        const blob = new Blob([buffer], { type: 'video/mp4' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'si-reel.mp4';
+        a.click();
+        URL.revokeObjectURL(url);
+        setGenerating(false);
+        setStatus('✅ MP4 heruntergeladen!');
+        setProgress(1);
+        return;
+      } catch (e) {
+        console.warn('MP4 encoder failed, using fallback:', e);
+      }
+    }
+
+    // Fallback: MediaRecorder → WebM (if VideoEncoder not available)
+    setStatus('Fallback: Video wird als WebM generiert...');
     const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
       ? 'video/webm;codecs=vp9' : 'video/webm';
-
     const stream = canvas.captureStream(fps);
     const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8000000 });
     const chunks = [];
     recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-
     recorder.onstop = () => {
       const blob = new Blob(chunks, { type: mimeType });
       const url = URL.createObjectURL(blob);
@@ -388,21 +479,15 @@ export default function ReelsPage() {
       a.click();
       URL.revokeObjectURL(url);
       setGenerating(false);
-      setStatus('✅ Video heruntergeladen!');
+      setStatus('✅ Video heruntergeladen (WebM — auf cloudconvert.com → MP4 konvertieren)');
       setProgress(1);
     };
-
     recorder.start();
-
-    const totalFrames = Math.ceil(videoDuration * fps);
     let frame = 0;
-
     const renderFrame = () => {
       if (frame >= totalFrames) { recorder.stop(); return; }
       const t = (frame / totalFrames) * videoDuration;
       vid.currentTime = t;
-
-      // Wait for video seek then draw
       const onSeeked = () => {
         vid.removeEventListener('seeked', onSeeked);
         ctx.clearRect(0, 0, W, H);
@@ -415,7 +500,6 @@ export default function ReelsPage() {
       };
       vid.addEventListener('seeked', onSeeked);
     };
-
     vid.currentTime = 0;
     vid.addEventListener('seeked', function first() {
       vid.removeEventListener('seeked', first);
@@ -603,11 +687,11 @@ export default function ReelsPage() {
               )}
             </div>
             <GenButton onClick={generateVideo} disabled={generating || !videoSrc}>
-              {generating ? `⏳ Generiere... ${Math.round(progress * 100)}%` : '⬇ Video exportieren (WebM)'}
+              {generating ? `⏳ Generiere... ${Math.round(progress * 100)}%` : '⬇ Video exportieren (MP4)'}
             </GenButton>
             <ProgressBar><div style={{ width: `${progress * 100}%` }} /></ProgressBar>
             {status && <StatusMsg $error={status.includes('Bitte')}>{status}</StatusMsg>}
-            <Hint>Exportiert als 1080×1920 WebM. Direkt als Instagram Reel hochladbar oder auf cloudconvert.com → MP4 konvertieren.</Hint>
+            <Hint>Exportiert als 1080×1920 MP4. Direkt als Instagram Reel hochladbar.</Hint>
           </Panel>
         </div>
 
