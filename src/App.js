@@ -13,6 +13,7 @@ import NewProjectPage from './pages/NewProjectPage';
 import SettingsPage from './pages/SettingsPage';
 import PartnersPage from './pages/PartnersPage'; // NEU: Kooperationen
 import InstagramPage from './pages/InstagramPage'; // NEU: Instagram Post Generator
+import ReelsPage from './pages/ReelsPage'; // NEU: Instagram Reels Generator
 
 // Auth Context
 const AuthContext = React.createContext(null);
@@ -83,6 +84,9 @@ function App() {
           } />
           <Route path="/instagram" element={
             <ProtectedRoute><InstagramPage /></ProtectedRoute>
+          } />
+          <Route path="/reels" element={
+            <ProtectedRoute><ReelsPage /></ProtectedRoute>
           } />
           <Route path="/requests" element={
             <ProtectedRoute><RequestsPage /></ProtectedRoute>
