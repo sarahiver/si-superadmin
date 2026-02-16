@@ -1,0 +1,724 @@
+// src/pages/InstagramPage.js
+// S&I. Instagram Post Generator — SuperAdmin Integration
+// Theme-spezifische Posts mit KI-Textvorschlägen, Bild-Upload, Live Preview
+import React, { useState, useRef, useCallback } from 'react';
+import styled, { css } from 'styled-components';
+import Layout from '../components/Layout';
+
+// ============================================
+// DESIGN TOKENS
+// ============================================
+const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
+
+// ============================================
+// THEME DEFINITIONS
+// ============================================
+const THEMES = {
+  classic: {
+    name: 'Classic', bg: '#FDFCFA', bgDark: '#1A1A1A', text: '#1A1A1A', textDark: '#FDFCFA',
+    accent: '#C4A87C', muted: '#999', body: '#555',
+    headlineFont: "'Cormorant Garamond', Georgia, serif", headlineWeight: 300,
+    scriptFont: "'Mrs Saint Delafield', cursive",
+    bodyFont: "'Josefin Sans', sans-serif", bodyWeight: 300,
+    uiFont: "'Josefin Sans', sans-serif",
+    logoStyle: { background: '#1A1A1A', color: '#fff' },
+    logoDarkStyle: { background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)', color: '#FDFCFA' },
+  },
+  editorial: {
+    name: 'Editorial', bg: '#FAFAFA', bgDark: '#0A0A0A', text: '#0A0A0A', textDark: '#FAFAFA',
+    accent: '#C41E3A', muted: '#999', body: '#666',
+    headlineFont: "'Oswald', sans-serif", headlineWeight: 700, headlineTransform: 'uppercase',
+    scriptFont: "'Source Serif 4', Georgia, serif", scriptStyle: 'italic',
+    bodyFont: "'Source Serif 4', Georgia, serif", bodyWeight: 400, bodyStyle: 'italic',
+    uiFont: "'Inter', sans-serif",
+    logoStyle: { background: '#0A0A0A', color: '#fff' },
+    logoDarkStyle: { background: '#C41E3A', color: '#fff' },
+  },
+  botanical: {
+    name: 'Botanical', bg: '#040604', bgDark: '#040604', text: 'rgba(255,255,255,0.95)', textDark: 'rgba(255,255,255,0.95)',
+    accent: 'rgba(45,90,60,0.8)', muted: 'rgba(255,255,255,0.4)', body: 'rgba(255,255,255,0.5)',
+    headlineFont: "'Cormorant Garamond', Georgia, serif", headlineWeight: 300,
+    bodyFont: "'Montserrat', sans-serif", bodyWeight: 300,
+    uiFont: "'Montserrat', sans-serif",
+    alwaysDark: true, glass: true,
+    logoStyle: { background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.9)', borderRadius: '8px' },
+    logoDarkStyle: { background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.9)', borderRadius: '8px' },
+  },
+  contemporary: {
+    name: 'Contemporary', bg: '#FAFAFA', bgDark: '#0D0D0D', text: '#0D0D0D', textDark: '#fff',
+    accent: '#FF6B6B', secondary: '#4ECDC4', tertiary: '#FFE66D',
+    muted: '#999', body: '#525252',
+    headlineFont: "'Space Grotesk', sans-serif", headlineWeight: 700, headlineTransform: 'uppercase',
+    bodyFont: "'Space Grotesk', sans-serif", bodyWeight: 400,
+    uiFont: "'Space Grotesk', sans-serif",
+    brutal: true,
+    logoStyle: { background: '#0D0D0D', color: '#fff' },
+    logoDarkStyle: { background: '#0D0D0D', color: '#FFE66D' },
+  },
+  luxe: {
+    name: 'Luxe', bg: '#0A0A0A', bgDark: '#0A0A0A', text: '#F8F6F3', textDark: '#F8F6F3',
+    accent: '#C9A962', muted: 'rgba(248,246,243,0.4)', body: 'rgba(248,246,243,0.45)',
+    headlineFont: "'Cormorant', Georgia, serif", headlineWeight: 300, headlineStyle: 'italic',
+    bodyFont: "'Outfit', sans-serif", bodyWeight: 300,
+    uiFont: "'Outfit', sans-serif",
+    alwaysDark: true,
+    logoStyle: { background: 'transparent', border: '1px solid rgba(201,169,98,0.3)', color: '#C9A962' },
+    logoDarkStyle: { background: 'transparent', border: '1px solid rgba(201,169,98,0.3)', color: '#C9A962' },
+  },
+  neon: {
+    name: 'Neon', bg: '#0a0a0f', bgDark: '#0a0a0f', text: '#fff', textDark: '#fff',
+    accent: '#00ffff', secondary: '#ff00ff', tertiary: '#00ff88',
+    muted: 'rgba(255,255,255,0.4)', body: 'rgba(255,255,255,0.5)',
+    headlineFont: "'Space Grotesk', sans-serif", headlineWeight: 700, headlineTransform: 'uppercase',
+    bodyFont: "'Space Grotesk', sans-serif", bodyWeight: 400,
+    uiFont: "'Space Grotesk', sans-serif",
+    alwaysDark: true, glow: true,
+    logoStyle: { background: 'rgba(0,255,255,0.08)', border: '1px solid rgba(0,255,255,0.3)', color: '#00ffff' },
+    logoDarkStyle: { background: 'rgba(0,255,255,0.08)', border: '1px solid rgba(0,255,255,0.3)', color: '#00ffff' },
+  },
+  video: {
+    name: 'Video', bg: '#0A0A0A', bgDark: '#0A0A0A', text: '#fff', textDark: '#fff',
+    accent: '#6B8CAE', muted: 'rgba(255,255,255,0.35)', body: '#B0B0B0',
+    headlineFont: "'Manrope', sans-serif", headlineWeight: 700,
+    scriptFont: "'Cormorant Garamond', Georgia, serif", scriptStyle: 'italic',
+    bodyFont: "'Inter', sans-serif", bodyWeight: 400,
+    uiFont: "'Inter', sans-serif",
+    alwaysDark: true,
+    logoStyle: { background: 'transparent', border: '1px solid rgba(107,140,174,0.3)', color: '#6B8CAE' },
+    logoDarkStyle: { background: 'transparent', border: '1px solid rgba(107,140,174,0.3)', color: '#6B8CAE' },
+  },
+};
+
+const LAYOUTS = {
+  statement: { name: 'Statement', desc: 'Große Headline, minimal' },
+  split: { name: 'Split', desc: 'Bild links, Text rechts' },
+  list: { name: 'Liste', desc: 'Strukturierte Items' },
+  dark: { name: 'Dark', desc: 'Invertiert, Akzente' },
+  fullbleed: { name: 'Fullbleed', desc: 'Bild-Hintergrund' },
+};
+
+const CATEGORIES = [
+  { id: 'vorstellung', label: 'Vorstellung', icon: '👋', desc: 'Wer sind wir' },
+  { id: 'features', label: 'Features', icon: '⚡', desc: 'Was bieten wir' },
+  { id: 'themes', label: 'Themes', icon: '🎨', desc: 'Theme-Vorstellung' },
+  { id: 'dashboard', label: 'Dashboard', icon: '📊', desc: 'Admin-Features' },
+  { id: 'pricing', label: 'Pricing', icon: '💰', desc: 'Preise & Pakete' },
+  { id: 'cta', label: 'Call to Action', icon: '🚀', desc: 'Kontakt & Demo' },
+  { id: 'behind', label: 'Behind the Scenes', icon: '📸', desc: 'Einblicke' },
+  { id: 'tipps', label: 'Hochzeitstipps', icon: '💡', desc: 'Mehrwert-Content' },
+  { id: 'custom', label: 'Eigenes Thema', icon: '✏️', desc: 'Freitext-Eingabe' },
+];
+
+// ============================================
+// STYLED COMPONENTS (SuperAdmin Editorial Style)
+// ============================================
+const PageHeader = styled.div`
+  margin-bottom: 2rem;
+  h1 {
+    font-family: 'Oswald', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: ${colors.black};
+    margin-bottom: 0.25rem;
+  }
+  p {
+    font-family: 'Source Serif 4', serif;
+    font-style: italic;
+    color: ${colors.gray};
+    font-size: 1rem;
+  }
+`;
+
+const Grid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 2rem;
+  align-items: start;
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const Panel = styled.div`
+  background: #fff;
+  border: 1px solid ${colors.lightGray};
+  padding: 1.5rem;
+`;
+
+const SectionLabel = styled.div`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: ${colors.gray};
+  margin-bottom: 0.75rem;
+`;
+
+const ChipRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+`;
+
+const Chip = styled.button`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  font-weight: ${p => p.$active ? 600 : 400};
+  padding: 0.5rem 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid ${p => p.$active ? colors.black : colors.lightGray};
+  background: ${p => p.$active ? colors.black : '#fff'};
+  color: ${p => p.$active ? '#fff' : colors.black};
+  &:hover { border-color: ${colors.black}; }
+`;
+
+const TabBar = styled.div`
+  display: flex;
+  border-bottom: 2px solid ${colors.black};
+  margin-bottom: 1.25rem;
+`;
+
+const Tab = styled.button`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: ${p => p.$active ? 600 : 400};
+  padding: 0.75rem 1.25rem;
+  cursor: pointer;
+  border: none;
+  background: ${p => p.$active ? colors.black : 'transparent'};
+  color: ${p => p.$active ? '#fff' : colors.black};
+  transition: all 0.15s;
+`;
+
+const Label = styled.label`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: ${colors.gray};
+  display: block;
+  margin-bottom: 0.25rem;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid ${colors.lightGray};
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  background: #fff;
+  outline: none;
+  transition: border 0.15s;
+  &:focus { border-color: ${colors.red}; }
+`;
+
+const Textarea = styled.textarea`
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid ${colors.lightGray};
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  background: #fff;
+  resize: vertical;
+  outline: none;
+  &:focus { border-color: ${colors.red}; }
+`;
+
+const FieldRow = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+`;
+
+const Field = styled.div`margin-bottom: 0.75rem;`;
+
+const PrimaryButton = styled.button`
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.85rem 2rem;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  background: ${p => p.$loading ? colors.gray : colors.red};
+  color: #fff;
+  pointer-events: ${p => p.$loading ? 'none' : 'auto'};
+  &:hover { background: #a01830; }
+`;
+
+const SecondaryButton = styled.button`
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  border: 2px solid ${colors.black};
+  background: transparent;
+  color: ${colors.black};
+  transition: all 0.2s;
+  &:hover { background: ${colors.black}; color: #fff; }
+`;
+
+const FileLabel = styled.label`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid ${colors.lightGray};
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  transition: all 0.15s;
+  &:hover { border-color: ${colors.black}; }
+  input { display: none; }
+`;
+
+const ImagePreview = styled.img`
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border: 1px solid ${colors.lightGray};
+`;
+
+const RemoveBtn = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: ${colors.red};
+  font-size: 0.8rem;
+`;
+
+const CategoryGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+`;
+
+const CategoryBtn = styled.button`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.65rem;
+  padding: 0.65rem 0.5rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+  border: 1px solid ${p => p.$active ? colors.black : colors.lightGray};
+  background: ${p => p.$active ? colors.black : '#fff'};
+  color: ${p => p.$active ? '#fff' : colors.black};
+  &:hover { border-color: ${colors.black}; }
+  span.icon { font-size: 1rem; margin-right: 0.25rem; }
+  span.desc { display: block; font-size: 0.5rem; opacity: 0.5; margin-top: 2px; }
+`;
+
+const SuggestionCard = styled.button`
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 1px solid ${colors.lightGray};
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 0.5rem;
+  &:hover { border-color: ${colors.red}; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+`;
+
+const SuggestionEyebrow = styled.div`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: ${colors.red};
+  margin-bottom: 0.25rem;
+`;
+
+const SuggestionHeadline = styled.div`
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.1rem;
+  font-weight: 300;
+  color: ${colors.black};
+  margin-bottom: 0.25rem;
+`;
+
+const SuggestionBody = styled.div`
+  font-size: 0.7rem;
+  color: ${colors.gray};
+  line-height: 1.4;
+`;
+
+const ApplyLabel = styled.div`
+  font-size: 0.55rem;
+  color: ${colors.red};
+  font-weight: 600;
+  margin-top: 0.4rem;
+`;
+
+const PreviewSticky = styled.div`
+  position: sticky;
+  top: 80px;
+  @media (max-width: 1024px) {
+    position: static;
+    order: -1;
+  }
+`;
+
+const PreviewLabel = styled.div`
+  font-family: 'Inter', sans-serif;
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: ${colors.gray};
+  text-align: center;
+  margin-bottom: 0.5rem;
+`;
+
+const Spinner = styled.span`
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  @keyframes spin { to { transform: rotate(360deg); } }
+`;
+
+const Hint = styled.p`
+  font-size: 0.65rem;
+  color: ${colors.gray};
+  margin-top: 0.5rem;
+`;
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
+export default function InstagramPage() {
+  const [theme, setTheme] = useState('classic');
+  const [layout, setLayout] = useState('statement');
+  const [eyebrow, setEyebrow] = useState('Premium Hochzeitswebsites');
+  const [headline, setHeadline] = useState('Eure Hochzeit verdient mehr als ein Template.');
+  const [accentWord, setAccentWord] = useState('Template.');
+  const [bodyText, setBodyText] = useState('Handgemacht in Hamburg. Mit Liebe zum Detail.');
+  const [image, setImage] = useState(null);
+  const [pageNum, setPageNum] = useState('');
+  const [tab, setTab] = useState('edit');
+  const [aiCategory, setAiCategory] = useState('vorstellung');
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const postRef = useRef(null);
+
+  const t = THEMES[theme];
+  const isDark = layout === 'dark' || layout === 'fullbleed' || t.alwaysDark;
+  const bg = isDark ? (t.bgDark || t.bg) : t.bg;
+  const textColor = isDark ? (t.textDark || t.text) : t.text;
+  const logoSt = isDark ? t.logoDarkStyle : t.logoStyle;
+
+  const handleImage = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setImage(ev.target.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // ==========================================
+  // AI TEXT GENERATION
+  // ==========================================
+  const generateSuggestions = async () => {
+    setAiLoading(true);
+    setSuggestions([]);
+    const cat = CATEGORIES.find(c => c.id === aiCategory);
+    const topicContext = aiCategory === 'custom' ? customPrompt : cat.desc;
+
+    const prompt = `Du bist Copywriter für S&I. Wedding (siwedding.de) — ein Premium-Hochzeitswebsite-Service aus Hamburg von Sarah & Iver.
+
+Kontext:
+- S&I. bietet handgemachte Hochzeitswebsites mit eigener Domain ab 1.290€
+- 7 Design-Themes: Classic, Editorial, Botanical, Contemporary, Luxe, Neon, Video
+- Features: RSVP, Gästeliste, Love Story, Countdown, Foto-Upload, Musik-Wünsche, Passwortschutz, Admin-Dashboard
+- Pakete: Starter (1.290€/6Mo), Standard (1.490€/8Mo), Premium (1.990€/12Mo)
+- Zielgruppe: Verlobte Paare mit Anspruch an Design, 25-40 Jahre
+- Tonalität: Warm aber selbstbewusst, nie billig oder kitschig, leicht editorial
+
+Theme: "${THEMES[theme].name}" — Layout: "${LAYOUTS[layout].name}"
+Kategorie: "${cat.label}" — ${topicContext}
+
+Erstelle genau 3 Textvorschläge für einen Instagram-Post:
+- eyebrow: Kurzer Overline-Text (2-4 Wörter)
+- headline: Haupttext (max 10 Wörter, emotional & knapp)
+- accentWord: Ein Wort aus der Headline das hervorgehoben wird
+- body: Beschreibung (1-2 Sätze, max 25 Wörter)
+${layout === 'list' ? "List-Layout: body = 5-7 Items, eins pro Zeile. Format: 'Titel|Beschreibung'" : ''}
+
+Antworte NUR mit validem JSON Array:
+[{"eyebrow":"...","headline":"...","accentWord":"...","body":"..."},{"eyebrow":"...","headline":"...","accentWord":"...","body":"..."},{"eyebrow":"...","headline":"...","accentWord":"...","body":"..."}]`;
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+      const data = await response.json();
+      const text = data.content?.map(i => i.text || '').join('\n') || '';
+      setSuggestions(JSON.parse(text.replace(/```json|```/g, '').trim()));
+    } catch (err) {
+      console.error(err);
+      setSuggestions([{ eyebrow: 'Fehler', headline: 'API nicht erreichbar', accentWord: 'erreichbar', body: 'Bitte nochmal versuchen.' }]);
+    }
+    setAiLoading(false);
+  };
+
+  const applySuggestion = (s) => {
+    setEyebrow(s.eyebrow);
+    setHeadline(s.headline);
+    setAccentWord(s.accentWord);
+    setBodyText(s.body);
+    setTab('edit');
+  };
+
+  // ==========================================
+  // DOWNLOAD
+  // ==========================================
+  const downloadPNG = useCallback(async () => {
+    const el = postRef.current;
+    if (!el) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080; canvas.height = 1350;
+    const ctx = canvas.getContext('2d');
+    const data = new XMLSerializer().serializeToString(el);
+    const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350"><foreignObject width="1080" height="1350"><div xmlns="http://www.w3.org/1999/xhtml" style="transform:scale(3);transform-origin:top left;width:360px;height:450px">${data}</div></foreignObject></svg>`;
+    const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = () => { ctx.drawImage(img, 0, 0); URL.revokeObjectURL(url); const a = document.createElement('a'); a.download = `si-${theme}-${layout}.png`; a.href = canvas.toDataURL('image/png'); a.click(); };
+    img.onerror = () => { alert('Screenshot als Alternative: Mac ⌘+Shift+4 / Win Win+Shift+S'); URL.revokeObjectURL(url); };
+    img.src = url;
+  }, [theme, layout]);
+
+  // ==========================================
+  // RENDER HEADLINE WITH ACCENT
+  // ==========================================
+  const renderHeadline = () => {
+    if (!accentWord || !headline.includes(accentWord)) return headline;
+    const parts = headline.split(accentWord);
+    return (<>{parts[0]}<span style={{ fontFamily: t.scriptFont || t.headlineFont, fontStyle: t.scriptStyle || 'normal', color: t.accent, fontWeight: t.scriptFont ? 400 : t.headlineWeight, textTransform: 'none', textShadow: t.glow ? `0 0 15px ${t.secondary || t.accent}` : 'none' }}>{accentWord}</span>{parts.slice(1).join(accentWord)}</>);
+  };
+
+  // ==========================================
+  // POST RENDERER
+  // ==========================================
+  const logo = { position: 'absolute', top: 24, left: 24, zIndex: 5, fontFamily: t.uiFont, fontWeight: 600, fontSize: '0.6rem', letterSpacing: '-0.04em', padding: '4px 8px', lineHeight: 1, ...logoSt };
+  const ey = { fontFamily: t.uiFont, fontSize: '0.4rem', fontWeight: t.brutal ? 700 : 600, letterSpacing: t.brutal ? '0.1em' : '0.25em', textTransform: 'uppercase', color: isDark ? t.accent : t.muted, marginBottom: 8, textShadow: t.glow ? `0 0 10px ${t.accent}` : 'none' };
+  const hl = { fontFamily: t.headlineFont, fontSize: layout === 'split' ? '1.2rem' : '1.8rem', fontWeight: t.headlineWeight, fontStyle: t.headlineStyle || 'normal', textTransform: t.headlineTransform || 'none', lineHeight: 1.15, color: textColor, marginBottom: 10 };
+  const bd = { fontFamily: t.bodyFont, fontSize: '0.48rem', fontWeight: t.bodyWeight, fontStyle: t.bodyStyle || 'normal', lineHeight: 1.8, color: t.body };
+  const al = { width: 24, height: 1.5, marginBottom: 12, background: t.accent, boxShadow: t.glow ? `0 0 8px ${t.accent}` : 'none' };
+  const ft = { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 24px', display: 'flex', justifyContent: 'space-between', zIndex: 5, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` };
+  const ftx = { fontFamily: t.uiFont, fontSize: '0.35rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.2)' : t.muted };
+  const corner = <div style={{ position: 'absolute', top: 0, right: 0, width: 60, height: 60, borderRight: `1.5px solid ${t.accent}`, borderTop: `1.5px solid ${t.accent}`, opacity: 0.3 }} />;
+  const footer = <div style={ft}><span style={{ ...ftx, color: t.accent, opacity: isDark ? 0.5 : 1 }}>siwedding.de</span><span style={ftx}>{pageNum}</span></div>;
+  const W = 360, H = 450;
+
+  const renderPost = () => {
+    switch (layout) {
+      case 'statement':
+        return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden' }}>
+          <div style={logo}>S&I.</div>
+          {!t.alwaysDark && <div style={{ position: 'absolute', top: 24, right: 24, width: 1, height: 'calc(100% - 80px)', background: 'rgba(0,0,0,0.05)' }} />}
+          {(isDark && !t.glass) && corner}
+          {t.glow && <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 30% 40%, ${t.accent}0F, transparent 60%)`, pointerEvents: 'none' }} />}
+          <div style={{ position: 'absolute', inset: 0, padding: '70px 24px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2 }}>
+            <div style={al} /><div style={ey}>{eyebrow}</div><div style={hl}>{renderHeadline()}</div><div style={bd}>{bodyText}</div>
+          </div>{footer}</div>);
+      case 'split':
+        return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden', display: 'grid', gridTemplateColumns: '42% 1fr' }}>
+          <div style={{ background: t.alwaysDark ? bg : '#1A1A1A', position: 'relative', overflow: 'hidden' }}>
+            {image ? <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(100%)', opacity: 0.8 }} />
+              : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #111, #333)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontFamily: t.uiFont, fontSize: '0.45rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Bild</span></div>}
+          </div>
+          <div style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <div style={logo}>S&I.</div>
+            <div style={{ ...ey, marginTop: 30 }}>{eyebrow}</div><div style={{ ...hl, fontSize: '1.2rem' }}>{renderHeadline()}</div><div style={al} /><div style={bd}>{bodyText}</div>
+          </div>{footer}</div>);
+      case 'list': {
+        const items = bodyText.split('\n').filter(Boolean);
+        return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden', padding: 24, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ ...logo, position: 'relative', top: 0, left: 0, marginBottom: 14, alignSelf: 'flex-start' }}>S&I.</div>
+          <div style={ey}>{eyebrow}</div><div style={{ ...hl, fontSize: '1.25rem' }}>{renderHeadline()}</div>
+          {t.scriptFont && <div style={{ fontFamily: t.scriptFont, fontSize: '0.8rem', color: t.accent, marginBottom: 12 }}>{accentWord || ''}</div>}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            {items.map((item, i) => { const [title, desc] = item.split('|'); return (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 0', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` }}>
+                <div style={{ width: 14, height: 1.5, background: t.accent, marginTop: 6, flexShrink: 0, boxShadow: t.glow ? `0 0 6px ${t.accent}` : 'none' }} />
+                <div><div style={{ fontFamily: t.bodyFont, fontSize: '0.46rem', fontWeight: 600, color: textColor }}>{title}</div>
+                  {desc && <div style={{ fontFamily: t.bodyFont, fontSize: '0.36rem', fontWeight: 300, color: t.muted }}>{desc}</div>}</div>
+              </div>); })}</div>{footer}</div>); }
+      case 'dark':
+        return (<div style={{ background: t.bgDark || t.bg, width: W, height: H, position: 'relative', overflow: 'hidden' }}>
+          <div style={{ ...logo, ...(t.logoDarkStyle) }}>S&I.</div>{corner}
+          {t.glow && <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 70% 60%, ${t.secondary || t.accent}0F, transparent 60%)`, pointerEvents: 'none' }} />}
+          {t.brutal ? <div style={{ position: 'absolute', inset: 20, background: t.accent, border: '3px solid #0D0D0D', boxShadow: `6px 6px 0 ${t.tertiary || '#FFE66D'}`, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '50px 20px 20px' }}>
+            <div style={{ ...hl, color: '#fff' }}>{renderHeadline()}</div><div style={{ ...bd, color: 'rgba(255,255,255,0.8)' }}>{bodyText}</div></div>
+          : <div style={{ position: 'absolute', inset: 0, padding: '70px 24px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2 }}>
+              <div style={{ ...ey, color: t.accent }}>{eyebrow}</div><div style={al} /><div style={{ ...hl, color: t.textDark || '#fff' }}>{renderHeadline()}</div><div style={bd}>{bodyText}</div></div>}
+          {footer}</div>);
+      case 'fullbleed':
+        return (<div style={{ background: '#1A1A1A', width: W, height: H, position: 'relative', overflow: 'hidden' }}>
+          <div style={{ ...logo, ...(t.logoDarkStyle) }}>S&I.</div>
+          {image ? <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(100%)', opacity: 0.5 }} />
+            : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #1a1a1a, #333)' }} />}
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 30%, rgba(26,26,26,0.85) 100%)' }} />
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 24, zIndex: 5 }}>
+            <div style={al} /><div style={{ ...hl, fontSize: '1.3rem', color: '#FDFCFA' }}>{renderHeadline()}</div>
+            <div style={{ ...bd, color: 'rgba(253,252,250,0.6)', marginBottom: 8 }}>{bodyText}</div>
+            <div style={{ fontFamily: t.uiFont, fontSize: '0.35rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: t.accent, opacity: 0.7 }}>siwedding.de</div>
+          </div></div>);
+      default: return null;
+    }
+  };
+
+  // ==========================================
+  // RENDER
+  // ==========================================
+  return (
+    <Layout>
+      <PageHeader>
+        <h1>Instagram</h1>
+        <p>Post Generator — Theme wählen, Text eingeben oder generieren, herunterladen</p>
+      </PageHeader>
+
+      <Grid>
+        {/* LEFT: Controls */}
+        <div>
+          {/* Theme + Layout Selection */}
+          <Panel>
+            <SectionLabel>Theme</SectionLabel>
+            <ChipRow>
+              {Object.entries(THEMES).map(([id, th]) => (
+                <Chip key={id} $active={theme === id} onClick={() => setTheme(id)}>{th.name}</Chip>
+              ))}
+            </ChipRow>
+
+            <SectionLabel>Layout</SectionLabel>
+            <ChipRow>
+              {Object.entries(LAYOUTS).map(([id, l]) => (
+                <Chip key={id} $active={layout === id} onClick={() => setLayout(id)}>
+                  {l.name}
+                </Chip>
+              ))}
+            </ChipRow>
+          </Panel>
+
+          {/* Tabs: Edit / AI */}
+          <Panel style={{ marginTop: '0.75rem' }}>
+            <TabBar>
+              <Tab $active={tab === 'edit'} onClick={() => setTab('edit')}>✏️ Text bearbeiten</Tab>
+              <Tab $active={tab === 'ai'} onClick={() => setTab('ai')}>🤖 KI-Textvorschläge</Tab>
+            </TabBar>
+
+            {tab === 'edit' ? (
+              <>
+                <FieldRow>
+                  <Field><Label>Eyebrow</Label><Input value={eyebrow} onChange={e => setEyebrow(e.target.value)} /></Field>
+                  <Field><Label>Akzent-Wort</Label><Input value={accentWord} onChange={e => setAccentWord(e.target.value)} /></Field>
+                </FieldRow>
+                <Field><Label>Headline</Label><Textarea value={headline} onChange={e => setHeadline(e.target.value)} rows={2} /></Field>
+                <Field>
+                  <Label>Body {layout === 'list' && '(Zeile pro Item, | für Beschreibung)'}</Label>
+                  <Textarea value={bodyText} onChange={e => setBodyText(e.target.value)} rows={layout === 'list' ? 6 : 2} />
+                </Field>
+                <Field>
+                  <Label>Bild</Label>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <FileLabel>
+                      📷 Bild wählen...
+                      <input type="file" accept="image/*" onChange={handleImage} />
+                    </FileLabel>
+                    {image && <>
+                      <ImagePreview src={image} alt="" />
+                      <RemoveBtn onClick={() => setImage(null)}>✕</RemoveBtn>
+                    </>}
+                  </div>
+                </Field>
+                <Field>
+                  <Label>Seitenzahl</Label>
+                  <Input value={pageNum} onChange={e => setPageNum(e.target.value)} placeholder="z.B. 1/4" style={{ maxWidth: 120 }} />
+                </Field>
+              </>
+            ) : (
+              <>
+                <SectionLabel>Kategorie</SectionLabel>
+                <CategoryGrid>
+                  {CATEGORIES.map(cat => (
+                    <CategoryBtn key={cat.id} $active={aiCategory === cat.id} onClick={() => setAiCategory(cat.id)}>
+                      <span className="icon">{cat.icon}</span> {cat.label}
+                      <span className="desc">{cat.desc}</span>
+                    </CategoryBtn>
+                  ))}
+                </CategoryGrid>
+
+                {aiCategory === 'custom' && (
+                  <Field><Label>Thema beschreiben</Label>
+                    <Textarea value={customPrompt} onChange={e => setCustomPrompt(e.target.value)} rows={2} placeholder="z.B. Warum Passwortschutz wichtig ist..." />
+                  </Field>
+                )}
+
+                <PrimaryButton $loading={aiLoading} onClick={generateSuggestions}>
+                  {aiLoading ? <><Spinner /> Generiere...</> : '🤖 3 Vorschläge generieren'}
+                </PrimaryButton>
+
+                {suggestions.length > 0 && (
+                  <div style={{ marginTop: '1rem' }}>
+                    <SectionLabel>Klick zum Übernehmen</SectionLabel>
+                    {suggestions.map((s, i) => (
+                      <SuggestionCard key={i} onClick={() => applySuggestion(s)}>
+                        <SuggestionEyebrow>{s.eyebrow}</SuggestionEyebrow>
+                        <SuggestionHeadline>
+                          {s.headline.includes(s.accentWord) ? (
+                            <>{s.headline.split(s.accentWord)[0]}<span style={{ color: colors.red, fontStyle: 'italic' }}>{s.accentWord}</span>{s.headline.split(s.accentWord).slice(1).join(s.accentWord)}</>
+                          ) : s.headline}
+                        </SuggestionHeadline>
+                        <SuggestionBody>{s.body.length > 100 ? s.body.substring(0, 100) + '…' : s.body}</SuggestionBody>
+                        <ApplyLabel>→ Übernehmen</ApplyLabel>
+                      </SuggestionCard>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </Panel>
+
+          {/* Download */}
+          <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.75rem' }}>
+            <SecondaryButton onClick={downloadPNG}>⬇ PNG Download (1080×1350)</SecondaryButton>
+          </div>
+          <Hint>Tipp: Bei Bildern im Post ggf. Screenshot als Alternative (⌘+Shift+4 / Win+Shift+S)</Hint>
+        </div>
+
+        {/* RIGHT: Preview */}
+        <PreviewSticky>
+          <PreviewLabel>Live Preview</PreviewLabel>
+          <div ref={postRef} style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
+            {renderPost()}
+          </div>
+        </PreviewSticky>
+      </Grid>
+    </Layout>
+  );
+}

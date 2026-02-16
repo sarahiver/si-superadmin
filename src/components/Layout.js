@@ -29,6 +29,7 @@ export default function Layout({ children }) {
     { path: '/projects', label: 'Projekte' },
     { path: '/projects/new', label: 'Neu' },
     { path: '/partners', label: 'Kooperationen' },  // NEU
+    { path: '/instagram', label: 'Instagram' },  // NEU
     { path: '/requests', label: 'Anfragen' },
     { path: '/settings', label: 'Settings' },
   ];
