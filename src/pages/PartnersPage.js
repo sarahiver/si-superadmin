@@ -607,7 +607,7 @@ function ImportModal({ existingEmails, onClose, onImported }) {
         ...r,
         isDuplicate: existingEmails.includes((r.email || '').toLowerCase()),
         // Validate type
-        typeValid: ['fotograf', 'planer', 'traurednerin', 'location'].includes((r.type || '').toLowerCase()),
+        typeValid: ['fotograf', 'planer', 'traurednerin', 'location', 'blog'].includes((r.type || '').toLowerCase()),
       }));
       setParsed(withDupeCheck);
     } catch (err) {
@@ -657,7 +657,7 @@ function ImportModal({ existingEmails, onClose, onImported }) {
           {/* Info */}
           <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', padding: '1rem', marginBottom: '1rem', fontSize: '0.8rem', lineHeight: 1.6 }}>
             <strong>Spaltenreihenfolge in der XLSX:</strong><br />
-            Vorname | Nachname | E-Mail* | Firma | Typ* (fotograf/planer/traurednerin/location) | Telefon | Stadt | Website | Instagram | Notizen<br />
+            Vorname | Nachname | E-Mail* | Firma | Typ* (fotograf/planer/traurednerin/location/blog) | Telefon | Stadt | Website | Instagram | Notizen<br />
             <span style={{ color: colors.gray }}>* = Pflichtfelder. Vorname oder Firma muss gesetzt sein. Duplikate (gleiche E-Mail) werden automatisch übersprungen.</span>
           </div>
 

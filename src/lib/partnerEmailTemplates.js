@@ -12,6 +12,7 @@ export const PARTNER_TYPES = {
   planer: { label: 'Hochzeitsplaner/in', icon: '📋', color: '#3B82F6' },
   traurednerin: { label: 'Trauredner/in', icon: '🎤', color: '#EC4899' },
   location: { label: 'Location', icon: '🏰', color: '#F59E0B' },
+  blog: { label: 'Hochzeitsblog', icon: '📝', color: '#059669' },
 };
 
 export const PARTNER_STATUS = {
@@ -62,7 +63,7 @@ export const IMPORT_FIELDS = [
   { key: 'last_name', label: 'Nachname', required: false },
   { key: 'email', label: 'E-Mail', required: true },
   { key: 'company', label: 'Firma', required: false },
-  { key: 'type', label: 'Typ (fotograf/planer/traurednerin/location)', required: true },
+  { key: 'type', label: 'Typ (fotograf/planer/traurednerin/location/blog)', required: true },
   { key: 'phone', label: 'Telefon', required: false },
   { key: 'city', label: 'Stadt', required: false },
   { key: 'website', label: 'Website', required: false },
@@ -356,6 +357,88 @@ ich melde mich ein letztes Mal zum Thema Kooperation. Falls es gerade nicht pass
 Ihr erreicht mich jederzeit unter wedding@sarahiver.de, falls sich in Zukunft etwas ergibt.
 
 Ich wünsche euch eine erfolgreiche Saison!
+
+Beste Grüße
+Iver`,
+      },
+    },
+
+    // ── HOCHZEITSBLOGS ──────────────────────────
+    blog: {
+      erstansprache: {
+        subject: 'Kooperation: Premium-Hochzeitswebsites für eure Leser/innen | S&I.',
+        body: `Hallo {name},
+
+ich bin Iver von S&I. – wir erstellen individuelle Premium-Hochzeitswebsites mit eigenem Design, eigener Domain, RSVP-System und Foto-Upload. Ab 1.290 €, alles inklusive.
+
+Euer Blog ist eine tolle Inspirationsquelle für Brautpaare – und genau deshalb wollte ich euch eine Kooperation vorschlagen:
+
+Für jede Empfehlung, die zu einer Buchung führt, erhaltet ihr eine Provision von 15% (ca. 190–300 €). Eure Leser/innen nennen einfach euren Blog-Namen bei der Anfrage und erhalten 10% Rabatt.
+
+Was für euch drin ist:
+• 15% Provision pro vermittelter Buchung
+• Eigener Empfehlungslink für Tracking
+• Kostenloser Gastartikel auf eurem Blog (Thema frei wählbar, z.B. "Warum eine Hochzeitswebsite?", "Digitales RSVP erklärt" o.ä.)
+• Gegenseitige Verlinkung und Social-Media-Features
+• Exklusive Rabattcodes für eure Community
+
+Auf sarahiver.com könnt ihr euch die sechs Themes ansehen. Wir bieten etwas, das die meisten Baukästen nicht können: echtes individuelles Design mit Passwortschutz und eigener Domain.
+
+Habt ihr Lust auf einen kurzen Austausch? Ich freue mich über eine Rückmeldung.
+
+Beste Grüße
+Iver
+S&I.`,
+      },
+      followup: {
+        subject: 'Kurze Nachfrage: Kooperation S&I. × {company}',
+        body: `Hallo {name},
+
+ich wollte kurz an meine letzte Nachricht anknüpfen.
+
+Falls euch ein Gastartikel interessiert: Wir haben mehrere SEO-optimierte Themen, die gut zu Hochzeitsblogs passen – z.B. "Die ultimative Checkliste für die Hochzeitswebsite" oder "Digitales RSVP: So spart ihr Wochen an Organisation". Den Content liefern wir fix und fertig, ihr müsstet nur veröffentlichen.
+
+Hier ein paar Themenideen:
+• Hochzeitswebsite-Anbieter im Vergleich 2026
+• QR-Code auf der Einladung: So verknüpft ihr Print und Digital
+• Hochzeitsfotos teilen: Vom Gäste-Upload bis zur Archivseite
+
+Falls das Timing gerade nicht passt – kein Problem. Ich melde mich gerne später nochmal.
+
+Beste Grüße
+Iver`,
+      },
+      angebot: {
+        subject: 'Partnerschaftsangebot für Hochzeitsblogs | S&I.',
+        body: `Hallo {name},
+
+hier das konkrete Kooperationsmodell:
+
+• 15% Provision pro vermittelter Buchung (190–300 €)
+• Eure Leser/innen nennen euren Blog-Namen – sie erhalten 10% Rabatt
+• Eigener Empfehlungslink mit Tracking
+• Kostenlose Gastartikel (SEO-optimiert, von uns geschrieben)
+• Gegenseitige Verlinkung (gut für beidseitiges SEO)
+• Gemeinsame Social-Media-Aktionen
+• Eure Logo + Link auf unserer Partner-Seite
+
+Besonders spannend für euch: Durch die gegenseitige Verlinkung stärken wir beide unsere Domain Authority. Wir verlinken euch prominent in unserem Blog auf sarahiver.com (15+ Artikel) und ihr verlinkt auf uns – eine echte Win-Win-Situation für SEO.
+
+Sollen wir kurz telefonieren? 15 Minuten reichen.
+
+Beste Grüße
+Iver
+S&I.`,
+      },
+      abschluss: {
+        subject: 'Letzte Nachfrage: Partnerschaft S&I.',
+        body: `Hallo {name},
+
+ich melde mich ein letztes Mal zum Thema Kooperation. Falls es gerade nicht passt, völlig verständlich.
+
+Unser Angebot für Gastartikel und gegenseitige Verlinkung steht natürlich weiterhin. Ihr erreicht mich jederzeit unter wedding@sarahiver.de.
+
+Ich wünsche euch weiterhin viel Erfolg mit eurem Blog!
 
 Beste Grüße
 Iver`,
