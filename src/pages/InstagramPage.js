@@ -495,17 +495,35 @@ Antworte NUR mit validem JSON Array:
   const downloadPNG = useCallback(async () => {
     const el = postRef.current;
     if (!el) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080; canvas.height = 1350;
-    const ctx = canvas.getContext('2d');
-    const data = new XMLSerializer().serializeToString(el);
-    const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350"><foreignObject width="1080" height="1350"><div xmlns="http://www.w3.org/1999/xhtml" style="transform:scale(3);transform-origin:top left;width:360px;height:450px">${data}</div></foreignObject></svg>`;
-    const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-    const img = new Image();
-    img.onload = () => { ctx.drawImage(img, 0, 0); URL.revokeObjectURL(url); const a = document.createElement('a'); a.download = `si-${theme}-${layout}.png`; a.href = canvas.toDataURL('image/png'); a.click(); };
-    img.onerror = () => { alert('Screenshot als Alternative: Mac ⌘+Shift+4 / Win Win+Shift+S'); URL.revokeObjectURL(url); };
-    img.src = url;
+
+    // Dynamically load html2canvas from CDN if not loaded yet
+    if (!window.html2canvas) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+
+    try {
+      const canvas = await window.html2canvas(el, {
+        scale: 3, // 360×450 × 3 = 1080×1350
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: null,
+        width: 360,
+        height: 450,
+      });
+      const a = document.createElement('a');
+      a.download = `si-${theme}-${layout}.png`;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    } catch (err) {
+      console.error('Download error:', err);
+      alert('Download fehlgeschlagen. Nutze Screenshot als Alternative: Mac ⌘+Shift+4 / Win Win+Shift+S');
+    }
   }, [theme, layout]);
 
   // ==========================================
