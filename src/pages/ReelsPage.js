@@ -49,10 +49,8 @@ function drawTextLayer(ctx, layer, currentTime, videoDuration) {
   const preset = LAYER_PRESETS[layer.type] || LAYER_PRESETS.body;
   const endTime = layer.endTime || videoDuration;
   
-  // Not visible yet or already gone
   if (currentTime < layer.startTime || currentTime > endTime) return;
 
-  // Calculate animation progress
   const timeSinceStart = currentTime - layer.startTime;
   const timeUntilEnd = endTime - currentTime;
   const fadeInP = Math.min(timeSinceStart / (layer.fadeInDur || 0.5), 1);
@@ -65,8 +63,16 @@ function drawTextLayer(ctx, layer, currentTime, videoDuration) {
 
   ctx.save();
   ctx.globalAlpha = (result.alpha || 1) * fadeOutP;
-  ctx.fillStyle = preset.color;
-  ctx.font = preset.font;
+
+  // Custom color overrides preset
+  ctx.fillStyle = layer.color || preset.color;
+
+  // Custom font size: replace size in preset font string
+  let font = preset.font;
+  if (layer.fontSize) {
+    font = font.replace(/\d+px/, layer.fontSize + 'px');
+  }
+  ctx.font = font;
 
   const drawX = result.x || x;
   const drawY = result.y || y;
@@ -79,24 +85,47 @@ function drawTextLayer(ctx, layer, currentTime, videoDuration) {
 
   // Logo special rendering
   if (preset.isLogo) {
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    const logoBg = layer.bgColor || 'rgba(255,255,255,0.1)';
+    const logoBorder = layer.bgColor ? 'transparent' : 'rgba(255,255,255,0.15)';
+    ctx.fillStyle = logoBg;
     ctx.fillRect(drawX - 15, drawY - 2, 82, 36);
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(drawX - 15, drawY - 2, 82, 36);
-    ctx.fillStyle = '#fff';
-    ctx.font = preset.font;
+    if (logoBorder !== 'transparent') {
+      ctx.strokeStyle = logoBorder;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(drawX - 15, drawY - 2, 82, 36);
+    }
+    ctx.fillStyle = layer.color || '#fff';
+    ctx.font = font;
     ctx.fillText(layer.text, drawX, drawY + 22);
     ctx.restore();
     return;
   }
 
-  let text = preset.uppercase ? layer.text.toUpperCase() : layer.text;
+  let text = (preset.uppercase && !layer.disableUppercase) ? layer.text.toUpperCase() : layer.text;
 
-  // Typewriter effect
   if (result.charLimit !== undefined) {
     text = text.substring(0, Math.floor(text.length * result.charLimit));
   }
+
+  // Measure text for background box
+  const measureAndDraw = (textToDraw, tx, ty) => {
+    if (layer.bgColor) {
+      const metrics = ctx.measureText(textToDraw);
+      const textH = layer.fontSize || parseInt(font.match(/\d+px/)?.[0]) || 20;
+      const padX = 16, padY = 10;
+      ctx.save();
+      ctx.fillStyle = layer.bgColor;
+      ctx.globalAlpha = (result.alpha || 1) * fadeOutP * (layer.bgOpacity !== undefined ? layer.bgOpacity : 0.8);
+      ctx.fillRect(tx - padX, ty - textH - padY + 4, metrics.width + padX * 2, textH + padY * 2);
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = (result.alpha || 1) * fadeOutP;
+      ctx.fillStyle = layer.color || preset.color;
+      ctx.font = font;
+    }
+    ctx.fillText(textToDraw, tx, ty);
+    if (layer.bgColor) ctx.restore();
+  };
 
   // Word wrap for longer text
   if (layer.type === 'headline' || layer.type === 'body') {
@@ -104,20 +133,21 @@ function drawTextLayer(ctx, layer, currentTime, videoDuration) {
     const words = text.split(' ');
     let line = '';
     let lineY = drawY;
-    const lineH = layer.type === 'headline' ? 78 : 28;
+    const baseSize = layer.fontSize || parseInt(font.match(/\d+px/)?.[0]) || 20;
+    const lineH = layer.type === 'headline' ? baseSize * 1.2 : baseSize * 1.5;
     words.forEach(word => {
       const test = line + word + ' ';
       if (ctx.measureText(test).width > maxW && line) {
-        ctx.fillText(line.trim(), drawX, lineY);
+        measureAndDraw(line.trim(), drawX, lineY);
         line = word + ' ';
         lineY += lineH;
       } else {
         line = test;
       }
     });
-    ctx.fillText(line.trim(), drawX, lineY);
+    measureAndDraw(line.trim(), drawX, lineY);
   } else {
-    ctx.fillText(text, drawX, drawY);
+    measureAndDraw(text, drawX, drawY);
   }
 
   ctx.restore();
@@ -509,6 +539,53 @@ export default function ReelsPage() {
                   <Label>Y-Position (%)</Label>
                   <SmallInput type="number" step="1" min="0" max="100" value={Math.round((sel.yPercent || 0.5) * 100)} onChange={e => updateLayer(sel.id, { yPercent: (parseInt(e.target.value) || 50) / 100 })} />
                 </Field>
+              </div>
+
+              {/* Farbe & Größe */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.4rem', marginTop: '0.25rem' }}>
+                <Field>
+                  <Label>Textfarbe</Label>
+                  <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                    <input type="color" value={sel.color || LAYER_PRESETS[sel.type]?.color?.replace(/rgba?\([^)]+\)/, '#ffffff') || '#ffffff'} onChange={e => updateLayer(sel.id, { color: e.target.value })} style={{ width: 28, height: 28, border: `1px solid ${colors.lightGray}`, cursor: 'pointer', padding: 0 }} />
+                    {sel.color && <SmallBtn onClick={() => updateLayer(sel.id, { color: null })} style={{ fontSize: '0.5rem', padding: '2px 4px' }}>Reset</SmallBtn>}
+                  </div>
+                </Field>
+                <Field>
+                  <Label>Schriftgröße</Label>
+                  <SmallInput type="number" step="1" min="8" max="200" value={sel.fontSize || parseInt(LAYER_PRESETS[sel.type]?.font?.match(/\d+px/)?.[0]) || 20} onChange={e => updateLayer(sel.id, { fontSize: parseInt(e.target.value) || null })} />
+                </Field>
+                <Field>
+                  <Label>Opacity (%)</Label>
+                  <SmallInput type="number" step="5" min="0" max="100" value={sel.opacity !== undefined ? sel.opacity : 100} onChange={e => updateLayer(sel.id, { opacity: parseInt(e.target.value) })} />
+                </Field>
+              </div>
+
+              {/* Text-Hintergrund */}
+              <div style={{ borderTop: `1px solid ${colors.lightGray}`, paddingTop: '0.5rem', marginTop: '0.4rem' }}>
+                <Label>Text-Hintergrund</Label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: '0.4rem', alignItems: 'center' }}>
+                  <input type="color" value={sel.bgColor || '#000000'} onChange={e => updateLayer(sel.id, { bgColor: e.target.value })} style={{ width: 28, height: 28, border: `1px solid ${colors.lightGray}`, cursor: 'pointer', padding: 0 }} />
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.6rem', color: colors.gray }}>
+                    {sel.bgColor ? sel.bgColor : 'Kein Hintergrund'}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Label style={{ margin: 0, whiteSpace: 'nowrap' }}>Opacity</Label>
+                    <SmallInput type="number" step="5" min="0" max="100" value={Math.round((sel.bgOpacity !== undefined ? sel.bgOpacity : 0.8) * 100)} onChange={e => updateLayer(sel.id, { bgOpacity: (parseInt(e.target.value) || 0) / 100 })} disabled={!sel.bgColor} />
+                  </div>
+                  {sel.bgColor && <SmallBtn onClick={() => updateLayer(sel.id, { bgColor: null })}>✕</SmallBtn>}
+                </div>
+                <div style={{ display: 'flex', gap: '0.3rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+                  {[
+                    { label: 'Schwarz', color: '#000000', opacity: 0.7 },
+                    { label: 'Weiß', color: '#ffffff', opacity: 0.85 },
+                    { label: 'Rot (S&I)', color: '#C41E3A', opacity: 0.9 },
+                    { label: 'Gold', color: '#C4A87C', opacity: 0.9 },
+                    { label: 'Blur Dark', color: '#1a1a1a', opacity: 0.6 },
+                  ].map(preset => (
+                    <SmallBtn key={preset.label} onClick={() => updateLayer(sel.id, { bgColor: preset.color, bgOpacity: preset.opacity })}>{preset.label}</SmallBtn>
+                  ))}
+                  <SmallBtn onClick={() => updateLayer(sel.id, { bgColor: null, bgOpacity: 0.8 })}>Kein BG</SmallBtn>
+                </div>
               </div>
               <div style={{ marginTop: '0.5rem' }}>
                 <DangerBtn onClick={() => removeLayer(sel.id)}>✕ Layer entfernen</DangerBtn>
