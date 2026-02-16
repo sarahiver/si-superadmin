@@ -1,14 +1,16 @@
 // src/pages/ReelsPage.js
 // S&I. Instagram Reels Generator — Animierte Templates für Screen Recording
 import React, { useState, useRef, useEffect } from 'react';
-import styled, { keyframes } from 'styled-components';
+import styled from 'styled-components';
 import Layout from '../components/Layout';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
-// ============================================
-// REEL TEMPLATES
-// ============================================
+// Inject countPop animation via global style (keyframes in inline styles don't work with styled-components)
+const ANIM_STYLE = `@keyframes countPop { 0% { opacity: 0; transform: scale(3); } 30% { opacity: 1; transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(0.5); } }`;
+function InjectAnim() {
+  return <style dangerouslySetInnerHTML={{ __html: ANIM_STYLE }} />;
+}
 const TEMPLATES = {
   themeReveal: { name: 'Theme Reveal', desc: 'Theme-Name fliegt ein + Vorschau', duration: 6, icon: '🎨' },
   featureList: { name: 'Feature Reveal', desc: 'Features nacheinander', duration: 8, icon: '⚡' },
@@ -21,12 +23,7 @@ const TEMPLATES = {
 // ============================================
 // ANIMATIONS
 // ============================================
-const countPop = keyframes`
-  0% { opacity: 0; transform: scale(3); }
-  30% { opacity: 1; transform: scale(1); }
-  80% { opacity: 1; }
-  100% { opacity: 0; transform: scale(0.5); }
-`;
+// (countPop animation injected via InjectAnim component)
 
 // ============================================
 // STYLED COMPONENTS
@@ -186,7 +183,7 @@ function CountdownReel({ phase, texts, image }) {
     <ReelFrame>
       {countNum && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20 }}>
-          <div key={countNum} style={{ fontFamily: "'Oswald', sans-serif", fontSize: '5rem', fontWeight: 700, color: '#fff', animation: `${countPop} 1s ease-out forwards` }}>{countNum}</div>
+          <div key={countNum} style={{ fontFamily: "'Oswald', sans-serif", fontSize: '5rem', fontWeight: 700, color: '#fff', animation: 'countPop 1s ease-out forwards' }}>{countNum}</div>
         </div>
       )}
       {revealed && <>
@@ -407,6 +404,7 @@ export default function ReelsPage() {
 
   return (
     <Layout>
+      <InjectAnim />
       <PageHeader>
         <h1>Reels</h1>
         <p>Animierte Instagram Reels — Template wählen, abspielen, Screen Recording starten</p>
@@ -487,7 +485,7 @@ export default function ReelsPage() {
                 position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex',
                 alignItems: 'center', justifyContent: 'center', zIndex: 50, borderRadius: 12,
               }}>
-                <div key={countdown} style={{ fontFamily: "'Oswald', sans-serif", fontSize: '4rem', fontWeight: 700, color: '#fff', animation: `${countPop} 1s ease-out forwards` }}>{countdown}</div>
+                <div key={countdown} style={{ fontFamily: "'Oswald', sans-serif", fontSize: '4rem', fontWeight: 700, color: '#fff', animation: 'countPop 1s ease-out forwards' }}>{countdown}</div>
               </div>
             )}
           </div>
