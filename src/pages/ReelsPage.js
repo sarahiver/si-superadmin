@@ -1,3 +1,4 @@
+/* global VideoEncoder VideoFrame */
 // src/pages/ReelsPage.js
 // S&I. Reels Editor — Video + Text-Overlay Timeline + Export
 import React, { useState, useRef, useEffect, useCallback } from 'react';
