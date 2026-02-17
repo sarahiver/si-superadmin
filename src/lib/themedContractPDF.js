@@ -72,8 +72,8 @@ export function generateThemedContractPDF(project, pricing) {
   setColor('primary');
   doc.text('Zwischen', m, y); y += 6;
   setColor();
-  doc.text('S&I. wedding – Iver Arntzen', m, y); y += 5;
-  doc.text('E-Mail: hello@siwedding.de', m, y); y += 5;
+  doc.text('S&I. wedding – Iver Gentz', m, y); y += 5;
+  doc.text('E-Mail: wedding@sarahiver.de', m, y); y += 5;
   setColor('gray');
   doc.setFont('helvetica', 'italic');
   doc.text('(nachfolgend "Auftragnehmer")', m, y); y += 10;
@@ -247,7 +247,7 @@ export function generateThemedContractPDF(project, pricing) {
   const terms = [
     'Zeitplan: Fertigstellung innerhalb von 14 Werktagen nach Erhalt aller Inhalte.',
     'Nutzungsrechte: Zeitlich begrenzt für den vereinbarten Hosting-Zeitraum. Das Design verbleibt beim Auftragnehmer.',
-    'Stornierung: Bis 30 Tage vor Hochzeit 50% der Gesamtsumme, danach 100%.',
+    'Stornierung: Bis 60 Tage vor Hochzeitsdatum 30%, bis 30 Tage 50%, danach 100% des Gesamtbetrags.',
     'Es gilt deutsches Recht. Gerichtsstand ist Hamburg.',
   ];
   
