@@ -483,7 +483,7 @@ Erstelle genau 3 verschiedene Vorschläge. Jeder Vorschlag braucht:
 - accentWord: EXAKT ein Wort aus der Headline das hervorgehoben wird (muss wortwörtlich in headline vorkommen)
 - body: Beschreibung (1-2 Sätze, max 25 Wörter)
 - caption: Instagram-Caption (3-5 Sätze, warm & persönlich, mit Emoji, endet mit CTA wie "Link in Bio" oder "Schreibt uns eine DM")
-- hashtags: 15-20 relevante Hashtags (Mix aus: 5 große wie #hochzeit #wedding, 5 mittlere wie #hochzeitsplanung #weddingwebsite, 5 nischige wie #hochzeitswebsite #premiumwedding, plus 2-3 zum Thema passende)
+- hashtags: Genau 5 Hashtags — die mit der höchsten Reichweite für Hochzeitswebsites (z.B. #hochzeit #wedding #hochzeitswebsite #braut2026 #hochzeitsplanung)
 ${layout === 'list' ? "List-Layout: body = 5-7 Items, eins pro Zeile. Format: 'Titel|Beschreibung'" : ''}
 
 Antworte NUR mit validem JSON Array, kein Markdown:

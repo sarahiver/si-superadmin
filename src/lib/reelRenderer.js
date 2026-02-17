@@ -15,75 +15,143 @@ function clamp01(t) { return Math.min(Math.max(t, 0), 1); }
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 // ============================================
+// COVER-FIT IMAGE DRAWING (no distortion)
+// ============================================
+function drawImageCover(ctx, source, dx, dy, dw, dh) {
+  const sw = source.videoWidth || source.naturalWidth || source.width || dw;
+  const sh = source.videoHeight || source.naturalHeight || source.height || dh;
+  if (!sw || !sh) { ctx.drawImage(source, dx, dy, dw, dh); return; }
+
+  const srcRatio = sw / sh;
+  const dstRatio = dw / dh;
+  let sx, sy, cropW, cropH;
+
+  if (srcRatio > dstRatio) {
+    cropH = sh;
+    cropW = sh * dstRatio;
+    sx = (sw - cropW) / 2;
+    sy = 0;
+  } else {
+    cropW = sw;
+    cropH = sw / dstRatio;
+    sx = 0;
+    sy = (sh - cropH) / 2;
+  }
+
+  ctx.drawImage(source, sx, sy, cropW, cropH, dx, dy, dw, dh);
+}
+
+// ============================================
 // ANIMATION FUNCTIONS
-// Returns { alpha, offsetX, offsetY, scale }
 // ============================================
 const ANIMATIONS = {
-  fadeUp: (progress) => ({
-    alpha: easeOut(progress),
-    offsetX: 0,
-    offsetY: lerp(60, 0, easeOut(progress)),
-    scale: 1,
-  }),
-  fadeIn: (progress) => ({
-    alpha: easeOut(progress),
-    offsetX: 0,
-    offsetY: 0,
-    scale: 1,
-  }),
-  slideRight: (progress) => ({
-    alpha: easeOut(progress),
-    offsetX: lerp(-80, 0, easeOut(progress)),
-    offsetY: 0,
-    scale: 1,
-  }),
-  scaleIn: (progress) => ({
-    alpha: easeOut(progress),
-    offsetX: 0,
-    offsetY: 0,
-    scale: lerp(0.7, 1, easeOut(progress)),
-  }),
+  fadeUp: (progress) => ({ alpha: easeOut(progress), offsetX: 0, offsetY: lerp(60, 0, easeOut(progress)), scale: 1 }),
+  fadeIn: (progress) => ({ alpha: easeOut(progress), offsetX: 0, offsetY: 0, scale: 1 }),
+  slideRight: (progress) => ({ alpha: easeOut(progress), offsetX: lerp(-80, 0, easeOut(progress)), offsetY: 0, scale: 1 }),
+  scaleIn: (progress) => ({ alpha: easeOut(progress), offsetX: 0, offsetY: 0, scale: lerp(0.7, 1, easeOut(progress)) }),
 };
 
 // ============================================
-// TEXT WRAPPING
+// ROUNDED RECT HELPER
 // ============================================
-function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
-  const words = text.split(' ');
-  let line = '';
-  let currentY = y;
-  const lines = [];
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
 
-  words.forEach(word => {
-    const test = line + word + ' ';
-    if (ctx.measureText(test).width > maxWidth && line) {
-      lines.push({ text: line.trim(), y: currentY });
-      line = word + ' ';
-      currentY += lineHeight;
-    } else {
-      line = test;
-    }
+// ============================================
+// TEXT BACKGROUND BOX (for readability on images)
+// ============================================
+function drawTextBg(ctx, x, y, textWidth, fontSize, pad = 20) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.50)';
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  roundRect(ctx, x - pad, y - fontSize * 0.88 - pad * 0.3, textWidth + pad * 2, fontSize * 1.15 + pad * 0.6, 10);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawMultilineBg(ctx, x, y, lines, lineHeight, fontSize, pad = 22) {
+  if (!lines.length) return;
+  const maxW = Math.max(...lines.map(l => ctx.measureText(l).width));
+  const totalH = lines.length * lineHeight;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.50)';
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  roundRect(ctx, x - pad, y - fontSize * 0.88 - pad * 0.3, maxW + pad * 2, totalH + pad * 0.6, 10);
+  ctx.fill();
+  ctx.restore();
+}
+
+// ============================================
+// TEXT WRAPPING (with newline + word-wrap)
+// ============================================
+function getWrappedLines(ctx, text, maxWidth) {
+  const paragraphs = text.split('\n');
+  const allLines = [];
+  paragraphs.forEach(para => {
+    if (!para.trim()) { allLines.push(''); return; }
+    const words = para.split(' ');
+    let line = '';
+    words.forEach(word => {
+      const test = line + word + ' ';
+      if (ctx.measureText(test).width > maxWidth && line) {
+        allLines.push(line.trim());
+        line = word + ' ';
+      } else {
+        line = test;
+      }
+    });
+    allLines.push(line.trim());
   });
-  lines.push({ text: line.trim(), y: currentY });
+  return allLines;
+}
 
-  lines.forEach(l => {
-    ctx.fillText(l.text, x, l.y);
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, opts = {}) {
+  const lines = getWrappedLines(ctx, text, maxWidth);
+  const fontSize = opts.fontSize || lineHeight * 0.7;
+
+  if (opts.drawBg && lines.length > 0) {
+    drawMultilineBg(ctx, x, y, lines, lineHeight, fontSize);
+  }
+
+  lines.forEach((line, i) => {
+    if (line) ctx.fillText(line, x, y + i * lineHeight);
   });
 
   return lines.length * lineHeight;
 }
 
 // ============================================
+// APPLY IMAGE-BG TEXT STYLE (shadow + light color)
+// ============================================
+function applyImageBgShadow(ctx) {
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 2;
+}
+
+// ============================================
 // THEME-SPECIFIC DECORATIONS
 // ============================================
-function drawDecorations(ctx, theme, t) {
-  // Corner accent (luxe, editorial, classic dark)
+function drawDecorations(ctx, t) {
   if (!t.brutal && !t.glass) {
     ctx.save();
     ctx.strokeStyle = t.accent;
     ctx.lineWidth = 2;
     ctx.globalAlpha = 0.25;
-    // Top-right corner
     ctx.beginPath();
     ctx.moveTo(W - 100, 0);
     ctx.lineTo(W, 0);
@@ -91,8 +159,6 @@ function drawDecorations(ctx, theme, t) {
     ctx.stroke();
     ctx.restore();
   }
-
-  // Glow effect (neon)
   if (t.glow) {
     ctx.save();
     const grad = ctx.createRadialGradient(W * 0.3, H * 0.4, 0, W * 0.3, H * 0.4, W * 0.8);
@@ -102,8 +168,6 @@ function drawDecorations(ctx, theme, t) {
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }
-
-  // Glass subtle gradient (botanical)
   if (t.glass) {
     ctx.save();
     const grad = ctx.createLinearGradient(0, 0, W, H);
@@ -121,62 +185,42 @@ function drawDecorations(ctx, theme, t) {
 function drawLogo(ctx, t, alpha) {
   ctx.save();
   ctx.globalAlpha = alpha;
-
-  const logoX = 72;
-  const logoY = 72;
+  const logoX = 72, logoY = 80;
   const text = 'S&I.';
   const style = t.logoDarkStyle || t.logoStyle;
 
-  // Logo background
-  ctx.font = `600 32px ${t.uiFont}`;
+  ctx.font = `600 42px ${t.uiFont}`;
   const metrics = ctx.measureText(text);
-  const padX = 20, padY = 12;
+  const padX = 22, padY = 14;
   const boxW = metrics.width + padX * 2;
-  const boxH = 32 + padY * 2;
+  const boxH = 42 + padY * 2;
 
   if (style.background && style.background !== 'transparent') {
     ctx.fillStyle = style.background;
     if (style.borderRadius) {
-      roundRect(ctx, logoX - padX, logoY - padY - 4, boxW, boxH, parseInt(style.borderRadius) || 0);
+      roundRect(ctx, logoX - padX, logoY - padY - 6, boxW, boxH, parseInt(style.borderRadius) || 0);
       ctx.fill();
     } else {
-      ctx.fillRect(logoX - padX, logoY - padY - 4, boxW, boxH);
+      ctx.fillRect(logoX - padX, logoY - padY - 6, boxW, boxH);
     }
   }
-
   if (style.border) {
     const borderMatch = style.border.match(/(\d+)px\s+solid\s+(.+)/);
     if (borderMatch) {
       ctx.strokeStyle = borderMatch[2];
       ctx.lineWidth = parseInt(borderMatch[1]);
       if (style.borderRadius) {
-        roundRect(ctx, logoX - padX, logoY - padY - 4, boxW, boxH, parseInt(style.borderRadius) || 0);
+        roundRect(ctx, logoX - padX, logoY - padY - 6, boxW, boxH, parseInt(style.borderRadius) || 0);
         ctx.stroke();
       } else {
-        ctx.strokeRect(logoX - padX, logoY - padY - 4, boxW, boxH);
+        ctx.strokeRect(logoX - padX, logoY - padY - 6, boxW, boxH);
       }
     }
   }
-
   ctx.fillStyle = style.color || '#fff';
-  ctx.font = `600 32px ${t.uiFont}`;
-  ctx.fillText(text, logoX, logoY + 20);
-
+  ctx.font = `600 42px ${t.uiFont}`;
+  ctx.fillText(text, logoX, logoY + 26);
   ctx.restore();
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
 }
 
 // ============================================
@@ -186,11 +230,11 @@ function drawDivider(ctx, t, x, y, alpha) {
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.fillStyle = t.accent;
-  ctx.fillRect(x, y, 60, 3);
+  ctx.fillRect(x, y, 70, 4);
   if (t.glow) {
     ctx.shadowColor = t.accent;
     ctx.shadowBlur = 12;
-    ctx.fillRect(x, y, 60, 3);
+    ctx.fillRect(x, y, 70, 4);
   }
   ctx.restore();
 }
@@ -201,36 +245,29 @@ function drawDivider(ctx, t, x, y, alpha) {
 function drawFooter(ctx, t, alpha) {
   ctx.save();
   ctx.globalAlpha = alpha * 0.4;
-
-  // Top border
   ctx.fillStyle = t.alwaysDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
-  ctx.fillRect(0, H - 80, W, 1);
-
-  // URL left
-  ctx.font = `400 22px ${t.uiFont}`;
-  ctx.letterSpacing = '3px';
+  ctx.fillRect(0, H - 90, W, 1);
+  ctx.font = `400 26px ${t.uiFont}`;
   ctx.fillStyle = t.accent;
   ctx.globalAlpha = alpha * 0.5;
-  ctx.fillText('siwedding.com', 72, H - 36);
-
+  ctx.fillText('siwedding.com', 72, H - 40);
   ctx.restore();
 }
 
 // ============================================
 // DRAW A SINGLE ELEMENT
 // ============================================
-function drawElement(ctx, element, t, slideLocalTime) {
+function drawElement(ctx, element, t, slideLocalTime, opts = {}) {
   const delay = element.delay || 0;
   const animDur = element.animDuration || 0.5;
   const elapsed = slideLocalTime - delay;
-
-  if (elapsed < 0) return; // Not yet visible
+  if (elapsed < 0) return;
 
   const progress = clamp01(elapsed / animDur);
   const animFn = ANIMATIONS[element.animation || 'fadeUp'] || ANIMATIONS.fadeUp;
   const anim = animFn(progress);
 
-  const x = (element.xPercent || 0.067) * W; // default ~72px
+  const x = (element.xPercent || 0.067) * W;
   const y = (element.yPercent || 0.5) * H;
 
   ctx.save();
@@ -238,6 +275,7 @@ function drawElement(ctx, element, t, slideLocalTime) {
 
   const drawX = x + anim.offsetX;
   const drawY = y + anim.offsetY;
+  const ib = opts.hasImageBg; // shorthand
 
   if (anim.scale !== 1) {
     ctx.translate(drawX, drawY);
@@ -259,50 +297,86 @@ function drawElement(ctx, element, t, slideLocalTime) {
       break;
 
     case 'eyebrow': {
-      ctx.font = `${t.brutal ? 700 : 600} 26px ${t.uiFont}`;
-      ctx.fillStyle = t.accent;
+      const size = 34;
+      ctx.font = `${t.brutal ? 700 : 600} ${size}px ${t.uiFont}`;
       const text = (element.text || '').toUpperCase();
-      if (t.glow) {
-        ctx.shadowColor = t.accent;
-        ctx.shadowBlur = 15;
+
+      if (ib) {
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        const m = ctx.measureText(text);
+        drawTextBg(ctx, drawX, drawY, m.width, size);
+        applyImageBgShadow(ctx);
+        ctx.font = `${t.brutal ? 700 : 600} ${size}px ${t.uiFont}`;
+      } else {
+        ctx.fillStyle = t.accent;
+        if (t.glow) { ctx.shadowColor = t.accent; ctx.shadowBlur = 15; }
       }
       ctx.fillText(text, drawX, drawY);
       break;
     }
 
     case 'headline': {
-      const size = element.fontSize || 90;
+      const size = element.fontSize || 120;
       ctx.font = `${t.headlineWeight} ${size}px ${t.headlineFont}`;
-      ctx.fillStyle = t.textDark || t.text;
       if (t.headlineStyle) ctx.font = `${t.headlineStyle} ${ctx.font}`;
-      if (t.headlineTransform === 'uppercase') {
-        drawWrappedText(ctx, (element.text || '').toUpperCase(), drawX, drawY, W - 144, size * 1.15);
+      const rawText = element.text || '';
+      const text = t.headlineTransform === 'uppercase' ? rawText.toUpperCase() : rawText;
+      const maxW = W - 144;
+
+      if (ib) {
+        ctx.fillStyle = '#ffffff';
+        // Pre-calculate lines for bg box
+        const lines = getWrappedLines(ctx, text, maxW);
+        drawMultilineBg(ctx, drawX, drawY, lines, size * 1.15, size);
+        applyImageBgShadow(ctx);
+        ctx.font = `${t.headlineWeight} ${size}px ${t.headlineFont}`;
+        if (t.headlineStyle) ctx.font = `${t.headlineStyle} ${ctx.font}`;
       } else {
-        drawWrappedText(ctx, element.text || '', drawX, drawY, W - 144, size * 1.15);
+        ctx.fillStyle = t.textDark || t.text;
       }
+      drawWrappedText(ctx, text, drawX, drawY, maxW, size * 1.15, { fontSize: size });
       break;
     }
 
     case 'accentWord': {
-      const size = element.fontSize || 100;
+      const size = element.fontSize || 130;
       const font = t.scriptFont || t.headlineFont;
       const style = t.scriptStyle || 'normal';
       ctx.font = `${style} 400 ${size}px ${font}`;
-      ctx.fillStyle = t.accent;
-      if (t.glow) {
-        ctx.shadowColor = t.secondary || t.accent;
-        ctx.shadowBlur = 20;
+      const text = element.text || '';
+
+      if (ib) {
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        const m = ctx.measureText(text);
+        drawTextBg(ctx, drawX, drawY, m.width, size);
+        applyImageBgShadow(ctx);
+        ctx.font = `${style} 400 ${size}px ${font}`;
+      } else {
+        ctx.fillStyle = t.accent;
+        if (t.glow) { ctx.shadowColor = t.secondary || t.accent; ctx.shadowBlur = 20; }
       }
-      ctx.fillText(element.text || '', drawX, drawY);
+      ctx.fillText(text, drawX, drawY);
       break;
     }
 
     case 'body': {
-      const size = element.fontSize || 28;
+      const size = element.fontSize || 38;
       ctx.font = `${t.bodyWeight} ${size}px ${t.bodyFont}`;
-      ctx.fillStyle = t.body;
       if (t.bodyStyle) ctx.font = `${t.bodyStyle} ${ctx.font}`;
-      drawWrappedText(ctx, element.text || '', drawX, drawY, W - 144, size * 1.7);
+      const text = element.text || '';
+      const maxW = W - 144;
+
+      if (ib) {
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        const lines = getWrappedLines(ctx, text, maxW);
+        drawMultilineBg(ctx, drawX, drawY, lines, size * 1.7, size);
+        applyImageBgShadow(ctx);
+        ctx.font = `${t.bodyWeight} ${size}px ${t.bodyFont}`;
+        if (t.bodyStyle) ctx.font = `${t.bodyStyle} ${ctx.font}`;
+      } else {
+        ctx.fillStyle = t.body;
+      }
+      drawWrappedText(ctx, text, drawX, drawY, maxW, size * 1.7, { fontSize: size });
       break;
     }
 
@@ -320,13 +394,15 @@ function drawSlide(ctx, slide, t, slideLocalTime, alpha, opts = {}) {
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // Background priority: per-slide image > global bg (already drawn) > solid theme color
+  // Determine if there's an image background (global or per-slide)
+  const hasImageBg = (slide.backgroundType === 'image' && slide._bgImage) || opts.hasGlobalBg;
+
+  // Background: per-slide image > global bg (already drawn) > solid theme color
   if (slide.backgroundType === 'image' && slide._bgImage) {
-    ctx.drawImage(slide._bgImage, 0, 0, W, H);
+    drawImageCover(ctx, slide._bgImage, 0, 0, W, H);
     ctx.fillStyle = `rgba(0,0,0,${slide.backgroundDarken || 0.4})`;
     ctx.fillRect(0, 0, W, H);
   } else if (opts.hasGlobalBg) {
-    // Global bg already drawn at full alpha by renderFrame — just add darken overlay
     ctx.fillStyle = `rgba(0,0,0,${slide.backgroundDarken ?? opts.globalBgDarken ?? 0.4})`;
     ctx.fillRect(0, 0, W, H);
   } else {
@@ -334,12 +410,10 @@ function drawSlide(ctx, slide, t, slideLocalTime, alpha, opts = {}) {
     ctx.fillRect(0, 0, W, H);
   }
 
-  // Theme decorations
-  drawDecorations(ctx, null, t);
+  drawDecorations(ctx, t);
 
-  // Elements
   (slide.elements || []).forEach(el => {
-    drawElement(ctx, el, t, slideLocalTime);
+    drawElement(ctx, el, t, slideLocalTime, { hasImageBg });
   });
 
   ctx.restore();
@@ -347,28 +421,22 @@ function drawSlide(ctx, slide, t, slideLocalTime, alpha, opts = {}) {
 
 // ============================================
 // MAIN RENDER FUNCTION
-// renderFrame(ctx, reelData, globalTime)
-// reelData = { themeId, slides: [...] }
 // ============================================
 export function renderFrame(ctx, reelData, globalTime) {
   const t = THEMES[reelData.themeId] || THEMES.classic;
 
-  // Calculate which slide(s) to show
   let accTime = 0;
   let currentSlideIdx = -1;
   let slideLocalTime = 0;
-  let transitionProgress = -1; // -1 = no transition
+  let transitionProgress = -1;
 
   for (let i = 0; i < reelData.slides.length; i++) {
     const slide = reelData.slides[i];
     const dur = slide.duration || 4;
     const transDur = slide.transitionDuration || 0.5;
-
     if (globalTime >= accTime && globalTime < accTime + dur) {
       currentSlideIdx = i;
       slideLocalTime = globalTime - accTime;
-
-      // Check if we're in the transition-IN zone of this slide
       if (i > 0 && slide.transitionIn !== 'none' && slideLocalTime < transDur) {
         transitionProgress = slideLocalTime / transDur;
       }
@@ -377,50 +445,40 @@ export function renderFrame(ctx, reelData, globalTime) {
     accTime += dur;
   }
 
-  // If past all slides, show last slide statically
   if (currentSlideIdx === -1) {
     currentSlideIdx = reelData.slides.length - 1;
     const lastSlide = reelData.slides[currentSlideIdx];
     slideLocalTime = (lastSlide && lastSlide.duration) || 4;
   }
 
-  // Clear canvas
   ctx.clearRect(0, 0, W, H);
 
-  // Draw global background first (image or video element)
+  // Draw global background (cover-fit, no distortion)
   const globalBgEl = reelData.globalBgElement;
   const hasGlobalBg = !!globalBgEl;
   if (globalBgEl) {
-    try { ctx.drawImage(globalBgEl, 0, 0, W, H); } catch (e) { /* video not ready */ }
+    try { drawImageCover(ctx, globalBgEl, 0, 0, W, H); } catch (e) { /* not ready */ }
   }
 
   const slideOpts = { hasGlobalBg, globalBgDarken: reelData.globalBgDarken };
-
   const currentSlide = reelData.slides[currentSlideIdx];
   if (!currentSlide) return;
 
-  // Crossfade transition
   if (transitionProgress >= 0 && currentSlideIdx > 0) {
     const prevSlide = reelData.slides[currentSlideIdx - 1];
     const prevDur = prevSlide.duration || 4;
     const alpha = easeInOut(transitionProgress);
-
-    // Draw previous slide (fading out)
     drawSlide(ctx, prevSlide, t, prevDur, 1 - alpha, slideOpts);
-    // Draw current slide (fading in)
     drawSlide(ctx, currentSlide, t, slideLocalTime, alpha, slideOpts);
   } else {
-    // No transition, just draw current slide
     drawSlide(ctx, currentSlide, t, slideLocalTime, 1, slideOpts);
   }
 }
 
-// Get total duration of all slides
 export function getTotalDuration(slides) {
   return slides.reduce((acc, s) => acc + (s.duration || 4), 0);
 }
 
-// Get slide index and local time for a given global time
 export function getSlideAtTime(slides, globalTime) {
   let accTime = 0;
   for (let i = 0; i < slides.length; i++) {
@@ -433,31 +491,25 @@ export function getSlideAtTime(slides, globalTime) {
   return { index: slides.length - 1, localTime: 0 };
 }
 
-// Render a single slide thumbnail to a small canvas
 export function renderThumbnail(slide, themeId, width, height, opts = {}) {
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext('2d');
-
   const t = THEMES[themeId] || THEMES.classic;
 
-  // Draw global bg if provided
   const hasGlobalBg = !!opts.globalBgElement;
   if (opts.globalBgElement) {
-    try { ctx.drawImage(opts.globalBgElement, 0, 0, W, H); } catch (e) { /* not ready */ }
+    try { drawImageCover(ctx, opts.globalBgElement, 0, 0, W, H); } catch (e) { /* not ready */ }
   }
 
-  // Draw slide at t=2s (to show elements after animations)
   drawSlide(ctx, slide, t, 2.0, 1, { hasGlobalBg, globalBgDarken: opts.globalBgDarken });
 
-  // Scale down to thumbnail
   const thumbCanvas = document.createElement('canvas');
   thumbCanvas.width = width;
   thumbCanvas.height = height;
   const thumbCtx = thumbCanvas.getContext('2d');
   thumbCtx.drawImage(canvas, 0, 0, width, height);
-
   return thumbCanvas.toDataURL('image/png', 0.6);
 }
 

@@ -119,6 +119,10 @@ export default function ReelsPage() {
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiSlidesLoading, setAiSlidesLoading] = useState(false);
 
+  // Music suggestions
+  const [musicSuggestions, setMusicSuggestions] = useState([]);
+  const [musicLoading, setMusicLoading] = useState(false);
+
   const canvasRef = useRef(null);
   const animRef = useRef(null);
 
@@ -532,10 +536,10 @@ Schreibe eine Instagram Reel Caption:
 1. Hook-Satz (erste Zeile, die zum Weiterlesen animiert)
 2. 3-5 Sätze Haupttext (warm, persönlich, mit Emoji, Mehrwert)
 3. Call-to-Action (z.B. "Link in Bio", "Schreibt uns eine DM")
-4. 15-20 relevante Hashtags
+4. Genau 5 Hashtags — die mit der höchsten Reichweite für Hochzeitswebsites (z.B. #hochzeit #wedding #hochzeitswebsite #braut2026 #hochzeitsplanung)
 
 Antworte NUR mit JSON:
-{"caption":"...","hashtags":"#tag1 #tag2 ..."}`;
+{"caption":"...","hashtags":"#tag1 #tag2 #tag3 #tag4 #tag5"}`;
 
     try {
       const response = await fetch('/api/ai-suggest', {
@@ -563,6 +567,54 @@ Antworte NUR mit JSON:
       setCaptionCopied(true);
       setTimeout(() => setCaptionCopied(false), 2000);
     });
+  };
+
+  // ==========================================
+  // MUSIC SUGGESTIONS
+  // ==========================================
+  const generateMusic = async () => {
+    setMusicLoading(true);
+    setMusicSuggestions([]);
+    const allTexts = slides.flatMap(s => s.elements.filter(e => e.text).map(e => e.text)).join(' | ');
+    const themeName = THEMES[themeId]?.name || themeId;
+
+    const prompt = `Du bist Musik-Kurator für Instagram Reels im Bereich Hochzeit & Premium Lifestyle.
+
+Reel-Inhalt: "${allTexts}"
+Stimmung: ${themeName} Theme, premium, hochzeitlich, emotional
+
+Schlage 3 Songs vor die:
+1. Aktuell auf Instagram Reels trenden oder gut funktionieren
+2. Zur Stimmung passen (warm, elegant, emotional, modern)
+3. Als 15-30s Hintergrundmusik funktionieren
+4. Auf Instagram verfügbar sind (keine lizenzgeschützten Songs die entfernt werden)
+
+Für jeden Song:
+- song: Songname
+- artist: Künstler
+- why: Warum er passt (1 Satz)
+- search: Exakter Suchbegriff für Instagram Musik-Suche
+
+Antworte NUR mit JSON Array:
+[{"song":"...","artist":"...","why":"...","search":"..."}]`;
+
+    try {
+      const response = await fetch('/api/ai-suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await response.json();
+      const text = (data.content || []).filter(i => i.type === 'text').map(i => i.text || '').join('\n');
+      const clean = text.replace(/```json|```/g, '').trim();
+      const jsonMatch = clean.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        setMusicSuggestions(JSON.parse(jsonMatch[0]));
+      }
+    } catch (err) {
+      console.error('Music suggestion error:', err);
+    }
+    setMusicLoading(false);
   };
 
   // Current slide indicator
@@ -827,6 +879,31 @@ Antworte NUR mit JSON:
             <ProgressBar><div style={{ width: `${progress * 100}%` }} /></ProgressBar>
             {status && <StatusMsg $error={status.includes('fehlgeschlagen')}>{status}</StatusMsg>}
             <Hint>Exportiert als 1080x1920 MP4 (9:16). Direkt als Instagram Reel hochladbar.</Hint>
+          </Panel>
+
+          {/* Music Suggestion */}
+          <Panel>
+            <SectionLabel>Musikvorschlag</SectionLabel>
+            <SecBtn onClick={generateMusic} disabled={musicLoading} style={{ width: '100%', marginBottom: '0.5rem' }}>
+              {musicLoading ? 'Suche Songs...' : 'Musik vorschlagen lassen'}
+            </SecBtn>
+            {musicSuggestions.length > 0 && (
+              <div style={{ marginTop: '0.5rem' }}>
+                {musicSuggestions.map((m, i) => (
+                  <div key={i} style={{ padding: '0.6rem', border: `1px solid ${colors.lightGray}`, marginBottom: '0.35rem', background: '#fafafa' }}>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.8rem', fontWeight: 600, color: colors.black }}>
+                      {m.song} <span style={{ fontWeight: 400, color: colors.gray }}>— {m.artist}</span>
+                    </div>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.65rem', color: colors.gray, marginTop: '0.2rem' }}>{m.why}</div>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.6rem', color: colors.red, marginTop: '0.25rem', cursor: 'pointer' }}
+                      onClick={() => { navigator.clipboard.writeText(m.search); }}>
+                      Suche: "{m.search}" (klick zum kopieren)
+                    </div>
+                  </div>
+                ))}
+                <Hint>Song in der Instagram Musik-Suche eingeben beim Reel-Upload.</Hint>
+              </div>
+            )}
           </Panel>
 
           {/* Caption */}
