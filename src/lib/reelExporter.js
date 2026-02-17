@@ -61,6 +61,13 @@ export async function exportReelMP4(reelData, { onProgress, onStatus } = {}) {
       for (let frame = 0; frame < totalFrames; frame++) {
         const t = (frame / totalFrames) * totalDuration;
 
+        // Seek global bg video if present
+        const bgEl = reelData.globalBgElement;
+        if (bgEl && bgEl.tagName === 'VIDEO') {
+          bgEl.currentTime = t % (bgEl.duration || 1);
+          await new Promise(r => bgEl.addEventListener('seeked', r, { once: true }));
+        }
+
         // Render frame
         renderFrame(ctx, reelData, t);
 
@@ -126,9 +133,17 @@ export async function exportReelMP4(reelData, { onProgress, onStatus } = {}) {
     recorder.start();
 
     let frame = 0;
-    const renderNext = () => {
+    const renderNext = async () => {
       if (frame >= totalFrames) { recorder.stop(); return; }
       const t = (frame / totalFrames) * totalDuration;
+
+      // Seek global bg video if present
+      const bgEl = reelData.globalBgElement;
+      if (bgEl && bgEl.tagName === 'VIDEO') {
+        bgEl.currentTime = t % (bgEl.duration || 1);
+        await new Promise(r => bgEl.addEventListener('seeked', r, { once: true }));
+      }
+
       renderFrame(ctx, reelData, t);
       onProgress?.(frame / totalFrames);
       frame++;

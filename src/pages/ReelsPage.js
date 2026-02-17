@@ -1,5 +1,6 @@
 // src/pages/ReelsPage.js
 // S&I. Reels Editor — Slide-basiert mit Canvas-Preview + MP4 Export
+// Features: KI-Textgenerierung, globaler Bild/Video-Hintergrund, Theme-Slides
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import Layout from '../components/Layout';
@@ -38,32 +39,37 @@ const Hint = styled.p`font-size: 0.6rem; color: ${colors.gray}; margin-top: 0.35
 const CaptionArea = styled.textarea`width: 100%; padding: 0.75rem; border: 1px solid ${colors.lightGray}; font-family: 'Inter', sans-serif; font-size: 0.8rem; line-height: 1.6; background: #F9F9F7; resize: vertical; outline: none; box-sizing: border-box; &:focus { border-color: ${colors.red}; }`;
 const CopyBtn = styled.button`font-family: 'Oswald', sans-serif; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.6rem 1.25rem; cursor: pointer; border: 2px solid ${colors.red}; background: transparent; color: ${colors.red}; transition: all 0.2s; &:hover { background: ${colors.red}; color: #fff; }`;
 
-// Slide thumbnails row
 const SlideRow = styled.div`display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; margin-bottom: 1rem; &::-webkit-scrollbar { height: 4px; } &::-webkit-scrollbar-thumb { background: ${colors.lightGray}; }`;
-const SlideThumb = styled.div`
-  flex-shrink: 0; width: 60px; height: 107px; border: 2px solid ${p => p.$active ? colors.red : colors.lightGray};
-  cursor: pointer; position: relative; overflow: hidden; background: #000;
-  transition: border-color 0.15s;
-  &:hover { border-color: ${p => p.$active ? colors.red : colors.black}; }
-  img { width: 100%; height: 100%; object-fit: cover; }
-`;
+const SlideThumb = styled.div`flex-shrink: 0; width: 60px; height: 107px; border: 2px solid ${p => p.$active ? colors.red : colors.lightGray}; cursor: pointer; position: relative; overflow: hidden; background: #000; transition: border-color 0.15s; &:hover { border-color: ${p => p.$active ? colors.red : colors.black}; } img { width: 100%; height: 100%; object-fit: cover; }`;
 const SlideNum = styled.div`position: absolute; bottom: 2px; right: 3px; font-family: 'Inter', sans-serif; font-size: 0.45rem; font-weight: 600; color: #fff; background: rgba(0,0,0,0.6); padding: 1px 4px; border-radius: 2px;`;
 const AddSlideBtn = styled.button`flex-shrink: 0; width: 60px; height: 107px; border: 2px dashed ${colors.lightGray}; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: ${colors.gray}; &:hover { border-color: ${colors.red}; color: ${colors.red}; }`;
 
-// Element list in slide editor
-const ElementCard = styled.div`
-  background: ${p => p.$active ? '#f9f8f6' : '#fff'};
-  border: 1px solid ${p => p.$active ? colors.red : colors.lightGray};
-  padding: 0.5rem; margin-bottom: 0.3rem; cursor: pointer; transition: all 0.1s;
-  &:hover { border-color: ${colors.black}; }
-`;
+const ElementCard = styled.div`background: ${p => p.$active ? '#f9f8f6' : '#fff'}; border: 1px solid ${p => p.$active ? colors.red : colors.lightGray}; padding: 0.5rem; margin-bottom: 0.3rem; cursor: pointer; transition: all 0.1s; &:hover { border-color: ${colors.black}; }`;
 const ElementHeader = styled.div`display: flex; justify-content: space-between; align-items: center;`;
 const ElementType = styled.span`font-family: 'Inter', sans-serif; font-size: 0.55rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: ${colors.red};`;
 const ElementText = styled.div`font-family: 'Inter', sans-serif; font-size: 0.7rem; color: ${colors.black}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;`;
 
-// Slide indicator dots
 const DotRow = styled.div`display: flex; justify-content: center; gap: 4px; margin-top: 0.5rem;`;
 const Dot = styled.div`width: 6px; height: 6px; border-radius: 50%; background: ${p => p.$active ? colors.red : colors.lightGray}; transition: background 0.2s;`;
+
+const BgPreview = styled.div`
+  width: 80px; height: 142px; border: 1px solid ${colors.lightGray}; overflow: hidden; flex-shrink: 0; background: #000;
+  img, video { width: 100%; height: 100%; object-fit: cover; }
+`;
+
+const FileLabel = styled.label`
+  display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.2rem;
+  border: 2px dashed ${colors.lightGray}; cursor: pointer; font-family: 'Inter', sans-serif;
+  font-size: 0.75rem; width: 100%; justify-content: center; transition: all 0.15s;
+  &:hover { border-color: ${colors.red}; } input { display: none; }
+`;
+
+const Spinner = styled.span`
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+  @keyframes spin { to { transform: rotate(360deg); } }
+`;
 
 const ELEMENT_TYPES = [
   { type: 'logo', label: 'Logo' },
@@ -102,6 +108,17 @@ export default function ReelsPage() {
   const [thumbCache, setThumbCache] = useState({});
   const [nextId, setNextId] = useState(100);
 
+  // Global background
+  const [globalBgType, setGlobalBgType] = useState('none'); // 'none' | 'image' | 'video'
+  const [globalBgSrc, setGlobalBgSrc] = useState(null);
+  const [globalBgDarken, setGlobalBgDarken] = useState(0.4);
+  const [globalBgElement, setGlobalBgElement] = useState(null); // Image element (for images)
+  const globalBgVideoRef = useRef(null);
+
+  // AI content generation
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiSlidesLoading, setAiSlidesLoading] = useState(false);
+
   const canvasRef = useRef(null);
   const animRef = useRef(null);
 
@@ -116,6 +133,17 @@ export default function ReelsPage() {
 
   const totalDuration = getTotalDuration(slides);
 
+  // Build reelData object for renderer
+  const getReelData = useCallback(() => {
+    let bgEl = null;
+    if (globalBgType === 'image' && globalBgElement) {
+      bgEl = globalBgElement;
+    } else if (globalBgType === 'video' && globalBgVideoRef.current) {
+      bgEl = globalBgVideoRef.current;
+    }
+    return { themeId, slides, globalBgElement: bgEl, globalBgDarken };
+  }, [themeId, slides, globalBgType, globalBgElement, globalBgDarken]);
+
   // ==========================================
   // PREVIEW RENDERING
   // ==========================================
@@ -123,17 +151,23 @@ export default function ReelsPage() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    renderFrame(ctx, { themeId, slides }, time);
-  }, [themeId, slides]);
+    renderFrame(ctx, getReelData(), time);
+  }, [getReelData]);
 
   // Redraw on data changes
   useEffect(() => {
     const t = setTimeout(() => drawPreview(currentTime), 50);
     return () => clearTimeout(t);
-  }, [slides, themeId, drawPreview, currentTime]);
+  }, [slides, themeId, drawPreview, currentTime, globalBgType, globalBgElement, globalBgDarken]);
 
   // Playback
   const startPreview = useCallback(() => {
+    // Start video bg if present
+    if (globalBgType === 'video' && globalBgVideoRef.current) {
+      globalBgVideoRef.current.currentTime = 0;
+      globalBgVideoRef.current.play();
+    }
+
     setPlaying(true);
     setCurrentTime(0);
     const start = Date.now();
@@ -148,14 +182,16 @@ export default function ReelsPage() {
         animRef.current = requestAnimationFrame(tick);
       } else {
         setPlaying(false);
+        if (globalBgVideoRef.current) globalBgVideoRef.current.pause();
       }
     };
     animRef.current = requestAnimationFrame(tick);
-  }, [slides, drawPreview]);
+  }, [slides, drawPreview, globalBgType]);
 
   const stopPreview = useCallback(() => {
     if (animRef.current) cancelAnimationFrame(animRef.current);
     setPlaying(false);
+    if (globalBgVideoRef.current) globalBgVideoRef.current.pause();
   }, []);
 
   // Scrub
@@ -164,7 +200,14 @@ export default function ReelsPage() {
     const p = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const t = p * totalDuration;
     setCurrentTime(t);
-    drawPreview(t);
+
+    // Sync video bg
+    if (globalBgType === 'video' && globalBgVideoRef.current) {
+      const vid = globalBgVideoRef.current;
+      vid.currentTime = t % (vid.duration || 1);
+    }
+
+    setTimeout(() => drawPreview(t), 50);
   };
 
   // Cleanup
@@ -180,13 +223,57 @@ export default function ReelsPage() {
   }, []);
 
   const getThumb = useCallback((slide, idx) => {
-    const key = `${idx}-${slide.id}-${themeId}`;
+    const bgKey = globalBgType === 'image' ? 'img' : globalBgType === 'video' ? 'vid' : 'none';
+    const key = `${idx}-${slide.id}-${themeId}-${bgKey}`;
     if (thumbCache[key]) return thumbCache[key];
-    // Generate async
-    const thumb = renderThumbnail(slide, themeId, 60, 107);
+    const thumbOpts = {};
+    if (globalBgType === 'image' && globalBgElement) {
+      thumbOpts.globalBgElement = globalBgElement;
+      thumbOpts.globalBgDarken = globalBgDarken;
+    }
+    const thumb = renderThumbnail(slide, themeId, 60, 107, thumbOpts);
     setThumbCache(prev => ({ ...prev, [key]: thumb }));
     return thumb;
-  }, [themeId, thumbCache]);
+  }, [themeId, thumbCache, globalBgType, globalBgElement, globalBgDarken]);
+
+  // ==========================================
+  // GLOBAL BACKGROUND
+  // ==========================================
+  const handleGlobalBg = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.type.startsWith('video/')) {
+      const url = URL.createObjectURL(file);
+      setGlobalBgType('video');
+      setGlobalBgSrc(url);
+      setGlobalBgElement(null);
+      invalidateThumbs();
+    } else if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setGlobalBgType('image');
+        setGlobalBgSrc(ev.target.result);
+        const img = new Image();
+        img.onload = () => {
+          setGlobalBgElement(img);
+          invalidateThumbs();
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeGlobalBg = () => {
+    if (globalBgSrc && globalBgType === 'video') {
+      URL.revokeObjectURL(globalBgSrc);
+    }
+    setGlobalBgType('none');
+    setGlobalBgSrc(null);
+    setGlobalBgElement(null);
+    invalidateThumbs();
+  };
 
   // ==========================================
   // TEMPLATE SELECTION
@@ -201,7 +288,97 @@ export default function ReelsPage() {
     setSelectedElementId(null);
     setCurrentTime(0);
     invalidateThumbs();
-    drawPreview(0);
+  };
+
+  // ==========================================
+  // AI SLIDE CONTENT GENERATION
+  // ==========================================
+  const uid = () => { const id = nextId; setNextId(n => n + 1); return id; };
+
+  const generateAISlides = async () => {
+    if (!aiPrompt.trim()) return;
+    setAiSlidesLoading(true);
+    const themeName = THEMES[themeId]?.name || themeId;
+
+    const prompt = `Du bist Content Creator für S&I. Wedding (siwedding.com) — Premium-Hochzeitswebsites aus Hamburg von Sarah & Iver.
+
+Kontext:
+- S&I. bietet handgemachte Hochzeitswebsites mit eigener Domain ab 1.290€
+- 7 Design-Themes: Classic, Editorial, Botanical, Contemporary, Luxe, Neon, Video
+- Features: RSVP, Gästeliste, Love Story, Countdown, Foto-Upload, Musik-Wünsche, Passwortschutz, Admin-Dashboard
+- Pakete: Starter (1.290€/6Mo), Standard (1.490€/8Mo), Premium (1.990€/12Mo)
+- Tonalität: Warm aber selbstbewusst, nie billig oder kitschig, leicht editorial
+
+Thema/Anweisung: "${aiPrompt}"
+Gewähltes Theme: "${themeName}"
+
+Erstelle 3-5 Slides für ein Instagram Reel (9:16, je ca. 3-5 Sekunden).
+Jeder Slide braucht:
+- eyebrow: Kurzer Overline-Text (2-4 Wörter, z.B. "Neues Theme", "Die Lösung", "Tipp 1")
+- headline: Haupttext (max 8 Wörter, emotional, knapp — wird groß animiert eingeblendet)
+- body: Beschreibung (1-3 kurze Sätze, max 25 Wörter — kann auch "" sein falls nicht nötig)
+- accentWord: Ein einzelnes Wort in Schreibschrift hervorgehoben (kann "" sein)
+
+Wichtig:
+- Slide 1 = Hook/Intro (fesselnder Einstieg)
+- Letzter Slide = CTA (z.B. "Link in Bio", "siwedding.com")
+- Dazwischen: Inhalt, Tipps, Features, Argumente
+- Texte kurz! Reels = schnell, knackig, visuell
+
+Antworte NUR mit validem JSON Array, kein Markdown:
+[{"eyebrow":"...","headline":"...","body":"...","accentWord":"..."},...]`;
+
+    try {
+      const response = await fetch('/api/ai-suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await response.json();
+      const text = (data.content || []).filter(i => i.type === 'text').map(i => i.text || '').join('\n');
+      const clean = text.replace(/```json|```/g, '').trim();
+      const jsonMatch = clean.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        const newSlides = parsed.map((item, i) => {
+          const elements = [
+            { id: uid(), type: 'logo', text: 'S&I.', animation: 'fadeIn', delay: 0.2, animDuration: 0.5, xPercent: 0.067, yPercent: 0.04 },
+          ];
+          if (item.eyebrow) {
+            elements.push({ id: uid(), type: 'eyebrow', text: item.eyebrow, animation: 'fadeUp', delay: 0.4, animDuration: 0.5, xPercent: 0.067, yPercent: 0.35 });
+          }
+          elements.push({ id: uid(), type: 'divider', text: '', animation: 'fadeUp', delay: 0.6, animDuration: 0.4, xPercent: 0.067, yPercent: 0.39 });
+          elements.push({ id: uid(), type: 'headline', text: item.headline || 'Headline', animation: 'fadeUp', delay: 0.7, animDuration: 0.6, xPercent: 0.067, yPercent: 0.42, fontSize: 80 });
+          if (item.accentWord) {
+            elements.push({ id: uid(), type: 'accentWord', text: item.accentWord, animation: 'fadeUp', delay: 1.2, animDuration: 0.5, xPercent: 0.067, yPercent: 0.60 });
+          }
+          if (item.body) {
+            elements.push({ id: uid(), type: 'body', text: item.body, animation: 'fadeUp', delay: 1.3, animDuration: 0.5, xPercent: 0.067, yPercent: item.accentWord ? 0.68 : 0.60 });
+          }
+          elements.push({ id: uid(), type: 'footer', text: '', animation: 'fadeIn', delay: 1.5, animDuration: 0.5, xPercent: 0.067, yPercent: 0.96 });
+
+          return {
+            id: uid(),
+            duration: 4,
+            transitionIn: i === 0 ? 'none' : 'crossfade',
+            transitionDuration: 0.5,
+            backgroundType: 'solid',
+            backgroundImage: null,
+            backgroundDarken: 0.4,
+            elements,
+          };
+        });
+        setSlides(newSlides);
+        setSelectedSlideIdx(0);
+        setSelectedElementId(null);
+        setCurrentTime(0);
+        setTemplateId(null);
+        invalidateThumbs();
+      }
+    } catch (err) {
+      console.error('AI slides error:', err);
+    }
+    setAiSlidesLoading(false);
   };
 
   // ==========================================
@@ -209,8 +386,6 @@ export default function ReelsPage() {
   // ==========================================
   const currentSlide = slides[selectedSlideIdx];
   const selectedElement = currentSlide?.elements?.find(el => el.id === selectedElementId);
-
-  const uid = () => { const id = nextId; setNextId(n => n + 1); return id; };
 
   const updateSlide = (idx, updates) => {
     setSlides(prev => prev.map((s, i) => i === idx ? { ...s, ...updates } : s));
@@ -291,7 +466,7 @@ export default function ReelsPage() {
   };
 
   // ==========================================
-  // BACKGROUND IMAGE UPLOAD
+  // BACKGROUND IMAGE UPLOAD (per-slide)
   // ==========================================
   const handleBgImage = (e) => {
     const file = e.target.files[0];
@@ -302,7 +477,6 @@ export default function ReelsPage() {
         backgroundType: 'image',
         backgroundImage: ev.target.result,
       });
-      // Pre-load the image for canvas rendering
       const img = new Image();
       img.onload = () => {
         setSlides(prev => prev.map((s, i) => i === selectedSlideIdx ? { ...s, _bgImage: img } : s));
@@ -321,7 +495,7 @@ export default function ReelsPage() {
     setStatus('');
     try {
       await exportReelMP4(
-        { themeId, slides },
+        getReelData(),
         {
           onProgress: setProgress,
           onStatus: setStatus,
@@ -404,6 +578,19 @@ Antworte NUR mit JSON:
         <p>Slide-basierte Reels erstellen — Theme wählen, Texte anpassen, als MP4 exportieren</p>
       </PageHeader>
 
+      {/* Hidden video element for video bg */}
+      {globalBgType === 'video' && globalBgSrc && (
+        <video
+          ref={globalBgVideoRef}
+          src={globalBgSrc}
+          muted
+          loop
+          playsInline
+          style={{ position: 'fixed', left: -9999, top: 0, width: 1, height: 1 }}
+          onLoadedData={() => { invalidateThumbs(); drawPreview(currentTime); }}
+        />
+      )}
+
       <Grid>
         <div>
           {/* Theme + Template Selection */}
@@ -425,6 +612,61 @@ Antworte NUR mit JSON:
             </ChipRow>
           </Panel>
 
+          {/* AI Content Generation */}
+          <Panel>
+            <SectionLabel>KI-Inhalt generieren</SectionLabel>
+            <Field>
+              <Label>Was soll das Reel zeigen?</Label>
+              <Textarea
+                value={aiPrompt}
+                onChange={e => setAiPrompt(e.target.value)}
+                rows={2}
+                placeholder="z.B. Unser Botanical Theme vorstellen mit den besten Features..."
+              />
+            </Field>
+            <GenButton onClick={generateAISlides} disabled={aiSlidesLoading || !aiPrompt.trim()}>
+              {aiSlidesLoading ? <><Spinner /> Generiere Slides...</> : 'KI-Texte generieren (3-5 Slides)'}
+            </GenButton>
+            <Hint>Beschreibe kurz das Thema — KI erstellt automatisch 3-5 Slides mit allen Texten.</Hint>
+          </Panel>
+
+          {/* Global Background */}
+          <Panel>
+            <SectionLabel>Globaler Hintergrund</SectionLabel>
+            {globalBgType === 'none' ? (
+              <FileLabel>
+                Bild oder Video hochladen (alle Slides)
+                <input type="file" accept="image/*,video/*" onChange={handleGlobalBg} />
+              </FileLabel>
+            ) : (
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <BgPreview>
+                  {globalBgType === 'image' && globalBgSrc && <img src={globalBgSrc} alt="Background" />}
+                  {globalBgType === 'video' && globalBgSrc && <video src={globalBgSrc} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                </BgPreview>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.75rem', fontWeight: 500, marginBottom: '0.3rem' }}>
+                    {globalBgType === 'image' ? 'Bild' : 'Video'} geladen
+                  </div>
+                  <Field>
+                    <Label>Abdunklung: {Math.round(globalBgDarken * 100)}%</Label>
+                    <input type="range" min="0" max="90" value={globalBgDarken * 100}
+                      onChange={e => { setGlobalBgDarken(parseInt(e.target.value) / 100); invalidateThumbs(); }}
+                      style={{ width: '100%' }} />
+                  </Field>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <label style={{ fontSize: '0.6rem', cursor: 'pointer', color: colors.red, fontFamily: "'Inter', sans-serif" }}>
+                      Anderes Bild/Video
+                      <input type="file" accept="image/*,video/*" onChange={handleGlobalBg} style={{ display: 'none' }} />
+                    </label>
+                    <DangerBtn onClick={removeGlobalBg}>Entfernen</DangerBtn>
+                  </div>
+                </div>
+              </div>
+            )}
+            <Hint>Bild/Video wird hinter allen Slides als Hintergrund angezeigt (wie Hero-Sections).</Hint>
+          </Panel>
+
           {/* Slide Row */}
           <Panel>
             <SectionLabel>Slides ({slides.length}) — {totalDuration.toFixed(1)}s gesamt</SectionLabel>
@@ -438,7 +680,6 @@ Antworte NUR mit JSON:
               <AddSlideBtn onClick={addSlide}>+</AddSlideBtn>
             </SlideRow>
 
-            {/* Slide actions */}
             {currentSlide && (
               <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.75rem' }}>
                 <SmallBtn onClick={() => duplicateSlide(selectedSlideIdx)}>Duplizieren</SmallBtn>
@@ -469,13 +710,13 @@ Antworte NUR mit JSON:
                 </Field>
               </div>
 
-              {/* Background */}
+              {/* Per-Slide Background Override */}
               <div style={{ marginTop: '0.5rem' }}>
-                <Label>Hintergrund</Label>
+                <Label>Slide-Hintergrund (überschreibt global)</Label>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   <Select value={currentSlide.backgroundType || 'solid'} onChange={e => updateSlide(selectedSlideIdx, { backgroundType: e.target.value })}>
-                    <option value="solid">Farbe (Theme)</option>
-                    <option value="image">Bild</option>
+                    <option value="solid">{globalBgType !== 'none' ? 'Global (Standard)' : 'Farbe (Theme)'}</option>
+                    <option value="image">Eigenes Bild</option>
                   </Select>
                   {currentSlide.backgroundType === 'image' && (
                     <label style={{ fontSize: '0.65rem', cursor: 'pointer', color: colors.red, fontFamily: "'Inter', sans-serif" }}>

@@ -316,15 +316,18 @@ function drawElement(ctx, element, t, slideLocalTime) {
 // ============================================
 // DRAW A FULL SLIDE
 // ============================================
-function drawSlide(ctx, slide, t, slideLocalTime, alpha) {
+function drawSlide(ctx, slide, t, slideLocalTime, alpha, opts = {}) {
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // Background
+  // Background priority: per-slide image > global bg (already drawn) > solid theme color
   if (slide.backgroundType === 'image' && slide._bgImage) {
     ctx.drawImage(slide._bgImage, 0, 0, W, H);
-    // Darken overlay
     ctx.fillStyle = `rgba(0,0,0,${slide.backgroundDarken || 0.4})`;
+    ctx.fillRect(0, 0, W, H);
+  } else if (opts.hasGlobalBg) {
+    // Global bg already drawn at full alpha by renderFrame — just add darken overlay
+    ctx.fillStyle = `rgba(0,0,0,${slide.backgroundDarken ?? opts.globalBgDarken ?? 0.4})`;
     ctx.fillRect(0, 0, W, H);
   } else {
     ctx.fillStyle = t.bgDark || t.bg;
@@ -384,6 +387,15 @@ export function renderFrame(ctx, reelData, globalTime) {
   // Clear canvas
   ctx.clearRect(0, 0, W, H);
 
+  // Draw global background first (image or video element)
+  const globalBgEl = reelData.globalBgElement;
+  const hasGlobalBg = !!globalBgEl;
+  if (globalBgEl) {
+    try { ctx.drawImage(globalBgEl, 0, 0, W, H); } catch (e) { /* video not ready */ }
+  }
+
+  const slideOpts = { hasGlobalBg, globalBgDarken: reelData.globalBgDarken };
+
   const currentSlide = reelData.slides[currentSlideIdx];
   if (!currentSlide) return;
 
@@ -394,12 +406,12 @@ export function renderFrame(ctx, reelData, globalTime) {
     const alpha = easeInOut(transitionProgress);
 
     // Draw previous slide (fading out)
-    drawSlide(ctx, prevSlide, t, prevDur, 1 - alpha);
+    drawSlide(ctx, prevSlide, t, prevDur, 1 - alpha, slideOpts);
     // Draw current slide (fading in)
-    drawSlide(ctx, currentSlide, t, slideLocalTime, alpha);
+    drawSlide(ctx, currentSlide, t, slideLocalTime, alpha, slideOpts);
   } else {
     // No transition, just draw current slide
-    drawSlide(ctx, currentSlide, t, slideLocalTime, 1);
+    drawSlide(ctx, currentSlide, t, slideLocalTime, 1, slideOpts);
   }
 }
 
@@ -422,7 +434,7 @@ export function getSlideAtTime(slides, globalTime) {
 }
 
 // Render a single slide thumbnail to a small canvas
-export function renderThumbnail(slide, themeId, width, height) {
+export function renderThumbnail(slide, themeId, width, height, opts = {}) {
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
@@ -430,8 +442,14 @@ export function renderThumbnail(slide, themeId, width, height) {
 
   const t = THEMES[themeId] || THEMES.classic;
 
+  // Draw global bg if provided
+  const hasGlobalBg = !!opts.globalBgElement;
+  if (opts.globalBgElement) {
+    try { ctx.drawImage(opts.globalBgElement, 0, 0, W, H); } catch (e) { /* not ready */ }
+  }
+
   // Draw slide at t=2s (to show elements after animations)
-  drawSlide(ctx, slide, t, 2.0, 1);
+  drawSlide(ctx, slide, t, 2.0, 1, { hasGlobalBg, globalBgDarken: opts.globalBgDarken });
 
   // Scale down to thumbnail
   const thumbCanvas = document.createElement('canvas');
