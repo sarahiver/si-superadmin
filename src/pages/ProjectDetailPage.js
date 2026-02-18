@@ -23,6 +23,8 @@ const THEME_ACCENT_COLORS = {
   luxe: '#D4AF37',
   neon: '#FF006E',
   video: '#E50914',
+  classic: '#8B6914',
+  summer: '#C1392B',
 };
 
 // Verfügbare Varianten pro Komponente
