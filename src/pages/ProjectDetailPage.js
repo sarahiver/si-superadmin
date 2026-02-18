@@ -1481,6 +1481,7 @@ export default function ProjectDetailPage() {
       component_config: formData.component_config || {},
       std_date: formData.std_date || null, archive_date: formData.archive_date || null,
       password_protected: formData.password_protected || false,
+      favicon_emoji: formData.favicon_emoji || null,
       // Hosting fields
       hosting_start_date: formData.hosting_start_date || null,
       hosting_end_date: formData.hosting_end_date || null,
@@ -1832,6 +1833,32 @@ export default function ProjectDetailPage() {
               <FormGroup><Label>Admin Passwort</Label><Input value={formData.admin_password || ''} onChange={e => handleChange('admin_password', e.target.value)} /></FormGroup>
               <FormGroup><Label>Custom Domain</Label><Input value={formData.custom_domain || ''} onChange={e => handleChange('custom_domain', e.target.value.toLowerCase())} placeholder="anna-max.de" /></FormGroup>
             </SettingsGrid>
+
+            {/* Favicon Emoji */}
+            <FormGroup style={{ marginTop: '1rem' }}>
+              <Label>Tab-Icon (Favicon Emoji)</Label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                {['💍','🌸','🤍','✨','🕊️','🌿','🥂','🌹','💐','🎀','🪷','⚘'].map(emoji => (
+                  <button
+                    key={emoji}
+                    onClick={() => handleChange('favicon_emoji', formData.favicon_emoji === emoji ? '' : emoji)}
+                    style={{
+                      width: 40, height: 40, fontSize: '1.3rem', borderRadius: 6, cursor: 'pointer',
+                      border: formData.favicon_emoji === emoji ? '2px solid #C41E3A' : '2px solid #ddd',
+                      background: formData.favicon_emoji === emoji ? '#fff0f0' : '#fff',
+                    }}
+                  >{emoji}</button>
+                ))}
+              </div>
+              <Input
+                type="text"
+                value={formData.favicon_emoji || ''}
+                onChange={e => handleChange('favicon_emoji', e.target.value)}
+                placeholder="Emoji eingeben oder oben auswählen…"
+                maxLength={4}
+                style={{ fontSize: '1.2rem', maxWidth: 280 }}
+              />
+            </FormGroup>
             
             {/* Gäste-Passwortschutz */}
             <PasswordProtectionBox>
