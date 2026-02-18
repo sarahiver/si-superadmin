@@ -40,8 +40,9 @@ function AuthProvider({ children }) {
   }, []);
 
   const login = (userData) => {
-    setUser(userData);
-    localStorage.setItem('si_admin_user', JSON.stringify(userData));
+    const userToStore = userData || { loggedIn: true };
+    setUser(userToStore);
+    localStorage.setItem('si_admin_user', JSON.stringify(userToStore));
   };
 
   const logout = () => {
@@ -60,7 +61,9 @@ function AuthProvider({ children }) {
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
-  return user ? children : <Navigate to="/login" replace />;
+  // Check localStorage directly as fallback (handles timing issues)
+  const hasAuth = user || localStorage.getItem('si_admin_user');
+  return hasAuth ? children : <Navigate to="/login" replace />;
 }
 
 function App() {
