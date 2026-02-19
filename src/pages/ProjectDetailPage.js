@@ -24,6 +24,7 @@ const THEME_ACCENT_COLORS = {
   neon: '#FF006E',
   video: '#E50914',
   classic: '#8B6914',
+  parallax: '#000000',
 };
 
 // Verfügbare Varianten pro Komponente
