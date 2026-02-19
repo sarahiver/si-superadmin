@@ -13,6 +13,7 @@ export const THEMES = {
   neon: { id: 'neon', name: 'Neon', description: 'Bold, Leuchtfarben, Party' },
   video: { id: 'video', name: 'Video', description: 'Horizontal Scroll, Cinematic' },
   classic: { id: 'classic', name: 'Classic', description: 'Warm, Elegant, Zeitlos' },
+  parallax: { id: 'parallax', name: 'Parallax', description: '3D Scroll, Bold Typography, Immersiv' },
 };
 
 // ============================================
