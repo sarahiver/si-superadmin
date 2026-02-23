@@ -52,7 +52,7 @@ const SearchInput = styled.input`
 const Table = styled.div`border: 2px solid ${colors.black}; background: ${colors.white};`;
 
 const TableHeader = styled.div`
-  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 100px;
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 100px;
   background: ${colors.black}; color: ${colors.white}; padding: 1rem 1.25rem;
   font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 600;
   letter-spacing: 0.1em; text-transform: uppercase;
@@ -60,7 +60,7 @@ const TableHeader = styled.div`
 `;
 
 const TableRow = styled(Link)`
-  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 100px;
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 100px;
   padding: 1rem 1.25rem; border-bottom: 1px solid ${colors.lightGray};
   text-decoration: none; color: ${colors.black}; transition: all 0.15s ease;
   &:last-child { border-bottom: none; }
@@ -203,6 +203,7 @@ export default function ProjectsPage() {
           <div>Paar</div>
           <div>Datum</div>
           <div>Paket</div>
+          <div>Theme</div>
           <div>Status</div>
           <div>Preis</div>
           <div></div>
@@ -218,11 +219,13 @@ export default function ProjectsPage() {
           paginatedProjects.map(project => {
             const status = PROJECT_STATUS[project.status];
             const pkg = PACKAGES[project.package];
+            const theme = THEMES[project.theme];
             return (
               <TableRow key={project.id} to={`/projects/${project.id}`} data-couple={project.couple_names || 'Unbenannt'}>
                 <Cell className="couple">{project.couple_names || 'Unbenannt'}</Cell>
                 <Cell data-label="Datum">{project.wedding_date ? new Date(project.wedding_date).toLocaleDateString('de-DE') : '–'}</Cell>
                 <Cell data-label="Paket">{pkg?.name || 'Starter'}</Cell>
+                <Cell data-label="Theme">{theme?.name || project.theme || '–'}</Cell>
                 <Cell data-label="Status">
                   <StatusBadge $color={status?.color} $highlight={project.status === 'ready_for_review'}>
                     {project.status === 'ready_for_review' && '🔔 '}
