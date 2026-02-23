@@ -117,38 +117,34 @@ export default async function handler(req, res) {
         limit: 8,
       }),
 
-      // 8) Theme switch events
+      // 8) Theme switch events — use eventName only (no custom dims needed)
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'customEvent:to_theme' }],
+        dimensions: [{ name: 'eventName' }],
         metrics: [{ name: 'eventCount' }],
         dimensionFilter: {
           filter: { fieldName: 'eventName', stringFilter: { value: 'theme_switch' } },
         },
-        orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
-        limit: 10,
       }),
 
       // 9) Package CTA clicks (select_item)
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'customEvent:package' }],
+        dimensions: [{ name: 'eventName' }],
         metrics: [{ name: 'eventCount' }],
         dimensionFilter: {
           filter: { fieldName: 'eventName', stringFilter: { value: 'select_item' } },
         },
-        orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
       }),
 
       // 10) Demo clicks per theme
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'customEvent:event_label' }],
+        dimensions: [{ name: 'eventName' }],
         metrics: [{ name: 'eventCount' }],
         dimensionFilter: {
           filter: { fieldName: 'eventName', stringFilter: { value: 'demo_click' } },
         },
-        orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
       }),
 
       // 11) Form funnel (form_start, generate_lead, form_error)
@@ -167,25 +163,25 @@ export default async function handler(req, res) {
         },
       }),
 
-      // 12) Blog articles by views
+      // 12) Blog articles — use pagePath for blog views instead of custom dim
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'customEvent:content_id' }],
-        metrics: [{ name: 'eventCount' }],
+        dimensions: [{ name: 'pagePath' }],
+        metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }],
         dimensionFilter: {
-          filter: { fieldName: 'eventName', stringFilter: { value: 'view_item' } },
+          filter: { fieldName: 'pagePath', stringFilter: { matchType: 'BEGINS_WITH', value: '/blog/' } },
         },
-        orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+        orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
         limit: 15,
       }),
 
-      // 13) Blog scroll depth
+      // 13) Blog CTA clicks
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'customEvent:percent_scrolled' }],
+        dimensions: [{ name: 'eventName' }],
         metrics: [{ name: 'eventCount' }],
         dimensionFilter: {
-          filter: { fieldName: 'eventName', stringFilter: { value: 'scroll' } },
+          filter: { fieldName: 'eventName', stringFilter: { value: 'cta_click' } },
         },
       }),
 
@@ -206,12 +202,12 @@ export default async function handler(req, res) {
       countries: parseRows(countries, ['country'], ['users', 'sessions']),
       devices: parseRows(devices, ['device'], ['users', 'sessions', 'bounceRate']),
       browsers: parseRows(browsers, ['browser'], ['users']),
-      themeInterest: parseRows(themeEvents, ['theme'], ['clicks']),
-      packageClicks: parseRows(packageEvents, ['package'], ['clicks']),
-      demoClicks: parseRows(demoClicks, ['theme'], ['clicks']),
+      themeInterest: parseSingleEventCount(themeEvents, 'theme_switch'),
+      packageClicks: parseSingleEventCount(packageEvents, 'select_item'),
+      demoClicks: parseSingleEventCount(demoClicks, 'demo_click'),
       formFunnel: parseRows(formFunnel, ['event'], ['count']),
-      blogArticles: parseRows(blogArticles, ['slug'], ['views']),
-      blogScrollDepth: parseRows(blogScrollDepth, ['percent'], ['count']),
+      blogArticles: parseRows(blogArticles, ['pagePath'], ['views', 'users']),
+      blogCTAClicks: parseSingleEventCount(blogScrollDepth, 'cta_click'),
       dailyVisitors: parseRows(dailyVisitors, ['date'], ['users', 'sessions', 'pageViews']),
     });
 
@@ -267,6 +263,13 @@ function parseRows(report, dimNames, metricNames) {
     });
     return item;
   });
+}
+
+function parseSingleEventCount(report, eventName) {
+  if (!report?.rows) return [{ event: eventName, count: 0 }];
+  const row = report.rows.find(r => r.dimensionValues?.[0]?.value === eventName);
+  const count = row ? parseFloat(row.metricValues?.[0]?.value || 0) : 0;
+  return [{ event: eventName, count }];
 }
 
 // ============================================

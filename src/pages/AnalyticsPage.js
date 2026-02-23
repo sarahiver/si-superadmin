@@ -226,72 +226,47 @@ export default function AnalyticsPage() {
           </TwoCol>
 
           {/* ============================================ */}
-          {/* THEME & PACKAGE PERFORMANCE */}
+          {/* EVENT PERFORMANCE */}
           {/* ============================================ */}
           <Section>
-            <SectionTitle>Theme & Paket Performance</SectionTitle>
-            <ThreeCol>
-              {/* Theme Interest */}
-              <Panel>
-                <PanelTitle>🎨 Beliebteste Themes</PanelTitle>
-                <PanelSubtitle>Theme-Wechsel durch Besucher</PanelSubtitle>
-                {(data.themeInterest || []).length > 0 ? (
-                  <BarList>
-                    {data.themeInterest.filter(t => t.theme && t.theme !== '(not set)').map((t, i) => {
-                      const max = Math.max(...data.themeInterest.map(x => x.clicks));
-                      return (
-                        <BarItem key={i}>
-                          <BarLabel>{t.theme}</BarLabel>
-                          <BarTrack><BarFill $width={(t.clicks / max) * 100} $color={getThemeColor(t.theme)} /></BarTrack>
-                          <BarValue>{t.clicks}</BarValue>
-                        </BarItem>
-                      );
-                    })}
-                  </BarList>
-                ) : <NoData>Noch keine Daten</NoData>}
-              </Panel>
-
-              {/* Demo Clicks */}
-              <Panel>
-                <PanelTitle>👁️ Demo-Klicks</PanelTitle>
-                <PanelSubtitle>Welche Demos werden angesehen</PanelSubtitle>
-                {(data.demoClicks || []).length > 0 ? (
-                  <BarList>
-                    {data.demoClicks.filter(d => d.theme && d.theme !== '(not set)').map((d, i) => {
-                      const max = Math.max(...data.demoClicks.map(x => x.clicks));
-                      return (
-                        <BarItem key={i}>
-                          <BarLabel>{d.theme}</BarLabel>
-                          <BarTrack><BarFill $width={(d.clicks / max) * 100} $color={getThemeColor(d.theme)} /></BarTrack>
-                          <BarValue>{d.clicks}</BarValue>
-                        </BarItem>
-                      );
-                    })}
-                  </BarList>
-                ) : <NoData>Noch keine Daten</NoData>}
-              </Panel>
-
-              {/* Package Clicks */}
-              <Panel>
-                <PanelTitle>💰 Paket-Interesse</PanelTitle>
-                <PanelSubtitle>CTA-Klicks pro Paket</PanelSubtitle>
-                {(data.packageClicks || []).length > 0 ? (
-                  <BarList>
-                    {data.packageClicks.filter(p => p.package && p.package !== '(not set)').map((p, i) => {
-                      const max = Math.max(...data.packageClicks.map(x => x.clicks));
-                      const pkgColor = p.package === 'Premium' ? colors.red : p.package === 'Standard' ? colors.blue : colors.gray;
-                      return (
-                        <BarItem key={i}>
-                          <BarLabel>{p.package}</BarLabel>
-                          <BarTrack><BarFill $width={(p.clicks / max) * 100} $color={pkgColor} /></BarTrack>
-                          <BarValue>{p.clicks}</BarValue>
-                        </BarItem>
-                      );
-                    })}
-                  </BarList>
-                ) : <NoData>Noch keine Daten</NoData>}
-              </Panel>
-            </ThreeCol>
+            <SectionTitle>Event Performance</SectionTitle>
+            <EventGrid>
+              <EventCard>
+                <EventIcon>🎨</EventIcon>
+                <EventInfo>
+                  <EventName>Theme-Wechsel</EventName>
+                  <EventCount>{data.themeInterest?.[0]?.count || 0}</EventCount>
+                </EventInfo>
+                <EventHint>Besucher die Themes ausprobieren</EventHint>
+              </EventCard>
+              <EventCard>
+                <EventIcon>👁️</EventIcon>
+                <EventInfo>
+                  <EventName>Demo-Klicks</EventName>
+                  <EventCount>{data.demoClicks?.[0]?.count || 0}</EventCount>
+                </EventInfo>
+                <EventHint>Klicks auf Theme-Demos</EventHint>
+              </EventCard>
+              <EventCard>
+                <EventIcon>💰</EventIcon>
+                <EventInfo>
+                  <EventName>Paket-Klicks</EventName>
+                  <EventCount>{data.packageClicks?.[0]?.count || 0}</EventCount>
+                </EventInfo>
+                <EventHint>CTA-Klicks auf Pakete</EventHint>
+              </EventCard>
+              <EventCard>
+                <EventIcon>📝</EventIcon>
+                <EventInfo>
+                  <EventName>Blog CTA-Klicks</EventName>
+                  <EventCount>{data.blogCTAClicks?.[0]?.count || 0}</EventCount>
+                </EventInfo>
+                <EventHint>"Jetzt anfragen" im Blog</EventHint>
+              </EventCard>
+            </EventGrid>
+            <EventNote>
+              💡 Für detaillierte Aufschlüsselung (welches Theme, welches Paket) registriere die Custom Dimensions in GA4 unter Verwaltung → Benutzerdefinierte Definitionen.
+            </EventNote>
           </Section>
 
           {/* ============================================ */}
@@ -300,41 +275,21 @@ export default function AnalyticsPage() {
           {(data.blogArticles || []).length > 0 && (
             <Section>
               <SectionTitle>Blog Performance</SectionTitle>
-              <TwoCol>
-                <Panel>
-                  <PanelTitle>📝 Top Artikel</PanelTitle>
-                  <Table $compact>
-                    <thead><tr><th>Artikel</th><th>Views</th></tr></thead>
-                    <tbody>
-                      {data.blogArticles.filter(a => a.slug && a.slug !== '(not set)').slice(0, 10).map((a, i) => (
-                        <tr key={i}>
-                          <td><PagePath>{a.slug.replace(/-/g, ' ')}</PagePath></td>
-                          <td>{a.views}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </Table>
-                </Panel>
-
-                <Panel>
-                  <PanelTitle>📊 Scroll-Tiefe (Blog)</PanelTitle>
-                  <PanelSubtitle>Wie weit lesen Besucher</PanelSubtitle>
-                  <BarList>
-                    {['25', '50', '75', '100'].map(pct => {
-                      const item = (data.blogScrollDepth || []).find(d => d.percent === pct);
-                      const count = item ? item.count : 0;
-                      const max = Math.max(...(data.blogScrollDepth || []).map(d => d.count), 1);
-                      return (
-                        <BarItem key={pct}>
-                          <BarLabel>{pct}%</BarLabel>
-                          <BarTrack><BarFill $width={(count / max) * 100} $color={pct === '100' ? colors.green : pct === '75' ? colors.blue : colors.orange} /></BarTrack>
-                          <BarValue>{count}</BarValue>
-                        </BarItem>
-                      );
-                    })}
-                  </BarList>
-                </Panel>
-              </TwoCol>
+              <Panel>
+                <PanelTitle>📝 Top Blog-Artikel</PanelTitle>
+                <Table>
+                  <thead><tr><th>Artikel</th><th>Views</th><th>Nutzer</th></tr></thead>
+                  <tbody>
+                    {data.blogArticles.filter(a => a.pagePath && a.pagePath !== '/blog' && a.pagePath !== '/blog/').slice(0, 10).map((a, i) => (
+                      <tr key={i}>
+                        <td><PagePath>{a.pagePath.replace('/blog/', '').replace(/-/g, ' ')}</PagePath></td>
+                        <td>{formatNumber(a.views)}</td>
+                        <td>{formatNumber(a.users)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </Panel>
             </Section>
           )}
 
@@ -526,6 +481,16 @@ const DeviceValue = styled.span`font-family: 'Oswald', sans-serif; font-size: 1r
 // Chart
 const ChartContainer = styled.div`background: ${colors.white}; border: 2px solid ${colors.black}; padding: 1.5rem;`;
 const ChartSVG = styled.svg`width: 100%; height: 120px;`;
+
+// Event Cards
+const EventGrid = styled.div`display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; @media (max-width: 900px) { grid-template-columns: repeat(2, 1fr); }`;
+const EventCard = styled.div`background: ${colors.white}; border: 2px solid ${colors.black}; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem;`;
+const EventIcon = styled.span`font-size: 1.5rem;`;
+const EventInfo = styled.div``;
+const EventName = styled.div`font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: ${colors.gray};`;
+const EventCount = styled.div`font-family: 'Oswald', sans-serif; font-size: 2rem; font-weight: 600; color: ${colors.black}; line-height: 1;`;
+const EventHint = styled.div`font-family: 'Inter', sans-serif; font-size: 0.65rem; color: ${colors.gray};`;
+const EventNote = styled.div`font-family: 'Inter', sans-serif; font-size: 0.75rem; color: ${colors.gray}; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.15); padding: 0.75rem 1rem; margin-top: 1rem;`;
 
 // Footer
 const Footer = styled.div`font-family: 'Inter', sans-serif; font-size: 0.7rem; color: ${colors.gray}; text-align: center; padding: 1rem 0; border-top: 1px solid ${colors.lightGray}; margin-top: 2rem;`;
