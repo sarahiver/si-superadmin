@@ -65,6 +65,16 @@ export const THEMES = {
     logoStyle: { background: 'rgba(0,255,255,0.08)', border: '1px solid rgba(0,255,255,0.3)', color: '#00ffff' },
     logoDarkStyle: { background: 'rgba(0,255,255,0.08)', border: '1px solid rgba(0,255,255,0.3)', color: '#00ffff' },
   },
+  modern: {
+    name: 'Modern', bg: '#F5F0EB', bgDark: '#1A1A1A', text: '#1A1A1A', textDark: '#F5F0EB',
+    accent: '#8B6F4E', muted: '#999', body: '#666',
+    headlineFont: "'Cormorant Garamond', Georgia, serif", headlineWeight: 300,
+    scriptFont: "'Cormorant Garamond', Georgia, serif", scriptStyle: 'italic',
+    bodyFont: "'Montserrat', sans-serif", bodyWeight: 300,
+    uiFont: "'Montserrat', sans-serif",
+    logoStyle: { background: '#1A1A1A', color: '#F5F0EB' },
+    logoDarkStyle: { background: 'rgba(139,111,78,0.15)', border: '1px solid rgba(139,111,78,0.3)', color: '#8B6F4E' },
+  },
   video: {
     name: 'Video', bg: '#0A0A0A', bgDark: '#0A0A0A', text: '#fff', textDark: '#fff',
     accent: '#6B8CAE', muted: 'rgba(255,255,255,0.35)', body: '#B0B0B0',
