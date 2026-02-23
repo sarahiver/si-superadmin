@@ -8,6 +8,8 @@ import Layout from '../components/Layout';
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5', blue: '#3B82F6', purple: '#8B5CF6' };
 
 const PERIODS = [
+  { value: '1', label: 'Heute' },
+  { value: '2', label: 'Gestern' },
   { value: '7', label: '7 Tage' },
   { value: '14', label: '14 Tage' },
   { value: '30', label: '30 Tage' },
@@ -368,16 +370,76 @@ function MiniChart({ data }) {
   if (!data || data.length === 0) return null;
   const values = data.map(d => d.users);
   const max = Math.max(...values, 1);
-  const width = 100;
-  const height = 30;
-  const points = values.map((v, i) => `${(i / (values.length - 1)) * width},${height - (v / max) * height}`).join(' ');
-  const fillPoints = `0,${height} ${points} ${width},${height}`;
+  const total = values.reduce((s, v) => s + v, 0);
+  const avg = Math.round(total / values.length);
+
+  // Format date label: "20260215" → "15.02."
+  const formatDate = (d) => {
+    if (!d || d.length !== 8) return d;
+    return `${d.slice(6, 8)}.${d.slice(4, 6)}.`;
+  };
+
+  // Chart dimensions
+  const padding = { top: 10, right: 10, bottom: 28, left: 35 };
+  const svgW = 800;
+  const svgH = 180;
+  const chartW = svgW - padding.left - padding.right;
+  const chartH = svgH - padding.top - padding.bottom;
+
+  // Points
+  const points = values.map((v, i) => {
+    const x = padding.left + (i / Math.max(values.length - 1, 1)) * chartW;
+    const y = padding.top + chartH - (v / max) * chartH;
+    return { x, y, value: v, date: data[i]?.date };
+  });
+  const polyline = points.map(p => `${p.x},${p.y}`).join(' ');
+  const polygon = `${padding.left},${padding.top + chartH} ${polyline} ${padding.left + chartW},${padding.top + chartH}`;
+
+  // Y-axis ticks
+  const yTicks = [0, Math.round(max / 2), max];
+
+  // X-axis labels (show ~6 labels evenly distributed)
+  const labelCount = Math.min(6, data.length);
+  const xLabels = [];
+  for (let i = 0; i < labelCount; i++) {
+    const idx = Math.round(i * (data.length - 1) / Math.max(labelCount - 1, 1));
+    xLabels.push({ idx, label: formatDate(data[idx]?.date), x: points[idx]?.x });
+  }
 
   return (
-    <ChartSVG viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-      <polygon points={fillPoints} fill="rgba(196, 30, 58, 0.08)" />
-      <polyline points={points} fill="none" stroke={colors.red} strokeWidth="0.5" />
-    </ChartSVG>
+    <ChartWrapper>
+      <ChartStats>
+        <ChartStat><ChartStatLabel>Gesamt</ChartStatLabel><ChartStatValue>{total}</ChartStatValue></ChartStat>
+        <ChartStat><ChartStatLabel>Ø / Tag</ChartStatLabel><ChartStatValue>{avg}</ChartStatValue></ChartStat>
+        <ChartStat><ChartStatLabel>Peak</ChartStatLabel><ChartStatValue>{max}</ChartStatValue></ChartStat>
+      </ChartStats>
+      <ChartSVG viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none">
+        {/* Grid lines */}
+        {yTicks.map((tick, i) => {
+          const y = padding.top + chartH - (tick / max) * chartH;
+          return (
+            <g key={i}>
+              <line x1={padding.left} y1={y} x2={svgW - padding.right} y2={y} stroke="#e5e5e5" strokeWidth="0.5" />
+              <text x={padding.left - 5} y={y + 3} textAnchor="end" fill="#999" fontSize="9" fontFamily="Inter, sans-serif">{tick}</text>
+            </g>
+          );
+        })}
+        {/* X axis labels */}
+        {xLabels.map((l, i) => (
+          <text key={i} x={l.x} y={svgH - 5} textAnchor="middle" fill="#999" fontSize="8" fontFamily="Inter, sans-serif">{l.label}</text>
+        ))}
+        {/* Area fill */}
+        <polygon points={polygon} fill="rgba(196, 30, 58, 0.08)" />
+        {/* Line */}
+        <polyline points={polyline} fill="none" stroke={colors.red} strokeWidth="1.5" strokeLinejoin="round" />
+        {/* Data points */}
+        {points.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r="2" fill={colors.red} opacity="0.6">
+            <title>{formatDate(p.date)}: {p.value} Besucher</title>
+          </circle>
+        ))}
+      </ChartSVG>
+    </ChartWrapper>
   );
 }
 
@@ -480,7 +542,12 @@ const DeviceValue = styled.span`font-family: 'Oswald', sans-serif; font-size: 1r
 
 // Chart
 const ChartContainer = styled.div`background: ${colors.white}; border: 2px solid ${colors.black}; padding: 1.5rem;`;
-const ChartSVG = styled.svg`width: 100%; height: 120px;`;
+const ChartWrapper = styled.div``;
+const ChartStats = styled.div`display: flex; gap: 2rem; margin-bottom: 1rem;`;
+const ChartStat = styled.div``;
+const ChartStatLabel = styled.div`font-family: 'Inter', sans-serif; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: ${colors.gray};`;
+const ChartStatValue = styled.div`font-family: 'Oswald', sans-serif; font-size: 1.5rem; font-weight: 600; color: ${colors.black}; line-height: 1.2;`;
+const ChartSVG = styled.svg`width: 100%; height: 180px;`;
 
 // Event Cards
 const EventGrid = styled.div`display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; @media (max-width: 900px) { grid-template-columns: repeat(2, 1fr); }`;
