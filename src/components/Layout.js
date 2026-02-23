@@ -30,6 +30,7 @@ export default function Layout({ children }) {
     { path: '/projects/new', label: 'Neu' },
     { path: '/partners', label: 'Kooperationen' },
     { path: '/content', label: 'Content' },
+    { path: '/analytics', label: 'Analytics' },
     { path: '/requests', label: 'Anfragen' },
     { path: '/settings', label: 'Settings' },
   ];

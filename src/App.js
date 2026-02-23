@@ -15,6 +15,7 @@ import PartnersPage from './pages/PartnersPage';
 import InstagramPage from './pages/InstagramPage';
 import ReelsPage from './pages/ReelsPage';
 import ContentPage from './pages/ContentPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 
 // Auth Context
 const AuthContext = React.createContext(null);
@@ -84,6 +85,7 @@ function App() {
           <Route path="/content" element={<PrivateRoute><ContentPage /></PrivateRoute>} />
           <Route path="/instagram" element={<PrivateRoute><ContentPage /></PrivateRoute>} />
           <Route path="/reels" element={<PrivateRoute><ContentPage /></PrivateRoute>} />
+          <Route path="/analytics" element={<PrivateRoute><AnalyticsPage /></PrivateRoute>} />
           <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
