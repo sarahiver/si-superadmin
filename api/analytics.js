@@ -1,6 +1,6 @@
 // api/analytics.js
-// Vercel Serverless Function — GA4 Data API Proxy
-// Verwendet Google Service Account für Authentifizierung
+// Vercel Serverless Function — GA4 Data API Proxy (v2)
+// Umfassende Analytics mit Custom Dimension Fallback
 // Env Vars: GA4_PROPERTY_ID, GOOGLE_SERVICE_ACCOUNT_JSON
 
 export default async function handler(req, res) {
@@ -28,294 +28,242 @@ export default async function handler(req, res) {
     const prevStartDate = `${parseInt(period) * 2}daysAgo`;
     const prevEndDate = `${parseInt(period) + 1}daysAgo`;
 
-    // Batch all reports in parallel
     const [
-      overview,
-      overviewPrev,
-      pages,
-      referrers,
-      countries,
-      devices,
-      browsers,
-      themeEvents,
-      packageEvents,
-      demoClicks,
-      formFunnel,
-      blogArticles,
-      blogScrollDepth,
-      dailyVisitors,
+      overview, overviewPrev,
+      pages, referrers, countries, cities, devices, browsers, os,
+      landingPages,
+      allEvents, formFunnel, blogArticles,
+      dailyVisitors, hourlyVisitors,
+      themeDetail, packageDetail, demoDetail,
     ] = await Promise.all([
-      // 1) Overview metrics (current period)
+      // 1) Overview (current)
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         metrics: [
-          { name: 'activeUsers' },
-          { name: 'sessions' },
-          { name: 'screenPageViews' },
-          { name: 'bounceRate' },
-          { name: 'averageSessionDuration' },
-          { name: 'conversions' },
-          { name: 'newUsers' },
-          { name: 'userEngagementDuration' },
+          { name: 'activeUsers' }, { name: 'sessions' }, { name: 'screenPageViews' },
+          { name: 'bounceRate' }, { name: 'averageSessionDuration' },
+          { name: 'conversions' }, { name: 'newUsers' }, { name: 'userEngagementDuration' },
+          { name: 'sessionsPerUser' }, { name: 'screenPageViewsPerSession' },
         ],
       }),
-
-      // 2) Overview metrics (previous period for comparison)
+      // 2) Overview (previous)
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate: prevStartDate, endDate: prevEndDate }],
         metrics: [
-          { name: 'activeUsers' },
-          { name: 'sessions' },
-          { name: 'screenPageViews' },
-          { name: 'bounceRate' },
-          { name: 'averageSessionDuration' },
-          { name: 'conversions' },
-          { name: 'newUsers' },
+          { name: 'activeUsers' }, { name: 'sessions' }, { name: 'screenPageViews' },
+          { name: 'bounceRate' }, { name: 'averageSessionDuration' },
+          { name: 'conversions' }, { name: 'newUsers' },
         ],
       }),
-
       // 3) Top pages
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'pagePath' }],
         metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }, { name: 'bounceRate' }, { name: 'averageSessionDuration' }],
         orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
-        limit: 20,
+        limit: 25,
       }),
-
-      // 4) Referrers (traffic sources)
+      // 4) Referrers
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
-        metrics: [{ name: 'sessions' }, { name: 'activeUsers' }, { name: 'conversions' }],
+        metrics: [{ name: 'sessions' }, { name: 'activeUsers' }, { name: 'bounceRate' }, { name: 'conversions' }],
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
-        limit: 15,
+        limit: 20,
       }),
-
       // 5) Countries
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'country' }],
         metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
         orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
-        limit: 10,
+        limit: 15,
       }),
-
-      // 6) Devices
+      // 6) Cities
+      runReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'city' }],
+        metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
+        orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
+        limit: 15,
+      }),
+      // 7) Devices
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'deviceCategory' }],
-        metrics: [{ name: 'activeUsers' }, { name: 'sessions' }, { name: 'bounceRate' }],
+        metrics: [{ name: 'activeUsers' }, { name: 'sessions' }, { name: 'bounceRate' }, { name: 'averageSessionDuration' }],
       }),
-
-      // 7) Browsers
+      // 8) Browsers
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'browser' }],
+        metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
+        orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
+        limit: 10,
+      }),
+      // 9) OS
+      runReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'operatingSystem' }],
         metrics: [{ name: 'activeUsers' }],
         orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
         limit: 8,
       }),
-
-      // 8) Theme switch events — use eventName only (no custom dims needed)
+      // 10) Landing Pages
+      runReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'landingPagePlusQueryString' }],
+        metrics: [{ name: 'sessions' }, { name: 'bounceRate' }, { name: 'averageSessionDuration' }],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        limit: 15,
+      }),
+      // 11) ALL events
+      runReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'eventName' }],
+        metrics: [{ name: 'eventCount' }, { name: 'totalUsers' }],
+        orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+        limit: 30,
+      }),
+      // 12) Form funnel
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'eventName' }],
         metrics: [{ name: 'eventCount' }],
-        dimensionFilter: {
-          filter: { fieldName: 'eventName', stringFilter: { value: 'theme_switch' } },
-        },
+        dimensionFilter: { orGroup: { expressions: [
+          { filter: { fieldName: 'eventName', stringFilter: { value: 'form_start' } } },
+          { filter: { fieldName: 'eventName', stringFilter: { value: 'generate_lead' } } },
+          { filter: { fieldName: 'eventName', stringFilter: { value: 'form_error' } } },
+        ]}},
       }),
-
-      // 9) Package CTA clicks (select_item)
-      runReport(accessToken, GA4_PROPERTY_ID, {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'eventName' }],
-        metrics: [{ name: 'eventCount' }],
-        dimensionFilter: {
-          filter: { fieldName: 'eventName', stringFilter: { value: 'select_item' } },
-        },
-      }),
-
-      // 10) Demo clicks per theme
-      runReport(accessToken, GA4_PROPERTY_ID, {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'eventName' }],
-        metrics: [{ name: 'eventCount' }],
-        dimensionFilter: {
-          filter: { fieldName: 'eventName', stringFilter: { value: 'demo_click' } },
-        },
-      }),
-
-      // 11) Form funnel (form_start, generate_lead, form_error)
-      runReport(accessToken, GA4_PROPERTY_ID, {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'eventName' }],
-        metrics: [{ name: 'eventCount' }],
-        dimensionFilter: {
-          orGroup: {
-            expressions: [
-              { filter: { fieldName: 'eventName', stringFilter: { value: 'form_start' } } },
-              { filter: { fieldName: 'eventName', stringFilter: { value: 'generate_lead' } } },
-              { filter: { fieldName: 'eventName', stringFilter: { value: 'form_error' } } },
-            ],
-          },
-        },
-      }),
-
-      // 12) Blog articles — use pagePath for blog views instead of custom dim
+      // 13) Blog articles
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'pagePath' }],
-        metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }],
-        dimensionFilter: {
-          filter: { fieldName: 'pagePath', stringFilter: { matchType: 'BEGINS_WITH', value: '/blog/' } },
-        },
+        metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }, { name: 'averageSessionDuration' }],
+        dimensionFilter: { filter: { fieldName: 'pagePath', stringFilter: { matchType: 'BEGINS_WITH', value: '/blog/' } } },
         orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
-        limit: 15,
+        limit: 20,
       }),
-
-      // 13) Blog CTA clicks
-      runReport(accessToken, GA4_PROPERTY_ID, {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'eventName' }],
-        metrics: [{ name: 'eventCount' }],
-        dimensionFilter: {
-          filter: { fieldName: 'eventName', stringFilter: { value: 'cta_click' } },
-        },
-      }),
-
-      // 14) Daily visitors (for chart)
+      // 14) Daily visitors
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'date' }],
-        metrics: [{ name: 'activeUsers' }, { name: 'sessions' }, { name: 'screenPageViews' }],
+        metrics: [{ name: 'activeUsers' }, { name: 'sessions' }, { name: 'screenPageViews' }, { name: 'newUsers' }],
         orderBys: [{ dimension: { dimensionName: 'date' } }],
       }),
+      // 15) Hourly (only for today/yesterday)
+      parseInt(period) <= 2 ? runReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'hour' }],
+        metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
+        orderBys: [{ dimension: { dimensionName: 'hour' } }],
+      }) : Promise.resolve(null),
+      // 16-18) Custom dim queries (safe)
+      safeReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'customEvent:to_theme' }],
+        metrics: [{ name: 'eventCount' }],
+        dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'theme_switch' } } },
+        orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+      }),
+      safeReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'customEvent:package' }],
+        metrics: [{ name: 'eventCount' }],
+        dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'select_item' } } },
+        orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+      }),
+      safeReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'customEvent:demo_url' }],
+        metrics: [{ name: 'eventCount' }],
+        dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'demo_click' } } },
+        orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+      }),
     ]);
+
+    // Build event summary from allEvents
+    const eventsData = parseRows(allEvents, ['event'], ['count', 'users']);
+    const ec = (name) => eventsData.find(e => e.event === name)?.count || 0;
 
     res.status(200).json({
       overview: parseOverview(overview),
       overviewPrev: parseOverview(overviewPrev),
       pages: parseRows(pages, ['pagePath'], ['pageViews', 'users', 'bounceRate', 'avgDuration']),
-      referrers: parseRows(referrers, ['source', 'medium'], ['sessions', 'users', 'conversions']),
+      referrers: parseRows(referrers, ['source', 'medium'], ['sessions', 'users', 'bounceRate', 'conversions']),
       countries: parseRows(countries, ['country'], ['users', 'sessions']),
-      devices: parseRows(devices, ['device'], ['users', 'sessions', 'bounceRate']),
-      browsers: parseRows(browsers, ['browser'], ['users']),
-      themeInterest: parseSingleEventCount(themeEvents, 'theme_switch'),
-      packageClicks: parseSingleEventCount(packageEvents, 'select_item'),
-      demoClicks: parseSingleEventCount(demoClicks, 'demo_click'),
+      cities: parseRows(cities, ['city'], ['users', 'sessions']),
+      devices: parseRows(devices, ['device'], ['users', 'sessions', 'bounceRate', 'avgDuration']),
+      browsers: parseRows(browsers, ['browser'], ['users', 'sessions']),
+      os: parseRows(os, ['os'], ['users']),
+      landingPages: parseRows(landingPages, ['page'], ['sessions', 'bounceRate', 'avgDuration']),
+      allEvents: eventsData,
+      eventSummary: {
+        themeSwitches: ec('theme_switch'), demoClicks: ec('demo_click'),
+        selectItem: ec('select_item'), formStart: ec('form_start'),
+        generateLead: ec('generate_lead'), formError: ec('form_error'),
+        ctaClick: ec('cta_click'), scrollEvents: ec('scroll'),
+      },
       formFunnel: parseRows(formFunnel, ['event'], ['count']),
-      blogArticles: parseRows(blogArticles, ['pagePath'], ['views', 'users']),
-      blogCTAClicks: parseSingleEventCount(blogScrollDepth, 'cta_click'),
-      dailyVisitors: parseRows(dailyVisitors, ['date'], ['users', 'sessions', 'pageViews']),
+      blogArticles: parseRows(blogArticles, ['pagePath'], ['views', 'users', 'avgDuration']),
+      dailyVisitors: parseRows(dailyVisitors, ['date'], ['users', 'sessions', 'pageViews', 'newUsers']),
+      hourlyVisitors: hourlyVisitors ? parseRows(hourlyVisitors, ['hour'], ['users', 'sessions']) : null,
+      themeDetail: themeDetail ? parseRows(themeDetail, ['theme'], ['clicks']) : null,
+      packageDetail: packageDetail ? parseRows(packageDetail, ['package'], ['clicks']) : null,
+      demoDetail: demoDetail ? parseRows(demoDetail, ['url'], ['clicks']) : null,
+      hasCustomDims: themeDetail !== null,
     });
-
   } catch (error) {
     console.error('Analytics API error:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch analytics' });
   }
 }
 
-// ============================================
-// GA4 DATA API HELPERS
-// ============================================
-
-async function runReport(accessToken, propertyId, body) {
-  const url = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
+async function runReport(token, prop, body) {
+  const r = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${prop}:runReport`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
+  if (!r.ok) { const e = await r.text(); throw new Error(`GA4 ${r.status}: ${e}`); }
+  return r.json();
+}
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`GA4 API error ${response.status}: ${errorBody}`);
-  }
-
-  return response.json();
+async function safeReport(token, prop, body) {
+  try {
+    const r = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${prop}:runReport`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!r.ok) return null;
+    return r.json();
+  } catch { return null; }
 }
 
 function parseOverview(report) {
   if (!report?.rows?.[0]) return {};
-  const values = report.rows[0].metricValues || [];
-  const headers = report.metricHeaders || [];
-  const result = {};
-  headers.forEach((h, i) => {
-    result[h.name] = parseFloat(values[i]?.value || 0);
-  });
-  return result;
+  const v = report.rows[0].metricValues || [], h = report.metricHeaders || [], r = {};
+  h.forEach((x, i) => { r[x.name] = parseFloat(v[i]?.value || 0); });
+  return r;
 }
 
 function parseRows(report, dimNames, metricNames) {
   if (!report?.rows) return [];
   return report.rows.map(row => {
     const item = {};
-    (row.dimensionValues || []).forEach((d, i) => {
-      item[dimNames[i] || `dim${i}`] = d.value;
-    });
-    (row.metricValues || []).forEach((m, i) => {
-      item[metricNames[i] || `metric${i}`] = parseFloat(m.value || 0);
-    });
+    (row.dimensionValues || []).forEach((d, i) => { item[dimNames[i] || `dim${i}`] = d.value; });
+    (row.metricValues || []).forEach((m, i) => { item[metricNames[i] || `metric${i}`] = parseFloat(m.value || 0); });
     return item;
   });
 }
 
-function parseSingleEventCount(report, eventName) {
-  if (!report?.rows) return [{ event: eventName, count: 0 }];
-  const row = report.rows.find(r => r.dimensionValues?.[0]?.value === eventName);
-  const count = row ? parseFloat(row.metricValues?.[0]?.value || 0) : 0;
-  return [{ event: eventName, count }];
-}
-
-// ============================================
-// GOOGLE AUTH (JWT → Access Token)
-// ============================================
-
-async function getAccessToken(serviceAccount) {
+async function getAccessToken(sa) {
   const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const now = Math.floor(Date.now() / 1000);
-
-  const claimSet = base64url(JSON.stringify({
-    iss: serviceAccount.client_email,
-    scope: 'https://www.googleapis.com/auth/analytics.readonly',
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-  }));
-
-  const signatureInput = `${header}.${claimSet}`;
-  const signature = await signRS256(signatureInput, serviceAccount.private_key);
-
-  const jwt = `${signatureInput}.${signature}`;
-
-  const response = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
-  });
-
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Token error: ${err}`);
-  }
-
-  const data = await response.json();
-  return data.access_token;
+  const claims = base64url(JSON.stringify({ iss: sa.client_email, scope: 'https://www.googleapis.com/auth/analytics.readonly', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }));
+  const sig = await signRS256(`${header}.${claims}`, sa.private_key);
+  const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${header}.${claims}.${sig}` });
+  if (!r.ok) { const e = await r.text(); throw new Error(`Token: ${e}`); }
+  return (await r.json()).access_token;
 }
 
-function base64url(str) {
-  return Buffer.from(str).toString('base64url');
-}
-
-async function signRS256(input, privateKeyPem) {
-  const crypto = await import('crypto');
-  const sign = crypto.createSign('RSA-SHA256');
-  sign.update(input);
-  const signature = sign.sign(privateKeyPem, 'base64url');
-  return signature;
-}
+function base64url(s) { return Buffer.from(s).toString('base64url'); }
+async function signRS256(input, pem) { const c = await import('crypto'); const s = c.createSign('RSA-SHA256'); s.update(input); return s.sign(pem, 'base64url'); }
