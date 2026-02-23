@@ -303,7 +303,7 @@ export default function ReelsPage() {
     setAiSlidesLoading(true);
     const themeName = THEMES[themeId]?.name || themeId;
 
-    const prompt = `Du bist Content Creator für S&I. Wedding (siwedding.com) — Premium-Hochzeitswebsites aus Hamburg von Sarah & Iver.
+    const prompt = `Du bist Content Creator für S&I. Wedding (sarahiver.com) — Premium-Hochzeitswebsites aus Hamburg von Sarah & Iver.
 
 Kontext:
 - S&I. bietet handgemachte Hochzeitswebsites mit eigener Domain ab 1.290€
@@ -324,7 +324,7 @@ Jeder Slide braucht:
 
 Wichtig:
 - Slide 1 = Hook/Intro (fesselnder Einstieg)
-- Letzter Slide = CTA (z.B. "Link in Bio", "siwedding.com")
+- Letzter Slide = CTA (z.B. "Link in Bio", "sarahiver.com")
 - Dazwischen: Inhalt, Tipps, Features, Argumente
 - Texte kurz! Reels = schnell, knackig, visuell
 
@@ -519,7 +519,7 @@ Antworte NUR mit validem JSON Array, kein Markdown:
     const allTexts = slides.flatMap(s => s.elements.filter(e => e.text).map(e => e.text)).join(' | ');
     const themeName = THEMES[themeId]?.name || themeId;
 
-    const prompt = `Du bist Social Media Manager für S&I. Wedding (siwedding.com) — ein Premium-Hochzeitswebsite-Service aus Hamburg von Sarah & Iver.
+    const prompt = `Du bist Social Media Manager für S&I. Wedding (sarahiver.com) — ein Premium-Hochzeitswebsite-Service aus Hamburg von Sarah & Iver.
 
 Kontext:
 - S&I. bietet handgemachte Hochzeitswebsites mit eigener Domain ab 1.290€

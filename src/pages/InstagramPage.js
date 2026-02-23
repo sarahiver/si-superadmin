@@ -462,7 +462,7 @@ export default function InstagramPage() {
     const cat = CATEGORIES.find(c => c.id === aiCategory);
     const topicContext = aiCategory === 'custom' ? customPrompt : cat.desc;
 
-    const prompt = `Du bist Social Media Manager und Copywriter für S&I. Wedding (siwedding.com) — ein Premium-Hochzeitswebsite-Service aus Hamburg von Sarah & Iver.
+    const prompt = `Du bist Social Media Manager und Copywriter für S&I. Wedding (sarahiver.com) — ein Premium-Hochzeitswebsite-Service aus Hamburg von Sarah & Iver.
 
 Kontext:
 - S&I. bietet handgemachte Hochzeitswebsites mit eigener Domain ab 1.290€
@@ -471,7 +471,7 @@ Kontext:
 - Pakete: Starter (1.290€/6Mo), Standard (1.490€/8Mo), Premium (1.990€/12Mo)
 - Zielgruppe: Verlobte Paare mit Anspruch an Design, 25-40 Jahre, DACH-Raum
 - Tonalität: Warm aber selbstbewusst, nie billig oder kitschig, leicht editorial
-- Website: siwedding.com
+- Website: sarahiver.com
 
 Theme: "${THEMES[theme].name}" — Layout: "${LAYOUTS[layout].name}"
 Kategorie: "${cat.label}" — ${topicContext}
@@ -643,28 +643,41 @@ Antworte NUR mit validem JSON Array, kein Markdown:
   // ==========================================
   // POST RENDERER
   // ==========================================
-  const logo = { position: 'absolute', top: 24, left: 24, zIndex: 5, fontFamily: t.uiFont, fontWeight: 600, fontSize: '0.6rem', letterSpacing: '-0.04em', padding: '4px 8px', lineHeight: 1, ...logoSt };
-  const ey = { fontFamily: t.uiFont, fontSize: '0.4rem', fontWeight: t.brutal ? 700 : 600, letterSpacing: t.brutal ? '0.1em' : '0.25em', textTransform: 'uppercase', color: isDark ? t.accent : t.muted, marginBottom: 8, textShadow: t.glow ? `0 0 10px ${t.accent}` : 'none' };
-  const hl = { fontFamily: t.headlineFont, fontSize: layout === 'split' ? '1.2rem' : '1.8rem', fontWeight: t.headlineWeight, fontStyle: t.headlineStyle || 'normal', textTransform: t.headlineTransform || 'none', lineHeight: 1.15, color: textColor, marginBottom: 10 };
-  const bd = { fontFamily: t.bodyFont, fontSize: '0.48rem', fontWeight: t.bodyWeight, fontStyle: t.bodyStyle || 'normal', lineHeight: 1.8, color: t.body };
-  const al = { width: 24, height: 1.5, marginBottom: 12, background: t.accent, boxShadow: t.glow ? `0 0 8px ${t.accent}` : 'none' };
-  const ft = { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 24px', display: 'flex', justifyContent: 'space-between', zIndex: 5, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` };
-  const ftx = { fontFamily: t.uiFont, fontSize: '0.35rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.2)' : t.muted };
-  const corner = <div style={{ position: 'absolute', top: 0, right: 0, width: 60, height: 60, borderRight: `1.5px solid ${t.accent}`, borderTop: `1.5px solid ${t.accent}`, opacity: 0.3 }} />;
-  const footer = <div style={ft}><span style={{ ...ftx, color: t.accent, opacity: isDark ? 0.5 : 1 }}>siwedding.com</span><span style={ftx}>{pageNum}</span></div>;
+  const logo = { position: 'absolute', top: 24, left: 24, zIndex: 5, fontFamily: t.uiFont, fontWeight: 600, fontSize: '0.75rem', letterSpacing: '-0.04em', padding: '4px 10px', lineHeight: 1, ...logoSt };
+  const ey = { fontFamily: t.uiFont, fontSize: '0.5rem', fontWeight: t.brutal ? 700 : 600, letterSpacing: t.brutal ? '0.1em' : '0.25em', textTransform: 'uppercase', color: isDark ? t.accent : t.muted, marginBottom: 10, textShadow: t.glow ? `0 0 10px ${t.accent}` : 'none' };
+  const hl = { fontFamily: t.headlineFont, fontSize: layout === 'split' ? '1.5rem' : (t.headlineSize || '2.2rem'), fontWeight: t.headlineWeight, fontStyle: t.headlineStyle || 'normal', textTransform: t.headlineTransform || 'none', lineHeight: 1.15, color: textColor, marginBottom: 12 };
+  const bd = { fontFamily: t.bodyFont, fontSize: t.bodySize || '0.65rem', fontWeight: t.bodyWeight, fontStyle: t.bodyStyle || 'normal', lineHeight: 1.75, color: isDark ? (t.body || 'rgba(255,255,255,0.6)') : (t.body || '#555') };
+  const al = { width: 28, height: 2, marginBottom: 14, background: t.accent, boxShadow: t.glow ? `0 0 8px ${t.accent}` : 'none' };
+  const ft = { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 24px', display: 'flex', justifyContent: 'space-between', zIndex: 5, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` };
+  const ftx = { fontFamily: t.uiFont, fontSize: t.footerSize || '0.42rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.25)' : t.muted };
+  const corner = t.brutal
+    ? <div style={{ position: 'absolute', top: 0, right: 0, width: 70, height: 70, background: t.tertiary || t.accent, opacity: 0.15 }} />
+    : <div style={{ position: 'absolute', top: 0, right: 0, width: 60, height: 60, borderRight: `1.5px solid ${t.accent}`, borderTop: `1.5px solid ${t.accent}`, opacity: 0.3 }} />;
+  const footer = <div style={ft}><span style={{ ...ftx, color: t.accent, opacity: isDark ? 0.5 : 1 }}>sarahiver.com</span><span style={ftx}>{pageNum}</span></div>;
   const W = 360, H = 450;
 
   const renderPost = () => {
     switch (layout) {
       case 'statement':
-        return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden' }}>
+        return (<div style={{ background: t.gradient || bg, width: W, height: H, position: 'relative', overflow: 'hidden' }}>
           <div style={logo}>S&I.</div>
-          {!t.alwaysDark && <div style={{ position: 'absolute', top: 24, right: 24, width: 1, height: 'calc(100% - 80px)', background: 'rgba(0,0,0,0.05)' }} />}
-          {(isDark && !t.glass) && corner}
-          {t.glow && <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 30% 40%, ${t.accent}0F, transparent 60%)`, pointerEvents: 'none' }} />}
-          <div style={{ position: 'absolute', inset: 0, padding: '70px 24px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2 }}>
-            <div style={al} /><div style={ey}>{eyebrow}</div><div style={hl}>{renderHeadline()}</div><div style={bd}>{bodyText}</div>
-          </div>{footer}</div>);
+          {!t.alwaysDark && !t.brutal && <div style={{ position: 'absolute', top: 24, right: 24, width: 1, height: 'calc(100% - 80px)', background: 'rgba(0,0,0,0.05)' }} />}
+          {(isDark && !t.glass && !t.brutal) && corner}
+          {t.glow && <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 30% 40%, ${t.accent}15, transparent 55%), radial-gradient(ellipse at 70% 70%, ${t.secondary || t.accent}10, transparent 50%)`, pointerEvents: 'none' }} />}
+          {t.cardStyle === 'luxe' && <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 50% 0%, rgba(201,169,98,0.06), transparent 60%)`, pointerEvents: 'none' }} />}
+          {t.glass ? (
+            <div style={{ position: 'absolute', inset: '60px 20px 50px', ...t.glassStyle, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '28px', zIndex: 2 }}>
+              <div style={al} /><div style={ey}>{eyebrow}</div><div style={hl}>{renderHeadline()}</div><div style={bd}>{bodyText}</div>
+            </div>
+          ) : t.brutal ? (
+            <div style={{ position: 'absolute', inset: '55px 18px 45px', background: '#fff', border: t.brutalBorder, boxShadow: t.brutalShadow, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px', zIndex: 2 }}>
+              <div style={{ ...al, background: t.accent }} /><div style={{ ...ey, color: t.accent }}>{eyebrow}</div><div style={{ ...hl, color: t.text }}>{renderHeadline()}</div><div style={{ ...bd, color: t.body }}>{bodyText}</div>
+            </div>
+          ) : (
+            <div style={{ position: 'absolute', inset: 0, padding: '70px 24px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2 }}>
+              <div style={al} /><div style={ey}>{eyebrow}</div><div style={hl}>{renderHeadline()}</div><div style={bd}>{bodyText}</div>
+            </div>
+          )}{footer}</div>);
       case 'split':
         return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden', display: 'grid', gridTemplateColumns: '42% 1fr' }}>
           <div style={{ background: t.alwaysDark ? bg : '#1A1A1A', position: 'relative', overflow: 'hidden' }}>
@@ -673,20 +686,20 @@ Antworte NUR mit validem JSON Array, kein Markdown:
           </div>
           <div style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div style={logo}>S&I.</div>
-            <div style={{ ...ey, marginTop: 30 }}>{eyebrow}</div><div style={{ ...hl, fontSize: '1.2rem' }}>{renderHeadline()}</div><div style={al} /><div style={bd}>{bodyText}</div>
+            <div style={{ ...ey, marginTop: 30 }}>{eyebrow}</div><div style={{ ...hl, fontSize: '1.5rem' }}>{renderHeadline()}</div><div style={al} /><div style={bd}>{bodyText}</div>
           </div>{footer}</div>);
       case 'list': {
         const items = bodyText.split('\n').filter(Boolean);
         return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden', padding: 24, display: 'flex', flexDirection: 'column' }}>
           <div style={{ ...logo, position: 'relative', top: 0, left: 0, marginBottom: 14, alignSelf: 'flex-start' }}>S&I.</div>
-          <div style={ey}>{eyebrow}</div><div style={{ ...hl, fontSize: '1.25rem' }}>{renderHeadline()}</div>
-          {t.scriptFont && <div style={{ fontFamily: t.scriptFont, fontSize: '0.8rem', color: t.accent, marginBottom: 12 }}>{accentWord || ''}</div>}
+          <div style={ey}>{eyebrow}</div><div style={{ ...hl, fontSize: '1.5rem' }}>{renderHeadline()}</div>
+          {t.scriptFont && <div style={{ fontFamily: t.scriptFont, fontSize: '1rem', color: t.accent, marginBottom: 12 }}>{accentWord || ''}</div>}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             {items.map((item, i) => { const [title, desc] = item.split('|'); return (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 0', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` }}>
-                <div style={{ width: 14, height: 1.5, background: t.accent, marginTop: 6, flexShrink: 0, boxShadow: t.glow ? `0 0 6px ${t.accent}` : 'none' }} />
-                <div><div style={{ fontFamily: t.bodyFont, fontSize: '0.46rem', fontWeight: 600, color: textColor }}>{title}</div>
-                  {desc && <div style={{ fontFamily: t.bodyFont, fontSize: '0.36rem', fontWeight: 300, color: t.muted }}>{desc}</div>}</div>
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` }}>
+                <div style={{ width: 14, height: 2, background: t.accent, marginTop: 7, flexShrink: 0, boxShadow: t.glow ? `0 0 6px ${t.accent}` : 'none' }} />
+                <div><div style={{ fontFamily: t.bodyFont, fontSize: '0.55rem', fontWeight: 600, color: textColor }}>{title}</div>
+                  {desc && <div style={{ fontFamily: t.bodyFont, fontSize: '0.42rem', fontWeight: 300, color: t.muted }}>{desc}</div>}</div>
               </div>); })}</div>{footer}</div>); }
       case 'dark':
         return (<div style={{ background: t.bgDark || t.bg, width: W, height: H, position: 'relative', overflow: 'hidden' }}>
@@ -704,9 +717,9 @@ Antworte NUR mit validem JSON Array, kein Markdown:
             : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #1a1a1a, #333)' }} />}
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 30%, rgba(26,26,26,0.85) 100%)' }} />
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 24, zIndex: 5 }}>
-            <div style={al} /><div style={{ ...hl, fontSize: '1.3rem', color: '#FDFCFA' }}>{renderHeadline()}</div>
-            <div style={{ ...bd, color: 'rgba(253,252,250,0.6)', marginBottom: 8 }}>{bodyText}</div>
-            <div style={{ fontFamily: t.uiFont, fontSize: '0.35rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: t.accent, opacity: 0.7 }}>siwedding.com</div>
+            <div style={al} /><div style={{ ...hl, fontSize: '1.6rem', color: '#FDFCFA' }}>{renderHeadline()}</div>
+            <div style={{ ...bd, color: 'rgba(253,252,250,0.6)', marginBottom: 10 }}>{bodyText}</div>
+            <div style={{ fontFamily: t.uiFont, fontSize: '0.42rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: t.accent, opacity: 0.7 }}>sarahiver.com</div>
           </div></div>);
       default: return null;
     }
