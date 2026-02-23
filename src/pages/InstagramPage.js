@@ -3,7 +3,6 @@
 // Theme-spezifische Posts mit KI-Textvorschlägen, Bild-Upload, Live Preview
 import React, { useState, useRef, useCallback } from 'react';
 import styled, { css } from 'styled-components';
-import Layout from '../components/Layout';
 import { THEMES } from '../lib/reelThemes';
 
 // ============================================
@@ -717,12 +716,7 @@ Antworte NUR mit validem JSON Array, kein Markdown:
   // RENDER
   // ==========================================
   return (
-    <Layout>
-      <PageHeader>
-        <h1>Instagram</h1>
-        <p>Post Generator — Theme wählen, Text eingeben oder generieren, herunterladen</p>
-      </PageHeader>
-
+    <>
       <Grid>
         {/* LEFT: Controls */}
         <div>
@@ -868,6 +862,6 @@ Antworte NUR mit validem JSON Array, kein Markdown:
           </div>
         </PreviewSticky>
       </Grid>
-    </Layout>
+    </>
   );
 }

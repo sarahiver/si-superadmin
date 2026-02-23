@@ -3,7 +3,6 @@
 // Features: KI-Textgenerierung, globaler Bild/Video-Hintergrund, Theme-Slides
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
-import Layout from '../components/Layout';
 import { THEMES, loadThemeFontsForCanvas } from '../lib/reelThemes';
 import { renderFrame, getTotalDuration, getSlideAtTime, renderThumbnail, W, H } from '../lib/reelRenderer';
 import { TEMPLATES } from '../lib/reelTemplates';
@@ -624,12 +623,7 @@ Antworte NUR mit JSON Array:
   // RENDER
   // ==========================================
   return (
-    <Layout>
-      <PageHeader>
-        <h1>Reels</h1>
-        <p>Slide-basierte Reels erstellen — Theme wählen, Texte anpassen, als MP4 exportieren</p>
-      </PageHeader>
-
+    <>
       {/* Hidden video element for video bg */}
       {globalBgType === 'video' && globalBgSrc && (
         <video
@@ -945,6 +939,6 @@ Antworte NUR mit JSON Array:
           </DotRow>
         </PreviewSticky>
       </Grid>
-    </Layout>
+    </>
   );
 }

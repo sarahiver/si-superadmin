@@ -14,6 +14,7 @@ import SettingsPage from './pages/SettingsPage';
 import PartnersPage from './pages/PartnersPage';
 import InstagramPage from './pages/InstagramPage';
 import ReelsPage from './pages/ReelsPage';
+import ContentPage from './pages/ContentPage';
 
 // Auth Context
 const AuthContext = React.createContext(null);
@@ -80,8 +81,9 @@ function App() {
           <Route path="/projects/:id" element={<PrivateRoute><ProjectDetailPage /></PrivateRoute>} />
           <Route path="/requests" element={<PrivateRoute><RequestsPage /></PrivateRoute>} />
           <Route path="/partners" element={<PrivateRoute><PartnersPage /></PrivateRoute>} />
-          <Route path="/instagram" element={<PrivateRoute><InstagramPage /></PrivateRoute>} />
-          <Route path="/reels" element={<PrivateRoute><ReelsPage /></PrivateRoute>} />
+          <Route path="/content" element={<PrivateRoute><ContentPage /></PrivateRoute>} />
+          <Route path="/instagram" element={<PrivateRoute><ContentPage /></PrivateRoute>} />
+          <Route path="/reels" element={<PrivateRoute><ContentPage /></PrivateRoute>} />
           <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
