@@ -23,10 +23,24 @@ export default async function handler(req, res) {
     const accessToken = await getAccessToken(serviceAccount);
     const { period = '30' } = req.body || {};
 
-    const startDate = `${period}daysAgo`;
-    const endDate = 'today';
-    const prevStartDate = `${parseInt(period) * 2}daysAgo`;
-    const prevEndDate = `${parseInt(period) + 1}daysAgo`;
+    // "1" = Heute (today only), "2" = Gestern (yesterday only), else = last N days
+    let startDate, endDate, prevStartDate, prevEndDate;
+    if (period === '1') {
+      startDate = 'today';
+      endDate = 'today';
+      prevStartDate = 'yesterday';
+      prevEndDate = 'yesterday';
+    } else if (period === '2') {
+      startDate = 'yesterday';
+      endDate = 'yesterday';
+      prevStartDate = '2daysAgo';
+      prevEndDate = '2daysAgo';
+    } else {
+      startDate = `${period}daysAgo`;
+      endDate = 'today';
+      prevStartDate = `${parseInt(period) * 2}daysAgo`;
+      prevEndDate = `${parseInt(period) + 1}daysAgo`;
+    }
 
     const [
       overview, overviewPrev,
