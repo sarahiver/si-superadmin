@@ -4,6 +4,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { THEMES, loadThemeFontsForCanvas } from '../lib/reelThemes';
+import { adminFetch } from '../lib/apiClient';
 import { renderFrame, getTotalDuration, getSlideAtTime, renderThumbnail, W, H } from '../lib/reelRenderer';
 import { TEMPLATES } from '../lib/reelTemplates';
 import { exportReelMP4 } from '../lib/reelExporter';
@@ -332,7 +333,7 @@ Antworte NUR mit validem JSON Array, kein Markdown:
 [{"eyebrow":"...","headline":"...","body":"...","accentWord":"..."},...]`;
 
     try {
-      const response = await fetch('/api/ai-suggest', {
+      const response = await adminFetch('/api/ai-suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),
@@ -541,7 +542,7 @@ Antworte NUR mit JSON:
 {"caption":"...","hashtags":"#tag1 #tag2 #tag3 #tag4 #tag5"}`;
 
     try {
-      const response = await fetch('/api/ai-suggest', {
+      const response = await adminFetch('/api/ai-suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),
@@ -598,7 +599,7 @@ Antworte NUR mit JSON Array:
 [{"song":"...","artist":"...","why":"...","search":"..."}]`;
 
     try {
-      const response = await fetch('/api/ai-suggest', {
+      const response = await adminFetch('/api/ai-suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),

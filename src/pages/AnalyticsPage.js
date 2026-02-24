@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styled, { keyframes } from 'styled-components';
 import Layout from '../components/Layout';
+import { adminFetch } from '../lib/apiClient';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5', blue: '#3B82F6', purple: '#8B5CF6' };
 
@@ -47,7 +48,7 @@ export default function AnalyticsPage() {
   const fetchAnalytics = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const r = await fetch('/api/analytics', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period }) });
+      const r = await adminFetch('/api/analytics', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period }) });
       if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed to fetch'); }
       setData(await r.json());
     } catch (e) { setError(e.message); }

@@ -2,26 +2,10 @@
 // Vercel Serverless Function für E-Mail-Versand via Brevo
 // API Key ist hier sicher (nur Server-seitig)
 
+import { setCorsHeaders, verifySessionToken } from './lib/auth.js';
+
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
-
-// Erlaubte Origins
-const ALLOWED_ORIGINS = [
-  'https://admin.sarahiver.de',
-  'https://si-superadmin.vercel.app',
-  'https://superadmin.siwedding.de',
-  'http://localhost:3000', // Development
-];
-
-function setCorsHeaders(req, res) {
-  const origin = req.headers.origin;
-  const isAllowed = ALLOWED_ORIGINS.includes(origin) || (origin && origin.endsWith('.vercel.app'));
-  if (isAllowed) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
 
 export default async function handler(req, res) {
   // CORS Headers setzen
@@ -36,6 +20,10 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  // Token-Auth
+  const auth = verifySessionToken(req);
+  if (!auth.valid) return res.status(401).json({ error: auth.error });
 
   // API Key prüfen
   if (!BREVO_API_KEY) {

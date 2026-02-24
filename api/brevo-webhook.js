@@ -51,40 +51,35 @@ function normalizeEvent(brevoEvent) {
   return map[brevoEvent] || null;
 }
 
-const WEBHOOK_SECRET = process.env.BREVO_WEBHOOK_SECRET || null;
+const WEBHOOK_SECRET = process.env.BREVO_WEBHOOK_SECRET;
 
 export default async function handler(req, res) {
   // Accept POST only
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Debug: Log all headers and body keys to find where Brevo puts the token
-  console.log('[brevo-webhook] Headers:', JSON.stringify(req.headers));
-  console.log('[brevo-webhook] Body type:', typeof req.body, Array.isArray(req.body) ? 'array' : 'object');
-  if (req.body && !Array.isArray(req.body)) {
-    console.log('[brevo-webhook] Body keys:', Object.keys(req.body));
+  // Webhook Secret ist mandatory
+  if (!WEBHOOK_SECRET) {
+    console.error('[brevo-webhook] BREVO_WEBHOOK_SECRET not configured — rejecting all requests');
+    return res.status(500).json({ error: 'Webhook not configured' });
   }
 
   // Token auth - try every known method Brevo might use
-  if (WEBHOOK_SECRET) {
-    const candidates = [
-      req.headers['authorization']?.replace('Bearer ', ''),
-      req.headers['x-brevo-token'],
-      req.headers['x-sib-token'],
-      req.headers['token'],
-      req.query.token,
-    ];
-    const matched = candidates.some(t => t === WEBHOOK_SECRET);
-    if (!matched) {
-      console.log('[brevo-webhook] Auth FAILED. Candidates:', JSON.stringify(candidates));
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    console.log('[brevo-webhook] Auth OK');
+  const candidates = [
+    req.headers['authorization']?.replace('Bearer ', ''),
+    req.headers['x-brevo-token'],
+    req.headers['x-sib-token'],
+    req.headers['token'],
+    req.query.token,
+  ];
+  const matched = candidates.some(t => t === WEBHOOK_SECRET);
+  if (!matched) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   try {

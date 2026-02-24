@@ -2,34 +2,30 @@
 // Vercel Serverless Function - holt Brevo Transaktions-Events per API
 // Wird vom "🔄 Sync"-Button im SuperAdmin aufgerufen
 
+import { setCorsHeaders, verifySessionToken } from './lib/auth.js';
+
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
-
-const ALLOWED_ORIGINS = [
-  'https://admin.sarahiver.de',
-  'https://si-superadmin.vercel.app',
-  'https://superadmin.siwedding.de',
-  'http://localhost:3000',
-];
-
-function setCorsHeaders(req, res) {
-  const origin = req.headers.origin;
-  const isAllowed = ALLOWED_ORIGINS.includes(origin) || (origin && origin.endsWith('.vercel.app'));
-  if (isAllowed) res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
+  // Token-Auth
+  const auth = verifySessionToken(req);
+  if (!auth.valid) return res.status(401).json({ error: auth.error });
+
   if (!BREVO_API_KEY) {
     return res.status(500).json({ error: 'BREVO_API_KEY not configured' });
   }
 
   try {
-    const { email, days = 7, limit = 50 } = req.query;
+    const { email, days: rawDays = 7, limit = 50 } = req.query;
+    const daysNum = parseInt(rawDays);
+    if (isNaN(daysNum) || daysNum < 1 || daysNum > 90) {
+      return res.status(400).json({ error: 'days must be a number between 1 and 90' });
+    }
+    const days = daysNum;
     
     // Brevo Transactional Events API
     // Docs: https://developers.brevo.com/reference/gettransacemailevents

@@ -4,6 +4,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import styled, { css } from 'styled-components';
 import { THEMES } from '../lib/reelThemes';
+import { adminFetch } from '../lib/apiClient';
 
 // ============================================
 // DESIGN TOKENS
@@ -489,7 +490,7 @@ Antworte NUR mit validem JSON Array, kein Markdown:
 [{"eyebrow":"...","headline":"...","accentWord":"...","body":"...","caption":"...","hashtags":"#tag1 #tag2 ..."},{"eyebrow":"...","headline":"...","accentWord":"...","body":"...","caption":"...","hashtags":"#tag1 #tag2 ..."},{"eyebrow":"...","headline":"...","accentWord":"...","body":"...","caption":"...","hashtags":"#tag1 #tag2 ..."}]`;
 
     try {
-      const response = await fetch('/api/ai-suggest', {
+      const response = await adminFetch('/api/ai-suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),

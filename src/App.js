@@ -50,6 +50,7 @@ function AuthProvider({ children }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('si_admin_user');
+    localStorage.removeItem('si_admin_token');
   };
 
   if (loading) return null;

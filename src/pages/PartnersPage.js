@@ -7,6 +7,7 @@ import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
 import { supabase } from '../lib/supabase';
+import { adminFetch } from '../lib/apiClient';
 import {
   PARTNER_TYPES,
   PARTNER_STATUS,
@@ -229,7 +230,7 @@ export default function PartnersPage() {
     setSyncing(true);
     setProgress({ title: '🔄 Brevo Sync', current: 0, total: 100, detail: 'Events abrufen…', color: '#3B82F6' });
     try {
-      const response = await fetch('/api/brevo-sync?days=14&limit=100');
+      const response = await adminFetch('/api/brevo-sync?days=14&limit=100');
       const data = await response.json();
       if (!data.success || !data.events?.length) {
         toast(data.events?.length === 0 ? 'Keine neuen Events' : `Fehler: ${data.error}`);
@@ -1027,7 +1028,7 @@ function EmailComposerModal({ partner, partners, bulk, onClose, onSent }) {
 
         const html = wrapInEmailHTML(partnerBody, displayName);
 
-        const response = await fetch('/api/send-email', {
+        const response = await adminFetch('/api/send-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to: p.email, toName: fullName, subject: partnerSubject, htmlContent: html }),

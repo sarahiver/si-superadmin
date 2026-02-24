@@ -3,13 +3,17 @@
 // Umfassende Analytics mit Custom Dimension Fallback
 // Env Vars: GA4_PROPERTY_ID, GOOGLE_SERVICE_ACCOUNT_JSON
 
+import { setCorsHeaders, verifySessionToken } from './lib/auth.js';
+
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // Token-Auth
+  const auth = verifySessionToken(req);
+  if (!auth.valid) return res.status(401).json({ error: auth.error });
 
   const GA4_PROPERTY_ID = process.env.GA4_PROPERTY_ID;
   const SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -21,7 +25,12 @@ export default async function handler(req, res) {
   try {
     const serviceAccount = JSON.parse(SERVICE_ACCOUNT_JSON);
     const accessToken = await getAccessToken(serviceAccount);
-    const { period = '30' } = req.body || {};
+    const { period: rawPeriod = '30' } = req.body || {};
+    const periodNum = parseInt(rawPeriod);
+    if (isNaN(periodNum) || periodNum < 1 || periodNum > 365) {
+      return res.status(400).json({ error: 'period must be a number between 1 and 365' });
+    }
+    const period = String(periodNum);
 
     // "1" = Heute (today only), "2" = Gestern (yesterday only), else = last N days
     let startDate, endDate, prevStartDate, prevEndDate;

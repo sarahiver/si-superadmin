@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import { useAuth } from '../App';
-import { supabase } from '../lib/supabase';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
@@ -45,23 +44,26 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Passwort hashen vor dem Vergleich
+      // Passwort hashen vor dem Senden
       const passwordHash = await hashPassword(password);
 
-      const { data, error: dbError } = await supabase
-        .from('superadmins')
-        .select('*')
-        .eq('email', email)
-        .eq('password', passwordHash)
-        .single();
+      const response = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, passwordHash }),
+      });
 
-      if (dbError || !data) {
-        setError('Ungültige Anmeldedaten');
+      const data = await response.json();
+
+      if (!response.ok || !data.token) {
+        setError(data.error || 'Ungültige Anmeldedaten');
         setIsLoading(false);
         return;
       }
 
-      login();
+      // Token speichern + einloggen
+      localStorage.setItem('si_admin_token', data.token);
+      login(data.user);
       toast.success('Eingeloggt!');
       navigate('/');
     } catch (err) {
