@@ -2,6 +2,7 @@
 // Ausführlicher Vertrag für Online-Dienstleistungen im S&I. Editorial Stil
 import { jsPDF } from 'jspdf';
 import { PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from './constants';
+import { SIGNATURE_IVER_GENTZ } from './signatureData';
 
 // S&I. Farben
 const COLORS = {
@@ -353,21 +354,36 @@ export function generateContractPDF(project, pricing, options = {}) {
   // UNTERSCHRIFTEN
   // ============================================
 
-  newPage(60);
+  newPage(80);
   y += 15;
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   setColor('black');
   doc.text('UNTERSCHRIFTEN', m, y);
-  y += 15;
+  y += 12;
 
+  // ── Auftragnehmer (links) – DIGITAL SIGNIERT ──
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   setColor('gray');
-  doc.text('Hamburg, den _______________', m, y);
+  doc.text(`Hamburg, den ${formatDate(contractDate)}`, m, y);
+
+  // Auftraggeber (rechts) – leer lassen
   doc.text('_______________, den _______________', pw / 2 + 10, y);
-  y += 25;
+  y += 8;
+
+  // Signatur-Bild einfügen (Auftragnehmer-Seite)
+  try {
+    doc.addImage(SIGNATURE_IVER_GENTZ, 'PNG', m, y, 55, 18);
+  } catch (e) {
+    // Fallback: Text-Signatur wenn Bild nicht ladbar
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(14);
+    setColor('black');
+    doc.text('Iver Gentz', m + 5, y + 12);
+  }
+  y += 22;
 
   // Unterschriftslinien
   doc.setDrawColor(...COLORS.black);
@@ -376,8 +392,15 @@ export function generateContractPDF(project, pricing, options = {}) {
   y += 5;
 
   doc.setFontSize(8);
+  setColor('black');
   doc.text('Auftragnehmer (S&I.)', m, y);
   doc.text('Auftraggeber', pw / 2 + 10, y);
+  y += 4;
+
+  // "Digital signiert" Vermerk
+  doc.setFontSize(7);
+  setColor('gray');
+  doc.text(`Digital signiert von Iver Gentz am ${formatDate(contractDate)}`, m, y);
 
   addFooter();
 
