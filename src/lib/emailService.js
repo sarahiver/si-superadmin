@@ -2,6 +2,7 @@
 // Brevo E-Mail Service für S&I.
 
 import { supabase } from './supabase';
+import { adminFetch } from './apiClient';
 import { PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from './constants';
 import { generateContractPDF } from './contractPDF';
 import { generateInvoicePDF } from './invoicePDF';
@@ -416,8 +417,8 @@ export async function sendEmail({ to, toName, templateType, variables, theme, pr
   try {
     const template = generateEmailHTML(templateType, variables, theme);
 
-    // E-Mail über sichere Backend-API senden (API Key nicht im Frontend!)
-    const response = await fetch(EMAIL_API_URL, {
+    // E-Mail über sichere Backend-API senden (mit Auth-Token!)
+    const response = await adminFetch(EMAIL_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -685,8 +686,8 @@ export async function sendDataReadyNotification(project) {
   const subject = `🔔 Daten bereit: ${project.couple_names || project.slug}`;
 
   try {
-    // E-Mail über sichere Backend-API senden
-    const response = await fetch(EMAIL_API_URL, {
+    // E-Mail über sichere Backend-API senden (mit Auth-Token!)
+    const response = await adminFetch(EMAIL_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
