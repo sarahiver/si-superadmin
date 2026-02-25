@@ -483,7 +483,7 @@ export async function getPartnerVisits(partnerCodeId) {
 
 export async function getPartnerLeads() {
   // contact_requests with a partner_code_id set
-  return db({ action: 'select', table: 'contact_requests', filters: [{ op: 'not', column: 'partner_code_id', op2: 'is', value: null }], options: { order: { column: 'created_at', ascending: false } } });
+  return db({ action: 'select', table: 'contact_requests', filters: [{ op: 'not', column: 'partner_code_id', op2: 'is', value: null }], options: { select: '*, partner_codes:partner_code_id(partner_name, ref_slug, code)', order: { column: 'created_at', ascending: false } } });
 }
 
 export default supabase;

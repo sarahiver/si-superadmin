@@ -146,8 +146,8 @@ export default function PartnerCodesPage() {
     load();
   }
 
-  function copyUrl(slug) {
-    const url = `https://siwedding.de/?ref=${slug}`;
+  function copyUrl(refSlug) {
+    const url = `https://siwedding.de/?ref=${refSlug}`;
     navigator.clipboard.writeText(url);
     toast.success('URL kopiert!');
   }
@@ -209,16 +209,18 @@ export default function PartnerCodesPage() {
                 {code.partner_email && <div style={{ fontSize: '0.75rem', color: colors.gray }}>{code.partner_email}</div>}
               </div>
               <div>
-                <Mono>{code.coupon_code}</Mono>
-                <CopyBtn onClick={() => copyUrl(code.slug)} title="Partner-URL kopieren">📋 URL</CopyBtn>
+                <Mono>{code.code}</Mono>
+                <CopyBtn onClick={() => copyUrl(code.ref_slug)} title="Partner-URL kopieren">📋 URL</CopyBtn>
               </div>
               <div>
-                {code.discount_type === 'fixed' ? `${code.discount_amount}€` : `${code.discount_amount}%`}
+                {code.discount_amount > 0 && `${code.discount_amount}€`}
+                {code.discount_amount > 0 && code.discount_percent > 0 && ' / '}
+                {code.discount_percent > 0 && `${code.discount_percent}%`}
                 {code.commission_percent > 0 && <div style={{ fontSize: '0.7rem', color: colors.gray }}>{code.commission_percent}% Provision</div>}
               </div>
-              <div style={{ fontWeight: 600 }}>{getVisitsForCode(code.id)}</div>
-              <div style={{ fontWeight: 600, color: totalLeads > 0 ? colors.blue : 'inherit' }}>{getLeadsForCode(code.id)}</div>
-              <div style={{ fontWeight: 600, color: convertedLeads > 0 ? colors.green : 'inherit' }}>{getConversionsForCode(code.id)}</div>
+              <div style={{ fontWeight: 600 }}>{code.total_visits || getVisitsForCode(code.id)}</div>
+              <div style={{ fontWeight: 600, color: (code.total_leads || getLeadsForCode(code.id)) > 0 ? colors.blue : 'inherit' }}>{code.total_leads || getLeadsForCode(code.id)}</div>
+              <div style={{ fontWeight: 600, color: (code.total_conversions || getConversionsForCode(code.id)) > 0 ? colors.green : 'inherit' }}>{code.total_conversions || getConversionsForCode(code.id)}</div>
               <div><Badge $active={code.is_active}>{code.is_active ? 'Aktiv' : 'Inaktiv'}</Badge></div>
               <div>
                 <SmallBtn onClick={() => { setEditingCode(code); setShowModal(true); }} title="Bearbeiten">✏️</SmallBtn>
@@ -247,7 +249,7 @@ export default function PartnerCodesPage() {
               <TRow key={lead.id} style={{ gridTemplateColumns: '1.5fr 1fr 1fr 1fr 100px' }}>
                 <div><strong>{lead.name}</strong></div>
                 <div style={{ fontSize: '0.8rem', color: colors.gray }}>{lead.email}</div>
-                <div><Mono>{lead.coupon_code || '–'}</Mono></div>
+                <div><Mono>{lead.coupon_code || lead.partner_codes?.code || '–'}</Mono></div>
                 <div style={{ fontSize: '0.8rem', color: colors.gray }}>
                   {new Date(lead.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                 </div>
@@ -281,12 +283,15 @@ function PartnerCodeModal({ code, onClose, onSaved }) {
   const [form, setForm] = useState({
     partner_name: code?.partner_name || '',
     partner_email: code?.partner_email || '',
-    slug: code?.slug || '',
-    coupon_code: code?.coupon_code || '',
+    partner_phone: code?.partner_phone || '',
+    partner_website: code?.partner_website || '',
+    ref_slug: code?.ref_slug || '',
+    code: code?.code || '',
     discount_amount: code?.discount_amount || 150,
-    discount_type: code?.discount_type || 'fixed',
+    discount_percent: code?.discount_percent || 0,
     commission_percent: code?.commission_percent || 15,
     is_active: code?.is_active ?? true,
+    notes: code?.notes || '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -294,29 +299,29 @@ function PartnerCodeModal({ code, onClose, onSaved }) {
 
   // Auto-generate slug from partner name
   useEffect(() => {
-    if (!isEdit && form.partner_name && !form.slug) {
+    if (!isEdit && form.partner_name && !form.ref_slug) {
       const slug = form.partner_name
         .toLowerCase()
         .replace(/[äÄ]/g, 'ae').replace(/[öÖ]/g, 'oe').replace(/[üÜ]/g, 'ue').replace(/ß/g, 'ss')
         .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      set('slug', slug);
+      set('ref_slug', slug);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.partner_name]);
 
   // Auto-generate coupon code
   useEffect(() => {
-    if (!isEdit && form.slug && !form.coupon_code) {
-      const prefix = form.slug.replace(/-/g, '').substring(0, 8).toUpperCase();
-      set('coupon_code', `${prefix}${form.discount_amount}`);
+    if (!isEdit && form.ref_slug && !form.code) {
+      const prefix = form.ref_slug.replace(/-/g, '').substring(0, 8).toUpperCase();
+      set('code', `${prefix}${form.discount_amount}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.slug, form.discount_amount]);
+  }, [form.ref_slug, form.discount_amount]);
 
   async function handleSave() {
     if (!form.partner_name) { toast.error('Partnername ist Pflicht'); return; }
-    if (!form.slug) { toast.error('Slug ist Pflicht'); return; }
-    if (!form.coupon_code) { toast.error('Gutscheincode ist Pflicht'); return; }
+    if (!form.ref_slug) { toast.error('Slug ist Pflicht'); return; }
+    if (!form.code) { toast.error('Gutscheincode ist Pflicht'); return; }
 
     setSaving(true);
     try {
@@ -358,33 +363,32 @@ function PartnerCodeModal({ code, onClose, onSaved }) {
           <FormRow>
             <FormGroup>
               <Label>URL-Slug *</Label>
-              <Input value={form.slug} onChange={e => set('slug', e.target.value)} placeholder="hochzeitsplaza" />
+              <Input value={form.ref_slug} onChange={e => set('ref_slug', e.target.value)} placeholder="hochzeitsplaza" />
               <div style={{ fontSize: '0.7rem', color: colors.gray, marginTop: '0.25rem' }}>
-                → siwedding.de/?ref={form.slug || '...'}
+                → siwedding.de/?ref={form.ref_slug || '...'}
               </div>
             </FormGroup>
             <FormGroup>
               <Label>Gutscheincode *</Label>
-              <Input value={form.coupon_code} onChange={e => set('coupon_code', e.target.value.toUpperCase())} placeholder="PLAZA150" />
+              <Input value={form.code} onChange={e => set('code', e.target.value.toUpperCase())} placeholder="PLAZA150" />
             </FormGroup>
           </FormRow>
 
           <FormRow>
             <FormGroup>
-              <Label>Rabatt für Paare</Label>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Input type="number" value={form.discount_amount} onChange={e => set('discount_amount', Number(e.target.value))} style={{ width: '80px' }} />
-                <Select value={form.discount_type} onChange={e => set('discount_type', e.target.value)} style={{ width: '80px' }}>
-                  <option value="fixed">€</option>
-                  <option value="percent">%</option>
-                </Select>
-              </div>
+              <Label>Rabatt für Paare (€)</Label>
+              <Input type="number" value={form.discount_amount} onChange={e => set('discount_amount', Number(e.target.value))} />
             </FormGroup>
             <FormGroup>
-              <Label>Provision Partner (%)</Label>
-              <Input type="number" value={form.commission_percent} onChange={e => set('commission_percent', Number(e.target.value))} />
+              <Label>Rabatt (%)</Label>
+              <Input type="number" value={form.discount_percent} onChange={e => set('discount_percent', Number(e.target.value))} />
             </FormGroup>
           </FormRow>
+
+          <FormGroup>
+            <Label>Provision Partner (%)</Label>
+            <Input type="number" value={form.commission_percent} onChange={e => set('commission_percent', Number(e.target.value))} />
+          </FormGroup>
 
           {isEdit && (
             <FormGroup>
