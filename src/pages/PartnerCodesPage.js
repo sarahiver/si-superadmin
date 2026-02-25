@@ -124,10 +124,11 @@ export default function PartnerCodesPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Stats
+  // Stats (deleted Leads ausfiltern)
+  const activeLeads = leads.filter(l => l.status !== 'deleted');
   const totalVisits = visits.length;
-  const totalLeads = leads.length;
-  const convertedLeads = leads.filter(l => l.status === 'converted').length;
+  const totalLeads = activeLeads.length;
+  const convertedLeads = activeLeads.filter(l => l.status === 'converted').length;
   const conversionRate = totalVisits > 0 ? ((totalLeads / totalVisits) * 100).toFixed(1) : '0';
 
   function getVisitsForCode(codeId) {
@@ -135,11 +136,11 @@ export default function PartnerCodesPage() {
   }
 
   function getLeadsForCode(codeId) {
-    return leads.filter(l => l.partner_code_id === codeId).length;
+    return activeLeads.filter(l => l.partner_code_id === codeId).length;
   }
 
   function getConversionsForCode(codeId) {
-    return leads.filter(l => l.partner_code_id === codeId && l.status === 'converted').length;
+    return activeLeads.filter(l => l.partner_code_id === codeId && l.status === 'converted').length;
   }
 
   async function handleDelete(code) {
@@ -250,7 +251,7 @@ export default function PartnerCodesPage() {
       )}
 
       {/* Recent Leads */}
-      {leads.length > 0 && (
+      {activeLeads.length > 0 && (
         <>
           <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: '1.4rem', margin: '2.5rem 0 1rem' }}>
             Letzte Partner-Leads
@@ -263,7 +264,7 @@ export default function PartnerCodesPage() {
               <span>Datum</span>
               <span>Status</span>
             </THead>
-            {leads.slice(0, 20).map(lead => (
+            {activeLeads.slice(0, 20).map(lead => (
               <TRow key={lead.id} style={{ gridTemplateColumns: '1.5fr 1fr 1fr 1fr 100px' }}>
                 <div><strong>{lead.name}</strong></div>
                 <div style={{ fontSize: '0.8rem', color: colors.gray }}>{lead.email}</div>

@@ -114,6 +114,7 @@ const StatusBadge = styled.span`
       case 'new': return '#FEE2E2';
       case 'contacted': return '#FEF3C7';
       case 'converted': return '#D1FAE5';
+      case 'deleted': return '#F5F5F5';
       case 'archived': return '#F5F5F5';
       default: return '#FEE2E2';
     }
@@ -123,6 +124,7 @@ const StatusBadge = styled.span`
       case 'new': return '#DC2626';
       case 'contacted': return '#D97706';
       case 'converted': return '#059669';
+      case 'deleted': return '#999';
       case 'archived': return '#666';
       default: return '#DC2626';
     }
@@ -318,7 +320,8 @@ export default function RequestsPage() {
   };
 
   const filteredRequests = requests.filter(r => {
-    if (filter === 'all') return true;
+    if (filter === 'all') return (r.status || 'new') !== 'deleted';
+    if (filter === 'deleted') return r.status === 'deleted';
     return (r.status || 'new') === filter;
   });
 
@@ -334,6 +337,7 @@ export default function RequestsPage() {
   const newCount = requests.filter(r => !r.status || r.status === 'new').length;
   const contactedCount = requests.filter(r => r.status === 'contacted').length;
   const convertedCount = requests.filter(r => r.status === 'converted').length;
+  const deletedCount = requests.filter(r => r.status === 'deleted').length;
 
   return (
     <Layout stats={stats}>
@@ -343,7 +347,7 @@ export default function RequestsPage() {
       
       <Filters>
         <FilterButton $active={filter === 'all'} onClick={() => setFilter('all')}>
-          Alle ({requests.length})
+          Alle ({requests.length - deletedCount})
         </FilterButton>
         <FilterButton $active={filter === 'new'} onClick={() => setFilter('new')}>
           Neu ({newCount})
@@ -354,6 +358,11 @@ export default function RequestsPage() {
         <FilterButton $active={filter === 'converted'} onClick={() => setFilter('converted')}>
           Konvertiert ({convertedCount})
         </FilterButton>
+        {deletedCount > 0 && (
+          <FilterButton $active={filter === 'deleted'} onClick={() => setFilter('deleted')} style={{ opacity: 0.5 }}>
+            Gelöscht ({deletedCount})
+          </FilterButton>
+        )}
       </Filters>
       
       {filteredRequests.length > 0 ? (
@@ -444,6 +453,7 @@ export default function RequestsPage() {
                 <option value="contacted">Kontaktiert</option>
                 <option value="converted">Konvertiert</option>
                 <option value="archived">Archiviert</option>
+                <option value="deleted">Gelöscht</option>
               </Select>
               
               <ModalActions>

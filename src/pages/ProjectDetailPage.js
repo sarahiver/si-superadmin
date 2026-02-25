@@ -1844,6 +1844,27 @@ export default function ProjectDetailPage() {
 
   const handleDelete = async () => {
     if (!window.confirm('Projekt wirklich löschen?')) return;
+    
+    // Zugehörige Anfrage auf 'deleted' setzen (falls vorhanden)
+    try {
+      const { data: requests } = await supabase
+        .from('contact_requests')
+        .select('id')
+        .or(`email.eq.${formData.client_email},name.eq.${formData.client_name}`)
+        .eq('status', 'converted');
+      
+      if (requests && requests.length > 0) {
+        for (const req of requests) {
+          await supabase
+            .from('contact_requests')
+            .update({ status: 'deleted' })
+            .eq('id', req.id);
+        }
+      }
+    } catch (e) {
+      console.warn('Lead-Status konnte nicht aktualisiert werden:', e);
+    }
+
     const { error } = await deleteProject(id);
     if (error) toast.error('Fehler beim Löschen');
     else { toast.success('Projekt gelöscht'); navigate('/projects'); }
