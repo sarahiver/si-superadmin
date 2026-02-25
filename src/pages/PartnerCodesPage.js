@@ -147,7 +147,7 @@ export default function PartnerCodesPage() {
   }
 
   function copyUrl(refSlug) {
-    const url = `https://siwedding.de/?ref=${refSlug}`;
+    const url = `https://sarahiver.com/?ref=${refSlug}`;
     navigator.clipboard.writeText(url);
     toast.success('URL kopiert!');
   }
@@ -365,7 +365,7 @@ function PartnerCodeModal({ code, onClose, onSaved }) {
               <Label>URL-Slug *</Label>
               <Input value={form.ref_slug} onChange={e => set('ref_slug', e.target.value)} placeholder="hochzeitsplaza" />
               <div style={{ fontSize: '0.7rem', color: colors.gray, marginTop: '0.25rem' }}>
-                → siwedding.de/?ref={form.ref_slug || '...'}
+                → sarahiver.com/?ref={form.ref_slug || '...'}
               </div>
             </FormGroup>
             <FormGroup>
