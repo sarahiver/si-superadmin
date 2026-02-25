@@ -253,33 +253,33 @@ export async function getSuperadminByEmail(email) {
 
 export async function getRsvps() {
   return db({
-    action: 'select', table: 'rsvps',
+    action: 'select', table: 'rsvp_responses',
     options: { select: '*', order: { column: 'created_at', ascending: false } },
   });
 }
 
 export async function getRsvpsByProject(projectId) {
   return db({
-    action: 'select', table: 'rsvps',
+    action: 'select', table: 'rsvp_responses',
     filters: [{ op: 'eq', column: 'project_id', value: projectId }],
     options: { select: '*', order: { column: 'created_at', ascending: false } },
   });
 }
 
 export async function createRsvp(rsvpData) {
-  return db({ action: 'insert', table: 'rsvps', data: [rsvpData], options: { single: true } });
+  return db({ action: 'insert', table: 'rsvp_responses', data: [rsvpData], options: { single: true } });
 }
 
 export async function updateRsvp(id, updates) {
   return db({
-    action: 'update', table: 'rsvps', data: updates,
+    action: 'update', table: 'rsvp_responses', data: updates,
     filters: [{ op: 'eq', column: 'id', value: id }],
     options: { single: true },
   });
 }
 
 export async function deleteRsvp(id) {
-  return db({ action: 'delete', table: 'rsvps', filters: [{ op: 'eq', column: 'id', value: id }] });
+  return db({ action: 'delete', table: 'rsvp_responses', filters: [{ op: 'eq', column: 'id', value: id }] });
 }
 
 // ============================================
@@ -288,7 +288,7 @@ export async function deleteRsvp(id) {
 
 export async function getContentByProject(projectId) {
   return db({
-    action: 'select', table: 'content',
+    action: 'select', table: 'project_content',
     filters: [{ op: 'eq', column: 'project_id', value: projectId }],
     options: { select: '*', single: true },
   });
@@ -296,7 +296,7 @@ export async function getContentByProject(projectId) {
 
 export async function updateContent(projectId, updates) {
   return db({
-    action: 'upsert', table: 'content',
+    action: 'upsert', table: 'project_content',
     data: { project_id: projectId, ...updates },
     options: { single: true },
   });
@@ -308,14 +308,14 @@ export async function updateContent(projectId, updates) {
 
 export async function getPhotosByProject(projectId) {
   return db({
-    action: 'select', table: 'photos',
+    action: 'select', table: 'photo_uploads',
     filters: [{ op: 'eq', column: 'project_id', value: projectId }],
     options: { select: '*', order: { column: 'created_at', ascending: false } },
   });
 }
 
 export async function deletePhoto(id) {
-  return db({ action: 'delete', table: 'photos', filters: [{ op: 'eq', column: 'id', value: id }] });
+  return db({ action: 'delete', table: 'photo_uploads', filters: [{ op: 'eq', column: 'id', value: id }] });
 }
 
 // ============================================

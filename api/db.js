@@ -13,13 +13,14 @@ const supabase = createClient(
 
 // Erlaubte Tabellen — alles andere wird geblockt
 const ALLOWED_TABLES = [
-  'projects', 'project_content', 'content',
+  'projects', 'project_content',
   'contact_requests', 'superadmins',
-  'rsvps', 'photos', 'photo_uploads',
+  'rsvp_responses', 'photo_uploads',
   'email_logs', 'email_events',
   'partners', 'customers',
   'password_reset_tokens',
   'guestbook_entries', 'music_wishes', 'gift_reservations',
+  'guest_list', 'admin_notifications',
   'site_settings', 'waitlist',
 ];
 
