@@ -1160,21 +1160,116 @@ function PartnerPayoutSection({ projectId, partnerCodeId, formData, pricing }) {
     setCreating(false);
   };
 
+  const [markingPaid, setMarkingPaid] = useState(false);
+
   const handleMarkPaid = async () => {
     if (!payout) return;
-    if (!window.confirm(`Provision ${formatPrice(payout.payout_amount)} an ${payout.partner_name} als ausgezahlt markieren?`)) return;
+    if (!payout.partner_email) {
+      toast.error('Keine E-Mail-Adresse beim Partner hinterlegt – bitte zuerst im Partner-Code ergänzen.');
+      return;
+    }
+    if (!window.confirm(
+      `Provision ${formatPrice(payout.payout_amount)} an ${payout.partner_name} als ausgezahlt markieren?\n\n` +
+      `→ Provisionsabrechnung wird per E-Mail an ${payout.partner_email} gesendet.`
+    )) return;
+
+    setMarkingPaid(true);
     try {
+      // 1. Status auf ausgezahlt setzen
+      const paidAt = new Date().toISOString();
       const { data: updated, error } = await updatePartnerPayout(payout.id, {
         status: 'ausgezahlt',
-        paid_at: new Date().toISOString(),
+        paid_at: paidAt,
         paid_via: 'Überweisung',
       });
       if (error) throw new Error(typeof error === 'string' ? error : error.message);
-      setPayout(updated);
-      toast.success('Als ausgezahlt markiert ✓');
+
+      // 2. PDF generieren (mit aktualisiertem Status)
+      const paidPayout = { ...payout, ...updated, status: 'ausgezahlt', paid_at: paidAt, paid_via: 'Überweisung' };
+      const doc = generatePayoutPdf(paidPayout, { download: false });
+      const pdfBase64 = doc.output('datauristring').split(',')[1];
+
+      // 3. E-Mail an Partner senden
+      const fmtAmount = Number(paidPayout.payout_amount).toFixed(2).replace('.', ',');
+      const fmtDate = new Date(paidAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+      const htmlContent = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; color: #0A0A0A;">
+          <div style="background: #0A0A0A; padding: 24px 32px;">
+            <span style="color: #FFFFFF; font-size: 22px; font-weight: 700; letter-spacing: -0.06em;">S & I .</span>
+          </div>
+
+          <div style="padding: 32px;">
+            <h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 600;">Provisionsabrechnung ${paidPayout.invoice_number}</h2>
+            <p style="color: #666; margin: 0 0 24px; font-size: 14px;">Deine Provision wurde überwiesen.</p>
+
+            <div style="background: #ECFDF5; border: 1px solid #A7F3D0; padding: 16px 20px; margin-bottom: 24px;">
+              <div style="color: #065F46; font-weight: 600; font-size: 14px;">✓ Auszahlung: ${fmtAmount} €</div>
+              <div style="color: #065F46; font-size: 13px; margin-top: 4px;">Überwiesen am ${fmtDate}</div>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 24px;">
+              <tr style="border-bottom: 1px solid #E5E5E5;">
+                <td style="padding: 10px 0; color: #666;">Projekt</td>
+                <td style="padding: 10px 0; text-align: right; font-weight: 600;">${paidPayout.couple_names || '–'}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #E5E5E5;">
+                <td style="padding: 10px 0; color: #666;">Paket</td>
+                <td style="padding: 10px 0; text-align: right;">${paidPayout.project_package || '–'}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #E5E5E5;">
+                <td style="padding: 10px 0; color: #666;">Projektgesamtpreis</td>
+                <td style="padding: 10px 0; text-align: right;">${Number(paidPayout.project_total).toFixed(2).replace('.', ',')} €</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #E5E5E5;">
+                <td style="padding: 10px 0; color: #666;">Provision (${paidPayout.commission_percent}%)</td>
+                <td style="padding: 10px 0; text-align: right;">${Number(paidPayout.commission_calculated).toFixed(2).replace('.', ',')} €</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px 0; font-weight: 700; font-size: 15px;">Auszahlungsbetrag</td>
+                <td style="padding: 12px 0; text-align: right; font-weight: 700; font-size: 15px; color: #059669;">${fmtAmount} €</td>
+              </tr>
+            </table>
+
+            <p style="font-size: 13px; color: #666; margin: 0 0 8px;">Die detaillierte Provisionsabrechnung findest du im Anhang als PDF.</p>
+            <p style="font-size: 13px; color: #666; margin: 0;">Bei Fragen melde dich gerne bei uns.</p>
+          </div>
+
+          <div style="border-top: 1px solid #E5E5E5; padding: 20px 32px; font-size: 12px; color: #999;">
+            S&I. Wedding · siwedding.de · wedding@sarahiver.de
+          </div>
+        </div>
+      `;
+
+      const emailRes = await adminFetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: paidPayout.partner_email,
+          toName: paidPayout.partner_name,
+          subject: `Provisionsabrechnung ${paidPayout.invoice_number} – ${fmtAmount} € überwiesen`,
+          htmlContent,
+          attachments: [{
+            name: `${paidPayout.invoice_number}.pdf`,
+            content: pdfBase64,
+          }],
+        }),
+      });
+
+      if (!emailRes.ok) {
+        const errData = await emailRes.json().catch(() => ({}));
+        console.error('Payout email error:', errData);
+        // Status ist schon gesetzt, also nur warnen
+        toast.error(`Ausgezahlt, aber E-Mail fehlgeschlagen: ${errData.details || errData.error || 'Unbekannter Fehler'}`);
+      } else {
+        toast.success(`Ausgezahlt ✓ – Abrechnung an ${paidPayout.partner_email} gesendet`);
+      }
+
+      setPayout(paidPayout);
     } catch (err) {
       toast.error('Fehler: ' + err.message);
     }
+    setMarkingPaid(false);
   };
 
   const handleDownloadPdf = () => {
@@ -1225,8 +1320,8 @@ function PartnerPayoutSection({ projectId, partnerCodeId, formData, pricing }) {
               📃 PDF Download
             </button>
             {!isPaid && (
-              <button onClick={handleMarkPaid} style={{ flex: 1, padding: '0.5rem', background: '#0A0A0A', color: '#fff', border: 'none', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>
-                ✓ Als ausgezahlt markieren
+              <button onClick={handleMarkPaid} disabled={markingPaid} style={{ flex: 1, padding: '0.5rem', background: markingPaid ? '#666' : '#0A0A0A', color: '#fff', border: 'none', fontSize: '0.75rem', fontWeight: 600, cursor: markingPaid ? 'wait' : 'pointer' }}>
+                {markingPaid ? '⏳ Überweise & sende E-Mail...' : '✓ Auszahlen + PDF an Partner senden'}
               </button>
             )}
           </div>
