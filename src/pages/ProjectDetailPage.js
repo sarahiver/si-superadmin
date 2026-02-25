@@ -5,12 +5,13 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
-import { getProjectById, updateProject, deleteProject, supabase } from '../lib/supabase';
+import { getProjectById, updateProject, deleteProject, supabase, getPartnerCodeById } from '../lib/supabase';
 import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS, PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from '../lib/constants';
 import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail } from '../lib/emailService';
 import { generateContractPDF } from '../lib/contractPDF';
 import { generateInvoicePDF } from '../lib/invoicePDF';
 import { generateWebsiteQRSVG } from '../lib/qrGenerator';
+import { adminFetch } from '../lib/apiClient';
 import AddressAutocomplete, { formatAddress } from '../components/AddressAutocomplete';
 import PhoneInput from '../components/PhoneInput';
 
@@ -1227,6 +1228,10 @@ export default function ProjectDetailPage() {
         final_paid_date: data.final_paid_date || '',
         final_amount: data.final_amount || 0,
         workflow_notes: data.workflow_notes || '',
+        // Partner-System
+        partner_code_id: data.partner_code_id || null,
+        coupon_code: data.coupon_code || null,
+        contact_request_id: data.contact_request_id || null,
       });
     }
     setIsLoading(false);
@@ -1522,7 +1527,72 @@ export default function ProjectDetailPage() {
     else { 
       toast.success('Gespeichert!'); 
       // Update project ohne State-Reset der Scroll-Position
-      setProject(prev => ({ ...prev, ...formData, total_price: pricing.total })); 
+      setProject(prev => ({ ...prev, ...formData, total_price: pricing.total }));
+
+      // Partner-Benachrichtigung bei Zahlungsstatus-Änderung
+      if (formData.partner_code_id) {
+        const prevDeposit = project?.deposit_paid || false;
+        const prevFinal = project?.final_paid || false;
+        const nowDeposit = formData.deposit_paid || false;
+        const nowFinal = formData.final_paid || false;
+
+        if ((!prevDeposit && nowDeposit) || (!prevFinal && nowFinal)) {
+          // Partner-Code laden für E-Mail
+          try {
+            const { data: pc } = await getPartnerCodeById(formData.partner_code_id);
+            if (pc?.partner_email) {
+              const paymentType = (!prevDeposit && nowDeposit) ? 'Anzahlung' : 'Restzahlung';
+              const amount = (!prevDeposit && nowDeposit) ? formData.deposit_amount : formData.final_amount;
+              const commission = pc.commission_percent ? (amount * pc.commission_percent / 100).toFixed(2) : '–';
+
+              await adminFetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: pc.partner_email,
+                  toName: pc.partner_name,
+                  subject: `${paymentType} eingegangen – ${formData.couple_names || formData.partner1_name}`,
+                  htmlContent: `
+                    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+                      <div style="background: #000; color: #fff; display: inline-block; padding: 8px 16px; font-weight: 700; font-size: 18px; letter-spacing: -0.06em; margin-bottom: 30px;">S&amp;I.</div>
+                      <h1 style="font-size: 22px; font-weight: 600; margin-bottom: 8px; color: #1a1a1a;">${paymentType} eingegangen!</h1>
+                      <p style="color: #666; font-size: 14px; margin-bottom: 24px;">Gute Neuigkeiten zu eurem vermittelten Paar.</p>
+                      <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+                        <tr style="border-bottom: 1px solid #eee;">
+                          <td style="padding: 12px 0; color: #888; width: 130px;">Paar</td>
+                          <td style="padding: 12px 0; color: #1a1a1a; font-weight: 500;">${formData.couple_names || formData.partner1_name || '–'}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #eee;">
+                          <td style="padding: 12px 0; color: #888;">Zahlungsart</td>
+                          <td style="padding: 12px 0; color: #1a1a1a; font-weight: 600;">${paymentType}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #eee;">
+                          <td style="padding: 12px 0; color: #888;">Betrag</td>
+                          <td style="padding: 12px 0; color: #1a1a1a;">${amount ? amount.toLocaleString('de-DE') + ' €' : '–'}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #eee;">
+                          <td style="padding: 12px 0; color: #888;">Eure Provision (${pc.commission_percent}%)</td>
+                          <td style="padding: 12px 0; color: #059669; font-weight: 700;">${commission} €</td>
+                        </tr>
+                      </table>
+                      <p style="color: #666; font-size: 14px; line-height: 1.6;">
+                        ${nowDeposit && nowFinal 
+                          ? 'Das Projekt ist vollständig bezahlt. Eure Gesamtprovision wird in Kürze überwiesen.' 
+                          : 'Wir halten euch über die weitere Zahlung auf dem Laufenden.'}
+                      </p>
+                      <p style="color: #ccc; font-size: 12px; margin-top: 40px;">Automatische Benachrichtigung von S&I. Wedding</p>
+                    </div>
+                  `,
+                }),
+              });
+              toast.success(`Partner-Benachrichtigung an ${pc.partner_name} gesendet`);
+            }
+          } catch (err) {
+            console.error('Partner notification error:', err);
+            // Nicht blockierend – Speichern war erfolgreich
+          }
+        }
+      }
     }
     setIsSaving(false);
   };
@@ -2014,6 +2084,12 @@ export default function ProjectDetailPage() {
 
           {/* Section 04: Kundenabwicklung */}
           <CollapsibleSection number="04" title="Kundenabwicklung" badge={formData.contract_signed && formData.deposit_paid ? '✓ Komplett' : 'Offen'} defaultOpen={false}>
+            {formData.coupon_code && (
+              <div style={{ background: '#FEF3C7', border: '1px solid #F59E0B', padding: '0.75rem 1rem', marginBottom: '1.5rem', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>🤝 <strong>Partner-Projekt</strong> — Gutscheincode: <code style={{ background: '#fff', padding: '0.15rem 0.4rem', fontWeight: 600 }}>{formData.coupon_code}</code></span>
+                <span style={{ color: '#92400E', fontSize: '0.75rem' }}>Partner wird bei Zahlung automatisch benachrichtigt</span>
+              </div>
+            )}
             <WorkflowSection>
               {/* Vertrag */}
               <WorkflowCard $complete={formData.contract_signed}>

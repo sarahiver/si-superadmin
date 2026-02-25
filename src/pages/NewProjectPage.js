@@ -123,16 +123,22 @@ const Button = styled.button`
 
 export default function NewProjectPage() {
   const navigate = useNavigate();
+  const location = window.history.state?.usr || {};
+  const fromRequest = location.fromRequest || null;
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     partner1_name: '',
     partner2_name: '',
-    wedding_date: '',
+    wedding_date: fromRequest?.wedding_date || '',
     slug: '',
-    theme: 'botanical',
-    package: 'starter',
-    client_name: '',
-    client_email: '',
+    theme: fromRequest?.interested_theme || 'botanical',
+    package: fromRequest?.interested_package || 'starter',
+    client_name: fromRequest?.name || '',
+    client_email: fromRequest?.email || '',
+    // Partner-System Felder
+    partner_code_id: fromRequest?.partner_code_id || null,
+    coupon_code: fromRequest?.coupon_code || null,
+    contact_request_id: fromRequest?.id || null,
   });
 
   const handleChange = (field, value) => {
@@ -187,6 +193,10 @@ export default function NewProjectPage() {
       addons: [],
       extra_components_count: 0,
       discount: 0,
+      // Partner-System
+      partner_code_id: formData.partner_code_id || null,
+      coupon_code: formData.coupon_code || null,
+      contact_request_id: formData.contact_request_id || null,
     };
 
     const { data, error } = await createProject(projectData);
