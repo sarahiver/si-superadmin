@@ -1,11 +1,126 @@
 // src/lib/supabase.js
-// Supabase Client + ALL API Functions for SuperAdmin
-import { createClient } from '@supabase/supabase-js';
+// API-Proxy Version: Alle DB-Operationen laufen über /api/db (service_role serverseitig)
+// Kein Supabase-Client mehr im Frontend — kein anon Key nötig!
 
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+import { adminFetch } from './apiClient';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// ─── Zentraler DB-Call ───
+async function db(body) {
+  const res = await adminFetch('/api/db', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) {
+    return { data: null, error: { message: json.error || 'API Error' } };
+  }
+  return { data: json.data, error: null };
+}
+
+// ─── Supabase-kompatibles Proxy-Objekt ───
+// Für Pages die `supabase.from('table')...` direkt nutzen
+function createQueryBuilder(table) {
+  let _select = '*';
+  let _filters = [];
+  let _order = null;
+  let _limit = null;
+  let _single = false;
+  let _maybeSingle = false;
+  let _data = undefined;
+  let _action = 'select';
+  let _upsertOpts = null;
+
+  const builder = {
+    select(columns = '*') { _select = columns; return builder; },
+    eq(col, val)    { _filters.push({ op: 'eq', column: col, value: val }); return builder; },
+    neq(col, val)   { _filters.push({ op: 'neq', column: col, value: val }); return builder; },
+    gt(col, val)    { _filters.push({ op: 'gt', column: col, value: val }); return builder; },
+    gte(col, val)   { _filters.push({ op: 'gte', column: col, value: val }); return builder; },
+    lt(col, val)    { _filters.push({ op: 'lt', column: col, value: val }); return builder; },
+    lte(col, val)   { _filters.push({ op: 'lte', column: col, value: val }); return builder; },
+    like(col, val)  { _filters.push({ op: 'like', column: col, value: val }); return builder; },
+    ilike(col, val) { _filters.push({ op: 'ilike', column: col, value: val }); return builder; },
+    is(col, val)    { _filters.push({ op: 'is', column: col, value: val }); return builder; },
+    in(col, val)    { _filters.push({ op: 'in', column: col, value: val }); return builder; },
+    not(col, op2, val) { _filters.push({ op: 'not', column: col, op2, value: val }); return builder; },
+    order(col, opts = {}) { _order = { column: col, ascending: opts.ascending ?? false }; return builder; },
+    limit(n)        { _limit = n; return builder; },
+
+    single() {
+      _single = true;
+      return builder;
+    },
+
+    maybeSingle() {
+      _maybeSingle = true;
+      return builder;
+    },
+
+    insert(rows) {
+      _data = rows;
+      _action = 'insert';
+      return builder;
+    },
+
+    update(data) {
+      _data = data;
+      _action = 'update';
+      return builder;
+    },
+
+    upsert(data, opts) {
+      _data = data;
+      _action = 'upsert';
+      _upsertOpts = opts;
+      return builder;
+    },
+
+    delete() {
+      _action = 'delete';
+      return builder;
+    },
+
+    // Thenable — damit await supabase.from('x').select() funktioniert
+    then(resolve, reject) {
+      return builder._execute().then(resolve, reject);
+    },
+
+    async _execute() {
+      const body = {
+        action: _action,
+        table,
+        filters: _filters.length ? _filters : undefined,
+        options: {},
+      };
+
+      if (_select !== '*') body.options.select = _select;
+      if (_order) body.options.order = _order;
+      if (_limit) body.options.limit = _limit;
+      if (_single) body.options.single = true;
+      if (_maybeSingle) body.options.maybeSingle = true;
+      if (_upsertOpts?.onConflict) body.options.onConflict = _upsertOpts.onConflict;
+
+      if (_data !== undefined) {
+        body.data = _data;
+      }
+
+      return db(body);
+    },
+  };
+
+  return builder;
+}
+
+// Proxy-Objekt das sich wie der Supabase-Client verhält
+export const supabase = {
+  from(table) {
+    return createQueryBuilder(table);
+  },
+  async rpc(fn, args) {
+    return db({ action: 'rpc', fn, args });
+  },
+};
 
 // ============================================
 // DASHBOARD STATS
@@ -13,12 +128,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export async function getDashboardStats() {
   try {
-    const { data: projects } = await supabase.from('projects').select('*');
-    const { data: requests } = await supabase.from('contact_requests').select('*');
-    
-    const projectList = projects || [];
-    const requestList = requests || [];
-    
+    const [projectsRes, requestsRes] = await Promise.all([
+      db({ action: 'select', table: 'projects', options: { select: '*' } }),
+      db({ action: 'select', table: 'contact_requests', options: { select: '*' } }),
+    ]);
+
+    const projectList = projectsRes.data || [];
+    const requestList = requestsRes.data || [];
+
     return {
       data: {
         totalProjects: projectList.length,
@@ -29,7 +146,7 @@ export async function getDashboardStats() {
         recentProjects: projectList.slice(0, 5),
         recentRequests: requestList.slice(0, 5),
       },
-      error: null
+      error: null,
     };
   } catch (error) {
     return { data: null, error };
@@ -41,56 +158,42 @@ export async function getDashboardStats() {
 // ============================================
 
 export async function getProjects() {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-    .order('created_at', { ascending: false });
-  return { data, error };
+  return db({
+    action: 'select', table: 'projects',
+    options: { select: '*', order: { column: 'created_at', ascending: false } },
+  });
 }
 
 export async function getProjectById(id) {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('id', id)
-    .single();
-  return { data, error };
+  return db({
+    action: 'select', table: 'projects',
+    filters: [{ op: 'eq', column: 'id', value: id }],
+    options: { select: '*', single: true },
+  });
 }
 
 export async function getProjectBySlug(slug) {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('slug', slug)
-    .single();
-  return { data, error };
+  return db({
+    action: 'select', table: 'projects',
+    filters: [{ op: 'eq', column: 'slug', value: slug }],
+    options: { select: '*', single: true },
+  });
 }
 
 export async function createProject(projectData) {
-  const { data, error } = await supabase
-    .from('projects')
-    .insert([projectData])
-    .select()
-    .single();
-  return { data, error };
+  return db({ action: 'insert', table: 'projects', data: [projectData], options: { single: true } });
 }
 
 export async function updateProject(id, updates) {
-  const { data, error } = await supabase
-    .from('projects')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
-  return { data, error };
+  return db({
+    action: 'update', table: 'projects', data: updates,
+    filters: [{ op: 'eq', column: 'id', value: id }],
+    options: { single: true },
+  });
 }
 
 export async function deleteProject(id) {
-  const { error } = await supabase
-    .from('projects')
-    .delete()
-    .eq('id', id);
-  return { error };
+  return db({ action: 'delete', table: 'projects', filters: [{ op: 'eq', column: 'id', value: id }] });
 }
 
 // ============================================
@@ -98,67 +201,50 @@ export async function deleteProject(id) {
 // ============================================
 
 export async function getContactRequests() {
-  const { data, error } = await supabase
-    .from('contact_requests')
-    .select('*')
-    .order('created_at', { ascending: false });
-  return { data, error };
+  return db({
+    action: 'select', table: 'contact_requests',
+    options: { select: '*', order: { column: 'created_at', ascending: false } },
+  });
 }
 
 export async function getContactRequestById(id) {
-  const { data, error } = await supabase
-    .from('contact_requests')
-    .select('*')
-    .eq('id', id)
-    .single();
-  return { data, error };
+  return db({
+    action: 'select', table: 'contact_requests',
+    filters: [{ op: 'eq', column: 'id', value: id }],
+    options: { select: '*', single: true },
+  });
 }
 
 export async function createContactRequest(requestData) {
-  const { data, error } = await supabase
-    .from('contact_requests')
-    .insert([requestData])
-    .select()
-    .single();
-  return { data, error };
+  return db({ action: 'insert', table: 'contact_requests', data: [requestData], options: { single: true } });
 }
 
 export async function updateContactRequest(id, updates) {
-  const { data, error } = await supabase
-    .from('contact_requests')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
-  return { data, error };
+  return db({
+    action: 'update', table: 'contact_requests', data: updates,
+    filters: [{ op: 'eq', column: 'id', value: id }],
+    options: { single: true },
+  });
 }
 
 export async function deleteContactRequest(id) {
-  const { error } = await supabase
-    .from('contact_requests')
-    .delete()
-    .eq('id', id);
-  return { error };
+  return db({ action: 'delete', table: 'contact_requests', filters: [{ op: 'eq', column: 'id', value: id }] });
 }
 
 // ============================================
-// SUPERADMINS (Login)
+// SUPERADMINS
 // ============================================
 
 export async function getSuperadmins() {
-  const { data, error } = await supabase
-    .from('superadmins')
-    .select('*');
-  return { data, error };
+  return db({ action: 'select', table: 'superadmins', options: { select: '*' } });
 }
 
 export async function getSuperadminByEmail(email) {
-  const { data, error } = await supabase
-    .from('superadmins')
-    .select('*')
-    .eq('email', email)
-    .single();
-  return { data, error };
+  return db({
+    action: 'select', table: 'superadmins',
+    filters: [{ op: 'eq', column: 'email', value: email }],
+    options: { select: '*', single: true },
+  });
 }
 
 // ============================================
@@ -166,47 +252,34 @@ export async function getSuperadminByEmail(email) {
 // ============================================
 
 export async function getRsvps() {
-  const { data, error } = await supabase
-    .from('rsvps')
-    .select('*')
-    .order('created_at', { ascending: false });
-  return { data, error };
+  return db({
+    action: 'select', table: 'rsvps',
+    options: { select: '*', order: { column: 'created_at', ascending: false } },
+  });
 }
 
 export async function getRsvpsByProject(projectId) {
-  const { data, error } = await supabase
-    .from('rsvps')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: false });
-  return { data, error };
+  return db({
+    action: 'select', table: 'rsvps',
+    filters: [{ op: 'eq', column: 'project_id', value: projectId }],
+    options: { select: '*', order: { column: 'created_at', ascending: false } },
+  });
 }
 
 export async function createRsvp(rsvpData) {
-  const { data, error } = await supabase
-    .from('rsvps')
-    .insert([rsvpData])
-    .select()
-    .single();
-  return { data, error };
+  return db({ action: 'insert', table: 'rsvps', data: [rsvpData], options: { single: true } });
 }
 
 export async function updateRsvp(id, updates) {
-  const { data, error } = await supabase
-    .from('rsvps')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
-  return { data, error };
+  return db({
+    action: 'update', table: 'rsvps', data: updates,
+    filters: [{ op: 'eq', column: 'id', value: id }],
+    options: { single: true },
+  });
 }
 
 export async function deleteRsvp(id) {
-  const { error } = await supabase
-    .from('rsvps')
-    .delete()
-    .eq('id', id);
-  return { error };
+  return db({ action: 'delete', table: 'rsvps', filters: [{ op: 'eq', column: 'id', value: id }] });
 }
 
 // ============================================
@@ -214,21 +287,19 @@ export async function deleteRsvp(id) {
 // ============================================
 
 export async function getContentByProject(projectId) {
-  const { data, error } = await supabase
-    .from('content')
-    .select('*')
-    .eq('project_id', projectId)
-    .single();
-  return { data, error };
+  return db({
+    action: 'select', table: 'content',
+    filters: [{ op: 'eq', column: 'project_id', value: projectId }],
+    options: { select: '*', single: true },
+  });
 }
 
 export async function updateContent(projectId, updates) {
-  const { data, error } = await supabase
-    .from('content')
-    .upsert({ project_id: projectId, ...updates })
-    .select()
-    .single();
-  return { data, error };
+  return db({
+    action: 'upsert', table: 'content',
+    data: { project_id: projectId, ...updates },
+    options: { single: true },
+  });
 }
 
 // ============================================
@@ -236,28 +307,15 @@ export async function updateContent(projectId, updates) {
 // ============================================
 
 export async function getPhotosByProject(projectId) {
-  const { data, error } = await supabase
-    .from('photos')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: false });
-  return { data, error };
-}
-
-export async function uploadPhoto(file, projectId) {
-  const fileName = `${projectId}/${Date.now()}-${file.name}`;
-  const { data, error } = await supabase.storage
-    .from('photos')
-    .upload(fileName, file);
-  return { data, error };
+  return db({
+    action: 'select', table: 'photos',
+    filters: [{ op: 'eq', column: 'project_id', value: projectId }],
+    options: { select: '*', order: { column: 'created_at', ascending: false } },
+  });
 }
 
 export async function deletePhoto(id) {
-  const { error } = await supabase
-    .from('photos')
-    .delete()
-    .eq('id', id);
-  return { error };
+  return db({ action: 'delete', table: 'photos', filters: [{ op: 'eq', column: 'id', value: id }] });
 }
 
 // ============================================
@@ -265,35 +323,24 @@ export async function deletePhoto(id) {
 // ============================================
 
 export async function getEmailLogs(projectId = null) {
-  let query = supabase
-    .from('email_logs')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-  if (projectId) {
-    query = query.eq('project_id', projectId);
-  }
-
-  const { data, error } = await query;
-  return { data, error };
+  const body = {
+    action: 'select', table: 'email_logs',
+    options: { select: '*', order: { column: 'created_at', ascending: false } },
+  };
+  if (projectId) body.filters = [{ op: 'eq', column: 'project_id', value: projectId }];
+  return db(body);
 }
 
 export async function getEmailLogById(id) {
-  const { data, error } = await supabase
-    .from('email_logs')
-    .select('*')
-    .eq('id', id)
-    .single();
-  return { data, error };
+  return db({
+    action: 'select', table: 'email_logs',
+    filters: [{ op: 'eq', column: 'id', value: id }],
+    options: { select: '*', single: true },
+  });
 }
 
 export async function createEmailLog(logData) {
-  const { data, error } = await supabase
-    .from('email_logs')
-    .insert([logData])
-    .select()
-    .single();
-  return { data, error };
+  return db({ action: 'insert', table: 'email_logs', data: [logData], options: { single: true } });
 }
 
 // ============================================
@@ -301,97 +348,67 @@ export async function createEmailLog(logData) {
 // ============================================
 
 export async function createPasswordResetToken(projectId, email, token, expiresAt) {
-  const { data, error } = await supabase
-    .from('password_reset_tokens')
-    .insert([{
-      project_id: projectId,
-      email,
-      token,
-      expires_at: expiresAt,
-    }])
-    .select()
-    .single();
-  return { data, error };
+  return db({
+    action: 'insert', table: 'password_reset_tokens',
+    data: [{ project_id: projectId, email, token, expires_at: expiresAt }],
+    options: { single: true },
+  });
 }
 
 export async function getPasswordResetToken(token) {
-  const { data, error } = await supabase
-    .from('password_reset_tokens')
-    .select('*')
-    .eq('token', token)
-    .is('used_at', null)
-    .gt('expires_at', new Date().toISOString())
-    .single();
-  return { data, error };
+  return db({
+    action: 'select', table: 'password_reset_tokens',
+    filters: [
+      { op: 'eq', column: 'token', value: token },
+      { op: 'is', column: 'used_at', value: null },
+      { op: 'gt', column: 'expires_at', value: new Date().toISOString() },
+    ],
+    options: { select: '*', single: true },
+  });
 }
 
 export async function markTokenAsUsed(tokenId) {
-  const { data, error } = await supabase
-    .from('password_reset_tokens')
-    .update({ used_at: new Date().toISOString() })
-    .eq('id', tokenId);
-  return { data, error };
+  return db({
+    action: 'update', table: 'password_reset_tokens',
+    data: { used_at: new Date().toISOString() },
+    filters: [{ op: 'eq', column: 'id', value: tokenId }],
+  });
 }
 
 // ============================================
 // AUTOMATIC STATUS SYNC
 // ============================================
 
-/**
- * Prüft alle Projekte und aktualisiert deren Status basierend auf den Daten:
- * - std_date: Wenn heute > std_date → Status wird "live"
- * - archive_date: Wenn heute > archive_date → Status wird "archive"
- *
- * Die Daten kommen direkt aus der projects Tabelle (std_date, archive_date)
- */
 export async function syncAllProjectStatuses() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
-  const results = {
-    checked: 0,
-    updated: 0,
-    errors: [],
-    changes: []
-  };
+  const results = { checked: 0, updated: 0, errors: [], changes: [] };
 
   try {
-    const { data: projects, error: projectsError } = await supabase
-      .from('projects')
-      .select('id, slug, status, wedding_date, partner1_name, partner2_name, std_date, archive_date');
-
+    const { data: projects, error: projectsError } = await db({
+      action: 'select', table: 'projects',
+      options: { select: 'id, slug, status, wedding_date, partner1_name, partner2_name, std_date, archive_date' },
+    });
     if (projectsError) throw projectsError;
 
     for (const project of projects || []) {
       results.checked++;
-
       const stdDate = project.std_date ? new Date(project.std_date) : null;
       const archiveDate = project.archive_date ? new Date(project.archive_date) : null;
-
       let newStatus = project.status;
       let reason = '';
 
-      // Logik: Archive hat Priorität über Live
       if (archiveDate && today >= archiveDate) {
-        if (project.status !== 'archive') {
-          newStatus = 'archive';
-          reason = `Archiv-Datum erreicht (${project.archive_date})`;
-        }
+        if (project.status !== 'archive') { newStatus = 'archive'; reason = `Archiv-Datum erreicht (${project.archive_date})`; }
       } else if (stdDate && today >= stdDate) {
-        // STD-Ende erreicht → Live (aber nur wenn aktuell std)
-        if (project.status === 'std') {
-          newStatus = 'live';
-          reason = `STD-Ende erreicht (${project.std_date})`;
-        }
+        if (project.status === 'std') { newStatus = 'live'; reason = `STD-Ende erreicht (${project.std_date})`; }
       }
 
-      // Status updaten wenn geändert
       if (newStatus !== project.status) {
-        const { error: updateError } = await supabase
-          .from('projects')
-          .update({ status: newStatus })
-          .eq('id', project.id);
-
+        const { error: updateError } = await db({
+          action: 'update', table: 'projects', data: { status: newStatus },
+          filters: [{ op: 'eq', column: 'id', value: project.id }],
+        });
         if (updateError) {
           results.errors.push({ project: project.slug, error: updateError.message });
         } else {
@@ -399,59 +416,43 @@ export async function syncAllProjectStatuses() {
           results.changes.push({
             project: project.slug,
             names: `${project.partner1_name} & ${project.partner2_name}`,
-            from: project.status,
-            to: newStatus,
-            reason
+            from: project.status, to: newStatus, reason,
           });
         }
       }
     }
-
     return { success: true, results };
   } catch (error) {
     return { success: false, error: error.message, results };
   }
 }
 
-/**
- * Prüft ein einzelnes Projekt und gibt den empfohlenen Status zurück
- */
 export async function checkProjectStatus(projectId) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const { data: project } = await supabase
-    .from('projects')
-    .select('status, wedding_date, std_date, archive_date')
-    .eq('id', projectId)
-    .single();
+  const { data: project } = await db({
+    action: 'select', table: 'projects',
+    filters: [{ op: 'eq', column: 'id', value: projectId }],
+    options: { select: 'status, wedding_date, std_date, archive_date', single: true },
+  });
 
   const stdDate = project?.std_date ? new Date(project.std_date) : null;
   const archiveDate = project?.archive_date ? new Date(project.archive_date) : null;
-
   let recommendedStatus = project?.status || 'std';
   let reason = 'Keine automatische Änderung';
 
   if (archiveDate && today >= archiveDate) {
-    recommendedStatus = 'archive';
-    reason = `Archiv-Datum (${project.archive_date}) erreicht`;
+    recommendedStatus = 'archive'; reason = `Archiv-Datum (${project.archive_date}) erreicht`;
   } else if (stdDate && today >= stdDate) {
-    recommendedStatus = 'live';
-    reason = `STD-Ende (${project.std_date}) erreicht`;
+    recommendedStatus = 'live'; reason = `STD-Ende (${project.std_date}) erreicht`;
   }
 
   return {
-    currentStatus: project?.status,
-    recommendedStatus,
-    shouldUpdate: project?.status !== recommendedStatus,
-    reason,
-    dates: {
-      stdDate: project?.std_date,
-      archiveDate: project?.archive_date,
-      weddingDate: project?.wedding_date
-    }
+    currentStatus: project?.status, recommendedStatus,
+    shouldUpdate: project?.status !== recommendedStatus, reason,
+    dates: { stdDate: project?.std_date, archiveDate: project?.archive_date, weddingDate: project?.wedding_date },
   };
 }
-
 
 export default supabase;
