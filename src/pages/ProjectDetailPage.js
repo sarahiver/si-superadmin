@@ -1541,9 +1541,21 @@ export default function ProjectDetailPage() {
           try {
             const { data: pc } = await getPartnerCodeById(formData.partner_code_id);
             if (pc?.partner_email) {
-              const paymentType = (!prevDeposit && nowDeposit) ? 'Anzahlung' : 'Restzahlung';
-              const amount = (!prevDeposit && nowDeposit) ? formData.deposit_amount : formData.final_amount;
-              const commission = pc.commission_percent ? (amount * pc.commission_percent / 100).toFixed(2) : '–';
+              const isDeposit = !prevDeposit && nowDeposit;
+              const isFinal = !prevFinal && nowFinal;
+              const isFullyPaid = nowDeposit && nowFinal;
+              const totalPrice = pricing.total || formData.total_price || 0;
+              const depositAmount = formData.deposit_amount || 0;
+              const finalAmount = formData.final_amount || 0;
+
+              // Provisionslogik: max(Gesamtpreis × %, Gutscheinwert)
+              // Bei Paketen unter 1.500€ kann 10% < 150€ sein → dann gilt Gutscheinwert
+              const percentProvision = totalPrice * (pc.commission_percent || 10) / 100;
+              const discountAmount = pc.discount_amount || 150;
+              const totalProvision = Math.max(percentProvision, discountAmount);
+
+              const paymentType = isDeposit ? 'Erste Teilzahlung (50%)' : 'Restzahlung';
+              const currentAmount = isDeposit ? depositAmount : finalAmount;
 
               await adminFetch('/api/send-email', {
                 method: 'POST',
@@ -1551,35 +1563,34 @@ export default function ProjectDetailPage() {
                 body: JSON.stringify({
                   to: pc.partner_email,
                   toName: pc.partner_name,
-                  subject: `${paymentType} eingegangen – ${formData.couple_names || formData.partner1_name}`,
+                  subject: `${isDeposit ? 'Anzahlung' : 'Restzahlung'} eingegangen – ${formData.couple_names || formData.partner1_name}`,
                   htmlContent: `
                     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
                       <div style="background: #000; color: #fff; display: inline-block; padding: 8px 16px; font-weight: 700; font-size: 18px; letter-spacing: -0.06em; margin-bottom: 30px;">S&amp;I.</div>
-                      <h1 style="font-size: 22px; font-weight: 600; margin-bottom: 8px; color: #1a1a1a;">${paymentType} eingegangen!</h1>
+                      <h1 style="font-size: 22px; font-weight: 600; margin-bottom: 8px; color: #1a1a1a;">${isDeposit ? 'Anzahlung' : 'Restzahlung'} eingegangen!</h1>
                       <p style="color: #666; font-size: 14px; margin-bottom: 24px;">Gute Neuigkeiten zu eurem vermittelten Paar.</p>
                       <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
                         <tr style="border-bottom: 1px solid #eee;">
-                          <td style="padding: 12px 0; color: #888; width: 130px;">Paar</td>
+                          <td style="padding: 12px 0; color: #888; width: 160px;">Paar</td>
                           <td style="padding: 12px 0; color: #1a1a1a; font-weight: 500;">${formData.couple_names || formData.partner1_name || '–'}</td>
                         </tr>
                         <tr style="border-bottom: 1px solid #eee;">
-                          <td style="padding: 12px 0; color: #888;">Zahlungsart</td>
-                          <td style="padding: 12px 0; color: #1a1a1a; font-weight: 600;">${paymentType}</td>
+                          <td style="padding: 12px 0; color: #888;">${paymentType}</td>
+                          <td style="padding: 12px 0; color: #1a1a1a; font-weight: 600;">${currentAmount ? currentAmount.toLocaleString('de-DE') + ' €' : '–'}</td>
                         </tr>
                         <tr style="border-bottom: 1px solid #eee;">
-                          <td style="padding: 12px 0; color: #888;">Betrag</td>
-                          <td style="padding: 12px 0; color: #1a1a1a;">${amount ? amount.toLocaleString('de-DE') + ' €' : '–'}</td>
+                          <td style="padding: 12px 0; color: #888;">Gesamtbetrag Paket</td>
+                          <td style="padding: 12px 0; color: #1a1a1a;">${totalPrice ? totalPrice.toLocaleString('de-DE') + ' €' : '–'}</td>
                         </tr>
-                        <tr style="border-bottom: 1px solid #eee;">
-                          <td style="padding: 12px 0; color: #888;">Eure Provision (${pc.commission_percent}%)</td>
-                          <td style="padding: 12px 0; color: #059669; font-weight: 700;">${commission} €</td>
+                        <tr style="border-bottom: 2px solid #059669;">
+                          <td style="padding: 12px 0; color: #888;">Eure Provision</td>
+                          <td style="padding: 12px 0; color: #059669; font-weight: 700; font-size: 1.1rem;">${totalProvision.toFixed(2).replace('.', ',')} €</td>
                         </tr>
                       </table>
-                      <p style="color: #666; font-size: 14px; line-height: 1.6;">
-                        ${nowDeposit && nowFinal 
-                          ? 'Das Projekt ist vollständig bezahlt. Eure Gesamtprovision wird in Kürze überwiesen.' 
-                          : 'Wir halten euch über die weitere Zahlung auf dem Laufenden.'}
-                      </p>
+                      ${isFullyPaid 
+                        ? '<div style="background: #D1FAE5; border-left: 4px solid #059669; padding: 16px; margin-bottom: 24px;"><p style="color: #065F46; font-size: 14px; font-weight: 600; margin: 0;">Das Projekt ist vollständig bezahlt. Eure Provision von ' + totalProvision.toFixed(2).replace('.', ',') + ' € wird in Kürze überwiesen.</p></div>'
+                        : '<p style="color: #666; font-size: 14px; line-height: 1.6;">Die Provision von <strong>' + totalProvision.toFixed(2).replace('.', ',') + ' €</strong> erhaltet ihr nach vollständiger Zahlung des Paares.</p>'}
+                      <p style="color: #999; font-size: 12px; margin-top: 8px;">Provision: ${pc.commission_percent}% vom Gesamtbetrag${totalProvision > percentProvision ? ' (mind. ' + discountAmount + ' € Gutscheinwert)' : ''}.</p>
                       <p style="color: #ccc; font-size: 12px; margin-top: 40px;">Automatische Benachrichtigung von S&I. Wedding</p>
                     </div>
                   `,
