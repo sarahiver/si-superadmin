@@ -1763,6 +1763,64 @@ export default function ProjectDetailPage() {
       // Update project ohne State-Reset der Scroll-Position
       setProject(prev => ({ ...prev, ...formData, total_price: pricing.total }));
 
+      // Partner-Benachrichtigung bei Vertragsunterzeichnung
+      if (formData.partner_code_id) {
+        const prevContractSigned = project?.contract_signed || false;
+        const nowContractSigned = formData.contract_signed || false;
+
+        if (!prevContractSigned && nowContractSigned) {
+          try {
+            const { data: pc } = await getPartnerCodeById(formData.partner_code_id);
+            if (pc?.partner_email) {
+              const totalPrice = pricing.total || formData.total_price || 0;
+              const percentProvision = totalPrice * (pc.commission_percent || 10) / 100;
+              const discountAmount = pc.discount_amount || 150;
+              const totalProvision = Math.max(percentProvision, discountAmount);
+
+              await adminFetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: pc.partner_email,
+                  toName: pc.partner_name,
+                  subject: `Buchung bestätigt – ${formData.couple_names || formData.partner1_name}`,
+                  htmlContent: `
+                    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+                      <div style="background: #000; color: #fff; display: inline-block; padding: 8px 16px; font-weight: 700; font-size: 18px; letter-spacing: -0.06em; margin-bottom: 30px;">S&amp;I.</div>
+                      <h1 style="font-size: 22px; font-weight: 600; margin-bottom: 8px; color: #1a1a1a;">Buchung bestätigt!</h1>
+                      <p style="color: #666; font-size: 14px; margin-bottom: 24px;">Euer vermitteltes Paar hat gebucht – der Vertrag ist unterschrieben.</p>
+                      <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+                        <tr style="border-bottom: 1px solid #eee;">
+                          <td style="padding: 12px 0; color: #888; width: 160px;">Paar</td>
+                          <td style="padding: 12px 0; color: #1a1a1a; font-weight: 500;">${formData.couple_names || formData.partner1_name || '–'}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #eee;">
+                          <td style="padding: 12px 0; color: #888;">Paket</td>
+                          <td style="padding: 12px 0; color: #1a1a1a; font-weight: 600;">${formData.package ? formData.package.charAt(0).toUpperCase() + formData.package.slice(1) : '–'}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #eee;">
+                          <td style="padding: 12px 0; color: #888;">Gesamtbetrag</td>
+                          <td style="padding: 12px 0; color: #1a1a1a;">${totalPrice ? totalPrice.toLocaleString('de-DE') + ' €' : '–'}</td>
+                        </tr>
+                        <tr style="border-bottom: 2px solid #059669;">
+                          <td style="padding: 12px 0; color: #888;">Eure Provision</td>
+                          <td style="padding: 12px 0; color: #059669; font-weight: 700; font-size: 1.1rem;">${totalProvision.toFixed(2).replace('.', ',')} €</td>
+                        </tr>
+                      </table>
+                      <p style="color: #666; font-size: 14px; line-height: 1.6;">Die Provision von <strong>${totalProvision.toFixed(2).replace('.', ',')} €</strong> erhaltet ihr nach vollständiger Zahlung des Paares.</p>
+                      <p style="color: #ccc; font-size: 12px; margin-top: 40px;">Automatische Benachrichtigung von S&I. Wedding</p>
+                    </div>
+                  `,
+                }),
+              });
+              toast.success(`Buchungsbestätigung an ${pc.partner_name} gesendet`);
+            }
+          } catch (err) {
+            console.error('Partner booking notification error:', err);
+          }
+        }
+      }
+
       // Partner-Benachrichtigung bei Zahlungsstatus-Änderung
       if (formData.partner_code_id) {
         const prevDeposit = project?.deposit_paid || false;
