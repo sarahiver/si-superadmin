@@ -455,4 +455,35 @@ export async function checkProjectStatus(projectId) {
   };
 }
 
+// ─── PARTNER CODES (Referral/Tracking System) ───
+
+export async function getPartnerCodes() {
+  return db({ action: 'select', table: 'partner_codes', options: { select: '*', order: { column: 'created_at', ascending: false } } });
+}
+
+export async function getPartnerCodeById(id) {
+  return db({ action: 'select', table: 'partner_codes', filters: [{ op: 'eq', column: 'id', value: id }], options: { single: true } });
+}
+
+export async function createPartnerCode(data) {
+  return db({ action: 'insert', table: 'partner_codes', data: [data], options: { single: true } });
+}
+
+export async function updatePartnerCode(id, updates) {
+  return db({ action: 'update', table: 'partner_codes', data: updates, filters: [{ op: 'eq', column: 'id', value: id }], options: { single: true } });
+}
+
+export async function deletePartnerCode(id) {
+  return db({ action: 'delete', table: 'partner_codes', filters: [{ op: 'eq', column: 'id', value: id }] });
+}
+
+export async function getPartnerVisits(partnerCodeId) {
+  return db({ action: 'select', table: 'partner_visits', filters: partnerCodeId ? [{ op: 'eq', column: 'partner_code_id', value: partnerCodeId }] : [], options: { order: { column: 'visited_at', ascending: false }, limit: 500 } });
+}
+
+export async function getPartnerLeads() {
+  // contact_requests with a partner_code_id set
+  return db({ action: 'select', table: 'contact_requests', filters: [{ op: 'not', column: 'partner_code_id', op2: 'is', value: null }], options: { order: { column: 'created_at', ascending: false } } });
+}
+
 export default supabase;

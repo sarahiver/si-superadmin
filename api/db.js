@@ -18,6 +18,7 @@ const ALLOWED_TABLES = [
   'rsvp_responses', 'photo_uploads',
   'email_logs', 'email_events',
   'partners', 'customers',
+  'partner_codes', 'partner_visits',
   'password_reset_tokens',
   'guestbook_entries', 'music_wishes', 'gift_reservations',
   'guest_list', 'admin_notifications',

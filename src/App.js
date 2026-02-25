@@ -12,6 +12,7 @@ import RequestsPage from './pages/RequestsPage';
 import NewProjectPage from './pages/NewProjectPage';
 import SettingsPage from './pages/SettingsPage';
 import PartnersPage from './pages/PartnersPage';
+import PartnerCodesPage from './pages/PartnerCodesPage';
 import InstagramPage from './pages/InstagramPage';
 import ReelsPage from './pages/ReelsPage';
 import ContentPage from './pages/ContentPage';
@@ -83,6 +84,7 @@ function App() {
           <Route path="/projects/:id" element={<PrivateRoute><ProjectDetailPage /></PrivateRoute>} />
           <Route path="/requests" element={<PrivateRoute><RequestsPage /></PrivateRoute>} />
           <Route path="/partners" element={<PrivateRoute><PartnersPage /></PrivateRoute>} />
+          <Route path="/partner-tracking" element={<PrivateRoute><PartnerCodesPage /></PrivateRoute>} />
           <Route path="/content" element={<PrivateRoute><ContentPage /></PrivateRoute>} />
           <Route path="/instagram" element={<PrivateRoute><ContentPage /></PrivateRoute>} />
           <Route path="/reels" element={<PrivateRoute><ContentPage /></PrivateRoute>} />

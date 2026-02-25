@@ -29,6 +29,7 @@ export default function Layout({ children }) {
     { path: '/projects', label: 'Projekte' },
     { path: '/projects/new', label: 'Neu' },
     { path: '/partners', label: 'Kooperationen' },
+    { path: '/partner-tracking', label: 'Partner' },
     { path: '/content', label: 'Content' },
     { path: '/analytics', label: 'Analytics' },
     { path: '/requests', label: 'Anfragen' },
@@ -40,7 +41,7 @@ export default function Layout({ children }) {
       <Nav>
         <Logo to="/">S&I.</Logo>
         <DesktopNav>
-          <NavLinks>{navItems.map(item => (<NavLink key={item.path} to={item.path} $active={location.pathname === item.path || (item.path === '/partners' && location.pathname.startsWith('/partners')) || (item.path === '/content' && ['/content', '/instagram', '/reels'].includes(location.pathname))}>{item.label}</NavLink>))}</NavLinks>
+          <NavLinks>{navItems.map(item => (<NavLink key={item.path} to={item.path} $active={location.pathname === item.path || (item.path === '/partners' && location.pathname.startsWith('/partners')) || (item.path === '/partner-tracking' && location.pathname.startsWith('/partner-tracking')) || (item.path === '/content' && ['/content', '/instagram', '/reels'].includes(location.pathname))}>{item.label}</NavLink>))}</NavLinks>
           <NavRight><LogoutButton onClick={handleLogout}>Logout</LogoutButton></NavRight>
         </DesktopNav>
         <MobileMenuButton onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? '✕' : '☰'}</MobileMenuButton>
