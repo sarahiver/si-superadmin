@@ -5,11 +5,12 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
-import { getProjectById, updateProject, deleteProject, supabase, getPartnerCodeById } from '../lib/supabase';
+import { getProjectById, updateProject, deleteProject, supabase, getPartnerCodeById, getPartnerPayoutByProject, createPartnerPayout, updatePartnerPayout, getNextPayoutInvoiceNumber } from '../lib/supabase';
 import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS, PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from '../lib/constants';
 import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail } from '../lib/emailService';
 import { generateContractPDF } from '../lib/contractPDF';
 import { generateInvoicePDF } from '../lib/invoicePDF';
+import { generatePayoutPdf } from '../lib/generatePayoutPdf';
 import { generateWebsiteQRSVG } from '../lib/qrGenerator';
 import { adminFetch } from '../lib/apiClient';
 import AddressAutocomplete, { formatAddress } from '../components/AddressAutocomplete';
@@ -1101,6 +1102,144 @@ function CollapsibleSection({ number, title, badge, defaultOpen = false, childre
 }
 
 // ============================================
+// PARTNER PAYOUT SECTION (inline in Kundenabwicklung)
+// ============================================
+function PartnerPayoutSection({ projectId, partnerCodeId, formData, pricing }) {
+  const [loading, setLoading] = useState(true);
+  const [payout, setPayout] = useState(null);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await getPartnerPayoutByProject(projectId);
+        setPayout(data || null);
+      } catch (e) { console.error(e); }
+      setLoading(false);
+    })();
+  }, [projectId]);
+
+  const handleCreate = async () => {
+    setCreating(true);
+    try {
+      const { data: pc } = await getPartnerCodeById(partnerCodeId);
+      if (!pc) throw new Error('Partner-Code nicht gefunden');
+
+      const totalPrice = pricing.total;
+      const commPercent = pc.commission_percent || 15;
+      const discountAmt = pc.discount_amount || 0;
+      const commCalc = totalPrice * commPercent / 100;
+      const payoutAmt = Math.max(commCalc, discountAmt);
+      const invoiceNum = await getNextPayoutInvoiceNumber();
+
+      const { data: newPayout, error } = await createPartnerPayout({
+        project_id: projectId,
+        partner_code_id: partnerCodeId,
+        invoice_number: invoiceNum,
+        project_total: totalPrice,
+        commission_percent: commPercent,
+        commission_calculated: commCalc,
+        discount_amount: discountAmt,
+        payout_amount: payoutAmt,
+        partner_name: pc.partner_name,
+        partner_email: pc.partner_email || '',
+        partner_company: pc.partner_company || '',
+        partner_iban: pc.partner_iban || '',
+        partner_bic: pc.partner_bic || '',
+        partner_tax_id: pc.partner_tax_id || '',
+        couple_names: formData.couple_names || `${formData.partner1_name || ''} & ${formData.partner2_name || ''}`.trim(),
+        project_package: formData.package || '',
+        status: 'offen',
+      });
+      if (error) throw new Error(typeof error === 'string' ? error : error.message);
+      setPayout(newPayout);
+      toast.success(`Provisionsabrechnung ${invoiceNum} erstellt`);
+    } catch (err) {
+      toast.error('Fehler: ' + err.message);
+    }
+    setCreating(false);
+  };
+
+  const handleMarkPaid = async () => {
+    if (!payout) return;
+    if (!window.confirm(`Provision ${formatPrice(payout.payout_amount)} an ${payout.partner_name} als ausgezahlt markieren?`)) return;
+    try {
+      const { data: updated, error } = await updatePartnerPayout(payout.id, {
+        status: 'ausgezahlt',
+        paid_at: new Date().toISOString(),
+        paid_via: 'Überweisung',
+      });
+      if (error) throw new Error(typeof error === 'string' ? error : error.message);
+      setPayout(updated);
+      toast.success('Als ausgezahlt markiert ✓');
+    } catch (err) {
+      toast.error('Fehler: ' + err.message);
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    if (!payout) return;
+    generatePayoutPdf(payout, { download: true, filename: `${payout.invoice_number}.pdf` });
+    toast.success('PDF heruntergeladen');
+  };
+
+  if (loading) return null;
+
+  const isPaid = payout?.status === 'ausgezahlt';
+  const borderColor = isPaid ? '#10B981' : '#F59E0B';
+  const bgColor = isPaid ? '#ECFDF5' : '#FFFBEB';
+
+  return (
+    <div style={{ marginTop: '1rem', padding: '1rem', border: `2px solid ${borderColor}`, background: bgColor }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>🤝 Provisionsabrechnung</span>
+        {payout && (
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.5rem', background: isPaid ? '#D1FAE5' : '#FEF3C7', color: isPaid ? '#065F46' : '#92400E' }}>
+            {isPaid ? '✓ Ausgezahlt' : '⏳ Offen'}
+          </span>
+        )}
+      </div>
+
+      {!payout ? (
+        <button
+          onClick={handleCreate}
+          disabled={creating}
+          style={{
+            width: '100%', padding: '0.65rem', background: '#0A0A0A', color: '#fff', border: 'none',
+            fontWeight: 600, fontSize: '0.8rem', cursor: creating ? 'wait' : 'pointer', opacity: creating ? 0.6 : 1,
+            letterSpacing: '0.03em',
+          }}
+        >
+          {creating ? '⏳ Erstelle Abrechnung...' : '💰 Provisionsabrechnung erstellen'}
+        </button>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+            <div><span style={{ color: '#666' }}>Nr:</span> <strong>{payout.invoice_number}</strong></div>
+            <div><span style={{ color: '#666' }}>Betrag:</span> <strong style={{ color: '#059669' }}>{formatPrice(payout.payout_amount)}</strong></div>
+            <div><span style={{ color: '#666' }}>Partner:</span> {payout.partner_name}</div>
+            <div><span style={{ color: '#666' }}>IBAN:</span> {payout.partner_iban ? `...${payout.partner_iban.slice(-4)}` : <em style={{ color: '#DC2626' }}>fehlt</em>}</div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button onClick={handleDownloadPdf} style={{ flex: 1, padding: '0.5rem', background: '#fff', border: '1px solid #E5E5E5', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>
+              📃 PDF Download
+            </button>
+            {!isPaid && (
+              <button onClick={handleMarkPaid} style={{ flex: 1, padding: '0.5rem', background: '#0A0A0A', color: '#fff', border: 'none', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>
+                ✓ Als ausgezahlt markieren
+              </button>
+            )}
+          </div>
+          {isPaid && payout.paid_at && (
+            <div style={{ fontSize: '0.75rem', color: '#065F46', marginTop: '0.5rem', textAlign: 'center' }}>
+              Ausgezahlt am {new Date(payout.paid_at).toLocaleDateString('de-DE')}{payout.paid_via ? ` via ${payout.paid_via}` : ''}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}// ============================================
 // MAIN COMPONENT
 // ============================================
 export default function ProjectDetailPage() {
@@ -2270,6 +2409,11 @@ export default function ProjectDetailPage() {
                     📃 Gesamtrechnung
                   </PDFButton>
                 </PDFButtons>
+
+                {/* ── Provision auszahlen (nur bei Partner-Projekten + vollständig bezahlt) ── */}
+                {formData.partner_code_id && (formData.deposit_amount || 0) + (formData.final_amount || 0) >= pricing.total && (
+                  <PartnerPayoutSection projectId={formData.id || id} partnerCodeId={formData.partner_code_id} formData={formData} pricing={pricing} />
+                )}
               </WorkflowCard>
 
               {/* Notizen */}

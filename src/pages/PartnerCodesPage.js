@@ -7,8 +7,9 @@ import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
 import {
   getPartnerCodes, createPartnerCode, updatePartnerCode, deletePartnerCode,
-  getPartnerVisits, getPartnerLeads,
+  getPartnerVisits, getPartnerLeads, getPartnerPayouts,
 } from '../lib/supabase';
+import { generatePayoutPdf } from '../lib/generatePayoutPdf';
 
 // ============================================
 // STYLED COMPONENTS
@@ -101,20 +102,23 @@ export default function PartnerCodesPage() {
   const [codes, setCodes] = useState([]);
   const [visits, setVisits] = useState([]);
   const [leads, setLeads] = useState([]);
+  const [payouts, setPayouts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingCode, setEditingCode] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [codesRes, visitsRes, leadsRes] = await Promise.all([
+    const [codesRes, visitsRes, leadsRes, payoutsRes] = await Promise.all([
       getPartnerCodes(),
       getPartnerVisits(),
       getPartnerLeads(),
+      getPartnerPayouts(),
     ]);
     if (codesRes.data) setCodes(codesRes.data);
     if (visitsRes.data) setVisits(visitsRes.data);
     if (leadsRes.data) setLeads(leadsRes.data);
+    if (payoutsRes.data) setPayouts(payoutsRes.data);
     setLoading(false);
   }, []);
 
@@ -179,6 +183,20 @@ export default function PartnerCodesPage() {
           <div className="label">Conversions</div>
           <div className="value">{convertedLeads}</div>
           <div className="sub">gebuchte Projekte</div>
+        </StatCard>
+        <StatCard>
+          <div className="label">Provisionen offen</div>
+          <div className="value" style={{ color: colors.orange }}>
+            {payouts.filter(p => p.status === 'offen').reduce((sum, p) => sum + Number(p.payout_amount || 0), 0).toFixed(2).replace('.', ',')} €
+          </div>
+          <div className="sub">{payouts.filter(p => p.status === 'offen').length} Abrechnungen</div>
+        </StatCard>
+        <StatCard>
+          <div className="label">Provisionen ausgezahlt</div>
+          <div className="value" style={{ color: colors.green }}>
+            {payouts.filter(p => p.status === 'ausgezahlt').reduce((sum, p) => sum + Number(p.payout_amount || 0), 0).toFixed(2).replace('.', ',')} €
+          </div>
+          <div className="sub">{payouts.filter(p => p.status === 'ausgezahlt').length} Abrechnungen</div>
         </StatCard>
       </StatsGrid>
 
@@ -271,6 +289,44 @@ export default function PartnerCodesPage() {
           onSaved={() => { setShowModal(false); setEditingCode(null); load(); }}
         />
       )}
+
+      {/* Provisionsabrechnungen */}
+      {payouts.length > 0 && (
+        <>
+          <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: '1.4rem', margin: '2.5rem 0 1rem' }}>
+            Provisionsabrechnungen
+          </h2>
+          <Table>
+            <THead style={{ gridTemplateColumns: '1fr 1.2fr 1fr 100px 100px 80px' }}>
+              <span>Nr.</span>
+              <span>Partner</span>
+              <span>Paar</span>
+              <span>Betrag</span>
+              <span>Status</span>
+              <span>PDF</span>
+            </THead>
+            {payouts.map(p => (
+              <TRow key={p.id} style={{ gridTemplateColumns: '1fr 1.2fr 1fr 100px 100px 80px' }}>
+                <div><Mono>{p.invoice_number}</Mono></div>
+                <div><strong>{p.partner_name}</strong></div>
+                <div style={{ fontSize: '0.8rem', color: colors.gray }}>{p.couple_names || '–'}</div>
+                <div><strong style={{ color: colors.green }}>{Number(p.payout_amount).toFixed(2).replace('.', ',')} €</strong></div>
+                <div>
+                  <Badge $active={p.status === 'ausgezahlt'}>
+                    {p.status === 'offen' ? '⏳ Offen' : p.status === 'ausgezahlt' ? '✓ Bezahlt' : p.status}
+                  </Badge>
+                </div>
+                <div>
+                  <SmallBtn onClick={() => {
+                    generatePayoutPdf(p, { download: true, filename: `${p.invoice_number}.pdf` });
+                    toast.success('PDF heruntergeladen');
+                  }} title="PDF herunterladen">📃</SmallBtn>
+                </div>
+              </TRow>
+            ))}
+          </Table>
+        </>
+      )}
     </Layout>
   );
 }
@@ -285,6 +341,10 @@ function PartnerCodeModal({ code, onClose, onSaved }) {
     partner_email: code?.partner_email || '',
     partner_phone: code?.partner_phone || '',
     partner_website: code?.partner_website || '',
+    partner_company: code?.partner_company || '',
+    partner_iban: code?.partner_iban || '',
+    partner_bic: code?.partner_bic || '',
+    partner_tax_id: code?.partner_tax_id || '',
     ref_slug: code?.ref_slug || '',
     code: code?.code || '',
     discount_amount: code?.discount_amount || 150,
@@ -388,6 +448,27 @@ function PartnerCodeModal({ code, onClose, onSaved }) {
           <FormGroup>
             <Label>Provision Partner (%)</Label>
             <Input type="number" value={form.commission_percent} onChange={e => set('commission_percent', Number(e.target.value))} />
+          </FormGroup>
+
+          <FormGroup>
+            <Label>Firma / Unternehmen</Label>
+            <Input value={form.partner_company} onChange={e => set('partner_company', e.target.value)} placeholder="z.B. Festtagsdesign GmbH" />
+          </FormGroup>
+
+          <FormRow>
+            <FormGroup>
+              <Label>IBAN (für Provisionszahlung)</Label>
+              <Input value={form.partner_iban} onChange={e => set('partner_iban', e.target.value)} placeholder="DE89 3704 0044 0532 0130 00" />
+            </FormGroup>
+            <FormGroup>
+              <Label>BIC</Label>
+              <Input value={form.partner_bic} onChange={e => set('partner_bic', e.target.value)} placeholder="COBADEFFXXX" />
+            </FormGroup>
+          </FormRow>
+
+          <FormGroup>
+            <Label>Steuernummer / USt-IdNr.</Label>
+            <Input value={form.partner_tax_id} onChange={e => set('partner_tax_id', e.target.value)} placeholder="DE123456789" />
           </FormGroup>
 
           {isEdit && (

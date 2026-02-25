@@ -486,4 +486,35 @@ export async function getPartnerLeads() {
   return db({ action: 'select', table: 'contact_requests', filters: [{ op: 'not', column: 'partner_code_id', op2: 'is', value: null }], options: { select: '*, partner_codes:partner_code_id(partner_name, ref_slug, code)', order: { column: 'created_at', ascending: false } } });
 }
 
+// ── Partner Payouts ──
+export async function getPartnerPayouts(filters = {}) {
+  const f = [];
+  if (filters.status) f.push({ op: 'eq', column: 'status', value: filters.status });
+  if (filters.partner_code_id) f.push({ op: 'eq', column: 'partner_code_id', value: filters.partner_code_id });
+  return db({ action: 'select', table: 'partner_payouts', filters: f, options: { select: '*', order: { column: 'created_at', ascending: false } } });
+}
+
+export async function getPartnerPayoutByProject(projectId) {
+  return db({ action: 'select', table: 'partner_payouts', filters: [{ op: 'eq', column: 'project_id', value: projectId }], options: { maybeSingle: true } });
+}
+
+export async function createPartnerPayout(data) {
+  return db({ action: 'insert', table: 'partner_payouts', data: [data], options: { single: true } });
+}
+
+export async function updatePartnerPayout(id, updates) {
+  return db({ action: 'update', table: 'partner_payouts', data: updates, filters: [{ op: 'eq', column: 'id', value: id }], options: { single: true } });
+}
+
+export async function getNextPayoutInvoiceNumber() {
+  // Get highest existing number to calculate next
+  const { data } = await db({ action: 'select', table: 'partner_payouts', options: { select: 'invoice_number', order: { column: 'created_at', ascending: false }, limit: 1 } });
+  const year = new Date().getFullYear();
+  if (!data || data.length === 0) return `SI-PROV-${year}-001`;
+  const last = data[0].invoice_number;
+  const match = last.match(/SI-PROV-\d{4}-(\d{3})/);
+  const next = match ? String(Number(match[1]) + 1).padStart(3, '0') : '001';
+  return `SI-PROV-${year}-${next}`;
+}
+
 export default supabase;
