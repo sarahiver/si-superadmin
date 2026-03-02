@@ -362,6 +362,105 @@ export default function AnalyticsPage() {
             </TwoCol>
           </Collapsible>
 
+          {/* ============ A/B TEST ============ */}
+          {data.hasABData ? (
+            <Collapsible title="A/B Test: Modal vs. Classic" icon="🧪" defaultOpen={true}
+              badge={`${ev('abVariantAssigned')} Nutzer zugewiesen`}>
+              <ABExplainer>
+                <strong>Variante A</strong> — Onboarding-Modal: Nutzer wählen ihr Theme aktiv beim ersten Besuch.<br/>
+                <strong>Variante B</strong> — Classic direkt: Nutzer landen auf Classic, Theme-Switcher ist prominenter.
+              </ABExplainer>
+
+              {/* Hauptvergleich */}
+              <ABCompareGrid>
+                {(data.abVariantOverview || []).filter(r => r.variant && r.variant !== '(not set)').map(row => {
+                  const conversions = (data.abVariantConversions || []).find(c => c.variant === row.variant)?.conversions || 0;
+                  const convRate = row.users > 0 ? ((conversions / row.users) * 100).toFixed(2) : '0.00';
+                  const isA = row.variant === 'A';
+                  return (
+                    <ABCard key={row.variant} $highlight={isA}>
+                      <ABCardLabel $isA={isA}>Variante {row.variant}{isA ? ' — Modal' : ' — Classic'}</ABCardLabel>
+                      <ABStatGrid>
+                        <ABStat>
+                          <ABStatNum>{fmt(row.users)}</ABStatNum>
+                          <ABStatLbl>Nutzer</ABStatLbl>
+                        </ABStat>
+                        <ABStat>
+                          <ABStatNum>{fmt(row.sessions)}</ABStatNum>
+                          <ABStatLbl>Sessions</ABStatLbl>
+                        </ABStat>
+                        <ABStat $hl>
+                          <ABStatNum>{conversions}</ABStatNum>
+                          <ABStatLbl>Conversions</ABStatLbl>
+                        </ABStat>
+                        <ABStat $hl>
+                          <ABStatNum>{convRate}%</ABStatNum>
+                          <ABStatLbl>Conv.-Rate</ABStatLbl>
+                        </ABStat>
+                        <ABStat>
+                          <ABStatNum>{dur(row.avgDuration)}</ABStatNum>
+                          <ABStatLbl>Ø Sitzungsdauer</ABStatLbl>
+                        </ABStat>
+                        <ABStat>
+                          <ABStatNum>{(row.bounceRate * 100).toFixed(1)}%</ABStatNum>
+                          <ABStatLbl>Bounce Rate</ABStatLbl>
+                        </ABStat>
+                      </ABStatGrid>
+                    </ABCard>
+                  );
+                })}
+              </ABCompareGrid>
+
+              {/* Scroll-Tiefe Vergleich */}
+              {(data.abScrollDepth || []).length > 0 && (
+                <Panel style={{marginTop:'1rem'}}>
+                  <PanelTitle>Scroll-Tiefe nach Variante</PanelTitle>
+                  <Table>
+                    <thead><tr><th>Variante</th><th>25%</th><th>50%</th><th>75%</th><th>90%</th></tr></thead>
+                    <tbody>
+                      {['A', 'B'].map(v => {
+                        const get = (pct) => (data.abScrollDepth || []).find(r => r.variant === v && String(r.percent) === String(pct))?.count || 0;
+                        return (
+                          <tr key={v}>
+                            <td><strong>Variante {v}</strong></td>
+                            <td>{fmt(get(25))}</td>
+                            <td>{fmt(get(50))}</td>
+                            <td>{fmt(get(75))}</td>
+                            <td>{fmt(get(90))}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </Table>
+                </Panel>
+              )}
+
+              {/* Modal Stats (nur Variante A relevant) */}
+              {ev('abModalShown') > 0 && (
+                <Panel style={{marginTop:'1rem'}}>
+                  <PanelTitle>Modal-Performance (Variante A)</PanelTitle>
+                  <EventGrid>
+                    <EventCard><EventEmoji>👁️</EventEmoji><EventLabel>Modal gezeigt</EventLabel><EventNum>{fmt(ev('abModalShown'))}</EventNum></EventCard>
+                    <EventCard><EventEmoji>✅</EventEmoji><EventLabel>Theme gewählt</EventLabel><EventNum>{fmt(ev('abModalSelected'))}</EventNum></EventCard>
+                    <EventCard><EventEmoji>📊</EventEmoji><EventLabel>Auswahl-Rate</EventLabel><EventNum>{ev('abModalShown') > 0 ? ((ev('abModalSelected')/ev('abModalShown'))*100).toFixed(1)+'%' : '—'}</EventNum></EventCard>
+                  </EventGrid>
+                </Panel>
+              )}
+
+              <CDHint style={{marginTop:'1rem'}}>
+                <strong>⚙️ GA4 Setup erforderlich:</strong> Damit die Varianten-Daten erscheinen, einmalig in GA4 anlegen:<br/>
+                Admin → Benutzerdefinierte Definitionen → <strong>User-Property</strong>: <code>ab_variant</code>
+              </CDHint>
+            </Collapsible>
+          ) : (
+            <Collapsible title="A/B Test: Modal vs. Classic" icon="🧪">
+              <CDHint>
+                <strong>🧪 A/B Test läuft</strong> — Daten erscheinen sobald GA4 Custom User Property <code>ab_variant</code> angelegt ist.<br/>
+                Admin → Benutzerdefinierte Definitionen → Neu → Scope: <strong>Nutzer</strong> → Parameter: <code>ab_variant</code>
+              </CDHint>
+            </Collapsible>
+          )}
+
           {/* ============ ALL EVENTS ============ */}
           <Collapsible title="Alle Events" icon="📊" badge={`${(data.allEvents || []).length} Events`}>
             <Table>
@@ -498,6 +597,37 @@ const ThreeCol = styled.div`display:grid;grid-template-columns:1fr 1fr 1fr;gap:1
 const Panel = styled.div`background:${colors.background};padding:1.25rem;`;
 const PanelTitle = styled.h3`font-family:'Oswald',sans-serif;font-size:.9rem;font-weight:600;text-transform:uppercase;margin:0 0 .75rem;`;
 const NoData = styled.div`font-family:'Inter',sans-serif;font-size:.8rem;color:${colors.gray};padding:1rem 0;text-align:center;`;
+
+// A/B Test
+const ABExplainer = styled.div`
+  font-size:0.82rem; color:${colors.gray}; padding:0.75rem 1rem;
+  background:#f9f9f9; border-left:3px solid ${colors.black};
+  margin-bottom:1rem; line-height:1.6;
+`;
+const ABCompareGrid = styled.div`
+  display:grid; grid-template-columns:1fr 1fr; gap:1rem;
+  @media(max-width:700px){grid-template-columns:1fr;}
+`;
+const ABCard = styled.div`
+  border:2px solid ${p=>p.$highlight?colors.black:colors.lightGray};
+  background:${p=>p.$highlight?'#FAFAFA':colors.white};
+  padding:1.25rem;
+`;
+const ABCardLabel = styled.div`
+  font-family:'Oswald',sans-serif; font-size:0.85rem; font-weight:700;
+  text-transform:uppercase; letter-spacing:0.05em;
+  color:${p=>p.$isA?colors.black:colors.gray};
+  margin-bottom:1rem; padding-bottom:0.5rem;
+  border-bottom:1px solid ${colors.lightGray};
+`;
+const ABStatGrid = styled.div`display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;`;
+const ABStat = styled.div`text-align:center;`;
+const ABStatNum = styled.div`
+  font-size:1.3rem;font-weight:700;
+  color:${p=>p.$hl?colors.red:colors.black};
+`;
+const ABStatLbl = styled.div`font-size:0.65rem;color:${colors.gray};text-transform:uppercase;letter-spacing:0.05em;margin-top:0.2rem;`;
+
 
 // Chart
 const ChartStats = styled.div`display:flex;gap:2rem;margin-bottom:.75rem;`;

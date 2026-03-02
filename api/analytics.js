@@ -58,6 +58,8 @@ export default async function handler(req, res) {
       allEvents, formFunnel, blogArticles,
       dailyVisitors, hourlyVisitors,
       themeDetail, packageDetail, demoDetail,
+      // A/B Test Queries
+      abVariantOverview, abVariantConversions, abScrollDepth,
     ] = await Promise.all([
       // 1) Overview (current)
       runReport(accessToken, GA4_PROPERTY_ID, {
@@ -204,6 +206,29 @@ export default async function handler(req, res) {
         dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'demo_click' } } },
         orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
       }),
+      // A/B Test: Besucher pro Variante
+      safeReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'customUser:ab_variant' }],
+        metrics: [{ name: 'activeUsers' }, { name: 'sessions' }, { name: 'averageSessionDuration' }, { name: 'bounceRate' }],
+        orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
+      }),
+      // A/B Test: Conversions pro Variante
+      safeReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'customUser:ab_variant' }],
+        metrics: [{ name: 'eventCount' }],
+        dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'ab_conversion' } } },
+        orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+      }),
+      // A/B Test: Scroll-Tiefe pro Variante
+      safeReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'customUser:ab_variant' }, { name: 'customEvent:percent_scrolled' }],
+        metrics: [{ name: 'eventCount' }],
+        dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'scroll_depth_milestone' } } },
+        orderBys: [{ dimension: { dimensionName: 'customEvent:percent_scrolled' } }],
+      }),
     ]);
 
     // Build event summary from allEvents
@@ -227,6 +252,9 @@ export default async function handler(req, res) {
         selectItem: ec('select_item'), formStart: ec('form_start'),
         generateLead: ec('generate_lead'), formError: ec('form_error'),
         ctaClick: ec('cta_click'), scrollEvents: ec('scroll'),
+        // A/B Events
+        abModalShown: ec('theme_modal_shown'), abModalSelected: ec('theme_modal_selected'),
+        abConversions: ec('ab_conversion'), abVariantAssigned: ec('ab_variant_assigned'),
       },
       formFunnel: parseRows(formFunnel, ['event'], ['count']),
       blogArticles: parseRows(blogArticles, ['pagePath'], ['views', 'users', 'avgDuration']),
@@ -236,6 +264,11 @@ export default async function handler(req, res) {
       packageDetail: packageDetail ? parseRows(packageDetail, ['package'], ['clicks']) : null,
       demoDetail: demoDetail ? parseRows(demoDetail, ['url'], ['clicks']) : null,
       hasCustomDims: themeDetail !== null,
+      // A/B Test Data
+      abVariantOverview: abVariantOverview ? parseRows(abVariantOverview, ['variant'], ['users', 'sessions', 'avgDuration', 'bounceRate']) : null,
+      abVariantConversions: abVariantConversions ? parseRows(abVariantConversions, ['variant'], ['conversions']) : null,
+      abScrollDepth: abScrollDepth ? parseRows(abScrollDepth, ['variant', 'percent'], ['count']) : null,
+      hasABData: abVariantOverview !== null,
     });
   } catch (error) {
     console.error('Analytics API error:', error);
