@@ -239,6 +239,15 @@ function generateEmailHTML(type, variables, theme = 'editorial') {
               <p>Bitte überweist die erste Rate (50%) innerhalb von 14 Tagen auf das in der Rechnung angegebene Konto.</p>
               <p>In einer separaten E-Mail erhaltet ihr eure Zugangsdaten zum Admin-Dashboard.</p>
 
+              <div style="background: #FFF9F0; border: 2px solid #F59E0B; padding: 20px 24px; margin: 30px 0; border-radius: 4px;">
+                <p style="margin: 0 0 6px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #92400E; font-weight: 700;">🎁 Exklusiv für euch</p>
+                <p style="margin: 0 0 10px 0; font-size: 16px; font-weight: 700; color: #1A1A1A;">15 € Gutschein bei hochzeitsplaza.de</p>
+                <p style="margin: 0 0 14px 0; font-size: 14px; color: #555; line-height: 1.6;">Als kleines Dankeschön erhaltet ihr <strong>15 € Rabatt auf Karten</strong> bei unserem Partner hochzeitsplaza.de – ohne Mindestbestellwert.</p>
+                <div style="background: #0A0A0A; color: #FFFFFF; display: inline-block; padding: 10px 22px; font-family: monospace; font-size: 18px; font-weight: 700; letter-spacing: 3px; margin-bottom: 14px;">SUI15</div>
+                <br>
+                <a href="https://www.hochzeitsplaza.de" style="color: #D97706; font-weight: 600; font-size: 13px; text-decoration: underline;">→ Jetzt einlösen auf hochzeitsplaza.de</a>
+              </div>
+
               <p style="margin-top: 30px;">Herzliche Grüße,<br><strong>Euer S&I. Team</strong></p>
             </div>
             ${footer}
