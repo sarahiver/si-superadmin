@@ -17,16 +17,19 @@ const LAYOUT_IDS = ['statement', 'split', 'list', 'dark', 'fullbleed'];
 // Gemeinsame Stimme/Textregeln für ALLE generierten Texte (Post + Reel-Slides).
 const COPY_RULES = `STIMME & TEXTREGELN (strikt einhalten):
 - EMOTIONAL, nicht faktenbasiert. Es geht um das Gefühl: Vorfreude, Liebe, Verbundenheit, der eine besondere Tag, Stolz auf den eigenen Stil. NICHT um Features, Statistiken, Prozente oder Jahreszahlen.
-- VERBOTEN sind Clickbait- und Listicle-Muster: "dieser eine Trick", "X Dinge die…", "Premium Paare wissen…", "das machen alle falsch", "bevor es zu spät ist". Das ist billig und unter dem Niveau der Marke.
+- VERBOTEN sind Clickbait- und Listicle-Muster: "dieser eine Trick", "X Dinge die…", "Premium Paare wissen…", "das machen alle falsch", "bevor es zu spät ist", "die Wahrheit über…", "die niemand dir sagt", "darum versagen …". Das ist billig und unter dem Niveau der Marke.
 - VERBOTEN sind Zahlen/Jahreszahlen in eyebrow und headline (kein "2026", keine Prozente, keine "3 Tipps"). Nur erlaubt, wenn emotional zwingend.
 - VERBOTEN ist das Nennen interner Design-Theme-Namen im sichtbaren Text (Classic, Editorial, Botanical, Contemporary, Luxe, Neon, Video). Das Theme bestimmt nur das Aussehen, niemals die Worte. Statt "Editorial statt kitschig" lieber das Gefühl beschreiben.
-- Durchgehend DEUTSCH, auch der eyebrow. Keine englischen Overlines.
-- Paare direkt ansprechen ("ihr", "eure"), warm und auf Augenhöhe.
+- Durchgehend DEUTSCH, auch der eyebrow. KEINE englischen Wörter im Text (kein "beats", "vs", "Aesthetic", "Trick"). "Instagram" als Eigenname ist ok.
+- IMMER "ihr / eure / euch" — NIEMALS "du / dein / dir / deine".
+- KEINE Sonderzeichen-Spielereien (%, ≠, →, &-Tricks) und KEINE Emojis.
 - headline = ein Gefühl oder ein Bild, kein Verkaufsversprechen.
 
 SO NICHT (schlecht):
 - eyebrow "WEDDING WEBSITES 2026" · headline "Premium Paare wissen diesen Website-Trick" · body "Editorial statt kitschig."
 - headline "3 Dinge die eure Gäste lieben werden"
+- headline "Diese Wahrheit über Hochzeitswebsites" · body "…die niemand dir sagt"
+- headline "Funktionalität beats Instagram-Ästhetik" (englisch!) · headline "Darum versagen 90% aller Websites" (Zahl + Clickbait!)
 
 SO JA (nur das Register, NICHT wörtlich übernehmen):
 - eyebrow "Euer Tag" · headline "Alles, was ihr fühlt — an einem Ort" · body "Eure Geschichte, eure Worte. Ein Zuhause im Netz für euren Tag."
@@ -59,11 +62,8 @@ function buildSlidesFromItems(items) {
     }
     elements.push({ id: nextElId(), type: 'divider', text: '', animation: 'fadeUp', delay: 0.6, animDuration: 0.4, xPercent: 0.067, yPercent: 0.39 });
     elements.push({ id: nextElId(), type: 'headline', text: item.headline || 'Headline', animation: 'fadeUp', delay: 0.7, animDuration: 0.6, xPercent: 0.067, yPercent: 0.42, fontSize: 80 });
-    if (item.accentWord) {
-      elements.push({ id: nextElId(), type: 'accentWord', text: item.accentWord, animation: 'fadeUp', delay: 1.2, animDuration: 0.5, xPercent: 0.067, yPercent: 0.60 });
-    }
     if (item.body) {
-      elements.push({ id: nextElId(), type: 'body', text: item.body, animation: 'fadeUp', delay: 1.3, animDuration: 0.5, xPercent: 0.067, yPercent: item.accentWord ? 0.68 : 0.60 });
+      elements.push({ id: nextElId(), type: 'body', text: item.body, animation: 'fadeUp', delay: 1.2, animDuration: 0.5, xPercent: 0.067, yPercent: 0.60 });
     }
     elements.push({ id: nextElId(), type: 'footer', text: '', animation: 'fadeIn', delay: 1.5, animDuration: 0.5, xPercent: 0.067, yPercent: 0.96 });
     return {
@@ -122,12 +122,11 @@ Aufbau:
 - Mittelteil = 1–3 Slides, die das Gefühl vertiefen oder eine kleine Idee/Geschichte erzählen — KEIN Feature-Listing, KEINE Aufzählung mit Zahlen.
 - Letzter Slide = ruhiger CTA (z.B. "Link in Bio", "sarahiver.com").
 - Texte SEHR kurz: headline max 8 Wörter, body max 18 Wörter (oder "").
-- accentWord: ein einzelnes EMOTIONALES Wort, das WORTWÖRTLICH in der jeweiligen headline vorkommt (oder "").
 
 ${COPY_RULES}
 
 Antworte NUR mit validem JSON-Array, kein Markdown:
-[{"eyebrow":"...","headline":"...","body":"...","accentWord":"..."}, ...]`;
+[{"eyebrow":"...","headline":"...","body":"..."}, ...]`;
 
   try {
     const res = await adminFetch('/api/ai-suggest', {
@@ -148,8 +147,8 @@ Antworte NUR mit validem JSON-Array, kein Markdown:
   }
   // Fallback: aus dem Tages-Vorschlag selbst zwei Slides bauen
   return [
-    { eyebrow: suggestion.eyebrow || '', headline: suggestion.headline || 'S&I. Wedding', body: suggestion.body || '', accentWord: suggestion.accentWord || '' },
-    { eyebrow: '', headline: 'Link in Bio', body: 'sarahiver.com', accentWord: '' },
+    { eyebrow: suggestion.eyebrow || '', headline: suggestion.headline || 'S&I. Wedding', body: suggestion.body || '' },
+    { eyebrow: '', headline: 'Link in Bio', body: 'sarahiver.com' },
   ];
 }
 

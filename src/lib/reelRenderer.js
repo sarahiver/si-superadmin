@@ -250,7 +250,7 @@ function drawFooter(ctx, t, alpha) {
   ctx.font = `400 26px ${t.uiFont}`;
   ctx.fillStyle = t.accent;
   ctx.globalAlpha = alpha * 0.5;
-  ctx.fillText('siwedding.com', 72, H - 40);
+  ctx.fillText('sarahiver.com', 72, H - 40);
   ctx.restore();
 }
 

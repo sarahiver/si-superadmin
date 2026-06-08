@@ -76,7 +76,7 @@ export const TEMPLATES = {
           makeEl('logo', 'S&I.', { animation: 'fadeIn', delay: 0, yPercent: 0.04 }),
           makeEl('divider', '', { delay: 0.3, yPercent: 0.38 }),
           makeEl('headline', 'Jetzt Demo anfragen', { delay: 0.5, yPercent: 0.42, fontSize: 80 }),
-          makeEl('body', 'siwedding.com\nLink in Bio', { delay: 1.0, yPercent: 0.60 }),
+          makeEl('body', 'sarahiver.com\nLink in Bio', { delay: 1.0, yPercent: 0.60 }),
           makeEl('footer', '', { delay: 1.2, yPercent: 0.96 }),
         ], { duration: 4 }),
       ];
@@ -122,7 +122,7 @@ export const TEMPLATES = {
           makeEl('logo', 'S&I.', { animation: 'fadeIn', delay: 0, yPercent: 0.04 }),
           makeEl('headline', 'Bereit für eure Website?', { delay: 0.5, yPercent: 0.42, fontSize: 80 }),
           makeEl('accentWord', 'Website?', { delay: 1.0, yPercent: 0.60 }),
-          makeEl('body', 'Link in Bio · siwedding.com', { delay: 1.3, yPercent: 0.72 }),
+          makeEl('body', 'Link in Bio · sarahiver.com', { delay: 1.3, yPercent: 0.72 }),
           makeEl('footer', '', { delay: 1.5, yPercent: 0.96 }),
         ], { duration: 4 }),
       ];
@@ -171,7 +171,7 @@ export const TEMPLATES = {
           makeEl('headline', 'Ein Ort für alle Erinnerungen', { delay: 0.5, yPercent: 0.34, fontSize: 72 }),
           makeEl('body', 'Fotos hochladen, Musikwünsche\nteilen — eure Website als\ngemeinsames Erlebnis.', { delay: 1.0, yPercent: 0.52 }),
           makeEl('divider', '', { delay: 1.5, yPercent: 0.70 }),
-          makeEl('body', 'Mehr auf siwedding.com · Link in Bio', { delay: 1.7, yPercent: 0.74 }),
+          makeEl('body', 'Mehr auf sarahiver.com · Link in Bio', { delay: 1.7, yPercent: 0.74 }),
           makeEl('footer', '', { delay: 1.9, yPercent: 0.96 }),
         ], { duration: 5 }),
       ];
@@ -217,7 +217,7 @@ export const TEMPLATES = {
         makeSlide([
           makeEl('logo', 'S&I.', { animation: 'fadeIn', delay: 0, yPercent: 0.04 }),
           makeEl('headline', 'Ab 1.290€', { delay: 0.4, yPercent: 0.40, fontSize: 96 }),
-          makeEl('body', 'Handgemacht in Hamburg.\nsiwedding.com · Link in Bio', { delay: 1.0, yPercent: 0.58 }),
+          makeEl('body', 'Handgemacht in Hamburg.\nsarahiver.com · Link in Bio', { delay: 1.0, yPercent: 0.58 }),
           makeEl('footer', '', { delay: 1.3, yPercent: 0.96 }),
         ], { duration: 4 }),
       ];
