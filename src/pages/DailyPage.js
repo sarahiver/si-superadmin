@@ -164,6 +164,7 @@ export default function DailyPage() {
   const [seedKey, setSeedKey] = useState(0);
   const [captionCopied, setCaptionCopied] = useState(false);
   const [takingOver, setTakingOver] = useState(false);
+  const [formatPref, setFormatPref] = useState('auto'); // 'auto' | 'post' | 'reel'
 
   // Reel-Render-State
   const [rendering, setRendering] = useState(false);
@@ -178,12 +179,16 @@ export default function DailyPage() {
     ? `${suggestion.caption || ''}${suggestion.hashtags ? '\n\n' + suggestion.hashtags : ''}`
     : '';
 
-  const buildPrompt = () => `Du bist Social-Media-Stratege für S&I. Wedding (sarahiver.com) — Premium-Hochzeitswebsites aus Hamburg, DACH-Raum. Tonalität: warm, selbstbewusst, leicht editorial, nie kitschig.
+  const buildPrompt = () => {
+    const formatLine = formatPref === 'auto'
+      ? '2) Entscheide selbst das Format: "post" (Foto/Carousel) oder "reel" (Kurzvideo).'
+      : `2) Das Format ist VORGEGEBEN: "${formatPref}". Erstelle GENAU dieses Format, kein anderes.`;
+    return `Du bist Social-Media-Stratege für S&I. Wedding (sarahiver.com) — Premium-Hochzeitswebsites aus Hamburg, DACH-Raum. Tonalität: warm, selbstbewusst, leicht editorial, nie kitschig.
 
 Aufgabe: Erstelle EINEN kompletten Posting-Vorschlag für HEUTE auf Instagram.
 
 1) Analysiere via Web-Suche, welche Themen, Gefühle und Fragen rund um Hochzeit & Hochzeitswebsites Paare gerade bewegen. Nutze das NUR, um ein relevantes, emotional aufgeladenes Thema zu finden — KEIN Trend-Report, KEINE Statistik. Deutschsprachiger Content ist Whitespace.
-2) Entscheide selbst das Format: "post" (Foto/Carousel) oder "reel" (Kurzvideo).
+${formatLine}
 3) Wähle EINEN emotionalen Winkel: Vorfreude, Verbundenheit, Romantik/Sehnsucht, Stolz auf den eigenen Stil, oder das Besondere des einen Tages. KEINE Angst-, Druck- oder Ego-Hooks.
 4) Wähle ein Theme (nur fürs Aussehen, NICHT im Text nennen): ${themeIds.join(', ')}.
 5) Wähle ein Layout: ${LAYOUT_IDS.join(', ')}. Bei "post" bevorzuge "fullbleed" oder "split".
@@ -195,6 +200,7 @@ accentWord MUSS wortwörtlich in headline vorkommen und sollte ein emotionales W
 
 Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
 {"format":"post|reel","platform":"instagram","theme":"<id>","layout":"<id>","trigger":"<emotionaler Winkel>","eyebrow":"deutsch, ohne Zahlen","headline":"ein Gefühl oder Bild, kein Verkaufsversprechen","accentWord":"emotionales Wort aus headline","body":"1–2 warme Sätze, kein Feature-Listing","caption":"3–5 Sätze, warm mit Sog, endet mit einer echten Frage + dezentem CTA","hashtags":"#tag1 #tag2 #tag3 #tag4 #tag5","visualKeywords":["...","..."],"reason":"1 Satz: warum dieser emotionale Winkel heute"}`;
+  };
 
   const run = async () => {
     setLoading(true);
@@ -218,11 +224,19 @@ Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
           searchHint: 'Nutze web_search für aktuelle Wedding-Website-Trends & -Hashtags der letzten 30 Tage (TikTok, Reels, Pinterest, Reddit).',
         }),
       });
+      if (!aiRes.ok) {
+        let msg = `KI-Fehler (${aiRes.status}).`;
+        if (aiRes.status === 429) msg = 'KI-API überlastet (429 — Rate Limit). Bitte ~30 Sek warten und erneut versuchen.';
+        else if (aiRes.status === 401) msg = 'Sitzung abgelaufen — bitte neu einloggen.';
+        else if (aiRes.status >= 500) msg = `KI-API-Fehler (${aiRes.status}). Kurz warten und erneut versuchen.`;
+        throw new Error(msg);
+      }
       const aiData = await aiRes.json();
       const text = (aiData.content || []).filter((i) => i.type === 'text').map((i) => i.text || '').join('\n');
       const match = text.replace(/```json|```/g, '').match(/\{[\s\S]*\}/);
       if (!match) throw new Error('Konnte keinen Vorschlag aus der KI-Antwort lesen.');
       const sug = JSON.parse(match[0]);
+      if (formatPref !== 'auto') sug.format = formatPref;
       if (!themeIds.includes(sug.theme)) sug.theme = 'classic';
       if (!LAYOUT_IDS.includes(sug.layout)) sug.layout = sug.format === 'reel' ? 'fullbleed' : 'split';
       setSuggestion(sug);
@@ -337,12 +351,20 @@ Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
 
   return (
     <Wrap>
-      <Intro>
-        <GenerateButton onClick={run} disabled={loading}>
-          {loading ? <><Spinner /> Analyse läuft…</> : '✨ Heutigen Vorschlag erstellen'}
-        </GenerateButton>
-        <p>Trend-Analyse → Format-Entscheidung → komplettes Posting + passendes Live-Stock-Asset (Pexels).</p>
-      </Intro>
+      <Controls>
+        <FormatRow>
+          <FmtLabel>Format</FmtLabel>
+          <FmtChip $active={formatPref === 'auto'} disabled={loading} onClick={() => setFormatPref('auto')}>✨ Automatisch</FmtChip>
+          <FmtChip $active={formatPref === 'post'} disabled={loading} onClick={() => setFormatPref('post')}>📸 Post</FmtChip>
+          <FmtChip $active={formatPref === 'reel'} disabled={loading} onClick={() => setFormatPref('reel')}>🎬 Reel</FmtChip>
+        </FormatRow>
+        <Intro>
+          <GenerateButton onClick={run} disabled={loading}>
+            {loading ? <><Spinner /> Analyse läuft…</> : '✨ Heutigen Vorschlag erstellen'}
+          </GenerateButton>
+          <p>Trend-Analyse → {formatPref === 'auto' ? 'Format-Entscheidung → ' : ''}komplettes Posting + passendes Live-Stock-Asset (Pexels).</p>
+        </Intro>
+      </Controls>
 
       {error && <Banner $error>{error}</Banner>}
 
@@ -465,6 +487,18 @@ Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
 // STYLED
 // ============================================
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 1.5rem;`;
+
+const Controls = styled.div`display: flex; flex-direction: column; gap: 0.85rem;`;
+const FormatRow = styled.div`display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;`;
+const FmtLabel = styled.span`font-family: 'Inter', sans-serif; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: ${colors.gray}; margin-right: 0.35rem;`;
+const FmtChip = styled.button`
+  font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: ${p => p.$active ? 600 : 400};
+  padding: 0.5rem 0.9rem; cursor: pointer; transition: all 0.15s;
+  border: 1px solid ${p => p.$active ? colors.black : colors.lightGray};
+  background: ${p => p.$active ? colors.black : '#fff'}; color: ${p => p.$active ? '#fff' : colors.black};
+  &:hover { border-color: ${colors.black}; }
+  &:disabled { opacity: 0.5; pointer-events: none; }
+`;
 
 const Intro = styled.div`
   display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
