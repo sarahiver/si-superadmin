@@ -81,20 +81,19 @@ Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
       if (!LAYOUT_IDS.includes(sug.layout)) sug.layout = sug.format === 'reel' ? 'fullbleed' : 'split';
       setSuggestion(sug);
 
-      // 2) Passendes Asset aus Cloudinary
-      const assetRes = await adminFetch('/api/cloudinary-assets', {
+      // 2) Passendes Live-Stock-Asset (Pexels)
+      const assetRes = await adminFetch('/api/stock-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           keywords: sug.visualKeywords || [],
-          theme: sug.theme,
           format: sug.format,
           max: 6,
         }),
       });
       const assetData = await assetRes.json();
       if (assetData.error) {
-        setError(`Cloudinary: ${assetData.error}`);
+        setError(`Stock: ${assetData.error}`);
       } else {
         setAssets(assetData.assets || []);
       }
@@ -118,9 +117,9 @@ Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
     const asset = assets[selected];
     if (asset && asset.resource_type === 'image') {
       try {
-        image = await urlToDataUrl(asset.secure_url);
+        image = await urlToDataUrl(asset.download_url || asset.secure_url);
       } catch {
-        image = asset.secure_url; // Fallback (ggf. CORS-Hinweis beim Export)
+        image = asset.download_url || asset.secure_url; // Fallback (ggf. CORS-Hinweis beim Export)
       }
     }
     setSeed({
@@ -167,33 +166,38 @@ Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
           <Split>
             {/* MEDIA */}
             <MediaCol>
-              <SectionLabel>Passendes Asset {assets.length ? `(${assets.length})` : ''}</SectionLabel>
+              <SectionLabel>Passendes Asset {assets.length ? `(${assets.length})` : ''} · Pexels</SectionLabel>
               {asset ? (
                 <>
                   <MediaBox>
                     {asset.resource_type === 'video' ? (
-                      <video src={asset.secure_url} controls style={{ width: '100%', display: 'block' }} />
+                      <video src={asset.secure_url} poster={asset.thumb} controls style={{ width: '100%', display: 'block' }} />
                     ) : (
                       <img src={asset.secure_url} alt="" style={{ width: '100%', display: 'block' }} />
                     )}
                   </MediaBox>
+                  <Credit>
+                    {asset.resource_type === 'video' ? 'Video' : 'Foto'}:{' '}
+                    <a href={asset.pexels_url} target="_blank" rel="noreferrer">{asset.photographer}</a>
+                    {' · '}
+                    <a href="https://www.pexels.com" target="_blank" rel="noreferrer">Pexels</a>
+                  </Credit>
                   {assets.length > 1 && (
                     <Thumbs>
                       {assets.map((a, i) => (
-                        <Thumb key={a.public_id} $active={i === selected} onClick={() => setSelected(i)}>
-                          {a.resource_type === 'video'
-                            ? <video src={a.secure_url} muted />
-                            : <img src={a.secure_url} alt="" />}
+                        <Thumb key={i} $active={i === selected} onClick={() => setSelected(i)}>
+                          <img src={a.thumb} alt="" />
                         </Thumb>
                       ))}
                     </Thumbs>
                   )}
-                  <a href={asset.secure_url} download target="_blank" rel="noreferrer">
+                  <a href={asset.download_url || asset.secure_url} download target="_blank" rel="noreferrer">
                     <DownloadBtn>⬇ {asset.resource_type === 'video' ? 'Video' : 'Bild'} herunterladen</DownloadBtn>
                   </a>
+                  <Attribution>Fotos &amp; Videos von <a href="https://www.pexels.com" target="_blank" rel="noreferrer">Pexels</a>. Für den fertigen Post ist keine Angabe nötig.</Attribution>
                 </>
               ) : (
-                <Empty>Kein Asset gefunden. Prüfe Tags/Ordner in Cloudinary (siehe Setup).</Empty>
+                <Empty>Kein Stock-Asset gefunden — Vorschlag neu generieren oder Keywords der KI variieren.</Empty>
               )}
             </MediaCol>
 
@@ -277,6 +281,14 @@ const DownloadBtn = styled.span`
   display: inline-block; margin-top: 0.6rem; font-family: 'Oswald', sans-serif; font-size: 0.72rem; font-weight: 500;
   letter-spacing: 0.08em; text-transform: uppercase; padding: 0.6rem 1.2rem; border: 2px solid ${colors.black}; color: ${colors.black};
   &:hover { background: ${colors.black}; color: #fff; }
+`;
+const Credit = styled.div`
+  font-family: 'Inter', sans-serif; font-size: 0.68rem; color: ${colors.gray}; margin-top: 0.4rem;
+  a { color: ${colors.gray}; text-decoration: underline; }
+`;
+const Attribution = styled.div`
+  font-family: 'Inter', sans-serif; font-size: 0.62rem; color: ${colors.gray}; opacity: 0.75; margin-top: 0.5rem; line-height: 1.4;
+  a { color: ${colors.gray}; }
 `;
 
 const Eyebrow = styled.div`font-family: 'Inter', sans-serif; font-size: 0.6rem; letter-spacing: 0.15em; text-transform: uppercase; color: ${colors.red}; margin-bottom: 0.35rem;`;
