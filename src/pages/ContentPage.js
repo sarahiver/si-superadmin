@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import Layout from '../components/Layout';
 import InstagramPage from './InstagramPage';
 import ReelsPage from './ReelsPage';
+import PinterestPage from './PinterestPage';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
@@ -15,13 +16,17 @@ export default function ContentPage() {
     <Layout>
       <PageHeader>
         <h1>Content</h1>
-        <p>Instagram Posts und Reels erstellen — Theme wählen, generieren, herunterladen</p>
+        <p>Instagram Posts, Reels und Pinterest Pins erstellen — Theme wählen, generieren, herunterladen</p>
       </PageHeader>
 
       <TabBar>
         <Tab $active={activeTab === 'instagram'} onClick={() => setActiveTab('instagram')}>
           <TabIcon>📸</TabIcon>
           Instagram Posts
+        </Tab>
+        <Tab $active={activeTab === 'pinterest'} onClick={() => setActiveTab('pinterest')}>
+          <TabIcon>📌</TabIcon>
+          Pinterest
         </Tab>
         <Tab $active={activeTab === 'reels'} onClick={() => setActiveTab('reels')}>
           <TabIcon>🎬</TabIcon>
@@ -30,6 +35,7 @@ export default function ContentPage() {
       </TabBar>
 
       {activeTab === 'instagram' && <InstagramPage />}
+      {activeTab === 'pinterest' && <PinterestPage />}
       {activeTab === 'reels' && <ReelsPage />}
     </Layout>
   );

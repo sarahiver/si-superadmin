@@ -31,6 +31,15 @@ const CATEGORIES = [
   { id: 'custom', label: 'Eigenes Thema', icon: '✏️', desc: 'Freitext-Eingabe' },
 ];
 
+const HOOK_TRIGGERS = [
+  { id: 'auto', label: 'Auto' },
+  { id: 'surprise', label: 'Überraschung' },
+  { id: 'fear', label: 'Angst/Scham' },
+  { id: 'ego', label: 'Ego/Geschmack' },
+  { id: 'urgency', label: 'Dringlichkeit' },
+  { id: 'desire', label: 'Verlangen' },
+];
+
 // ============================================
 // STYLED COMPONENTS (SuperAdmin Editorial Style)
 // ============================================
@@ -420,7 +429,12 @@ const Hint = styled.p`
 // ============================================
 // MAIN COMPONENT
 // ============================================
-export default function InstagramPage() {
+export default function InstagramPage({ platform = 'instagram' }) {
+  const isPinterest = platform === 'pinterest';
+  const platformName = isPinterest ? 'Pinterest' : 'Instagram';
+  const ASPECT = isPinterest
+    ? { W: 360, H: 540, label: '1080×1620', ratio: '2:3' }
+    : { W: 360, H: 450, label: '1080×1350', ratio: '4:5' };
   const [theme, setTheme] = useState('classic');
   const [layout, setLayout] = useState('statement');
   const [eyebrow, setEyebrow] = useState('Premium Hochzeitswebsites');
@@ -437,6 +451,8 @@ export default function InstagramPage() {
   const [caption, setCaption] = useState('');
   const [captionCopied, setCaptionCopied] = useState(false);
   const [igReady, setIgReady] = useState(false);
+  const [hookTrigger, setHookTrigger] = useState('auto');
+  const [useTrends, setUseTrends] = useState(true);
   const postRef = useRef(null);
 
   const t = THEMES[theme];
@@ -463,37 +479,61 @@ export default function InstagramPage() {
     const cat = CATEGORIES.find(c => c.id === aiCategory);
     const topicContext = aiCategory === 'custom' ? customPrompt : cat.desc;
 
-    const prompt = `Du bist Social Media Manager und Copywriter für S&I. Wedding (sarahiver.com) — ein Premium-Hochzeitswebsite-Service aus Hamburg von Sarah & Iver.
+    const triggerMap = {
+      surprise: 'Überraschung — eine kontraintuitive Aussage oder Statistik, die sofort eine Neugierlücke öffnet.',
+      fear: 'Angst/Scham — soziales Urteil ("eure Gäste merken es", "das sieht man sofort"), nie gemein.',
+      ego: 'Ego/Geschmack — schmeichelt der In-Group ("wer Geschmack hat…") und fordert Widerspruch heraus.',
+      urgency: 'Dringlichkeit — unterbricht eine Handlung ("schickt die Einladungen noch nicht") mit Deadline + Verlust.',
+      desire: 'Verlangen — aspirativer Reveal + Social Proof ("100 Gäste haben es gespeichert, bevor sie zugesagt haben").',
+    };
+    const triggerLine = (hookTrigger !== 'auto' && triggerMap[hookTrigger])
+      ? `Primärer Hook-Trigger: ${triggerMap[hookTrigger]}`
+      : 'Wähle pro Vorschlag den stärksten Hook-Trigger (Überraschung, Angst/Scham, Ego, Dringlichkeit oder Verlangen) und variiere ihn über die 3 Vorschläge.';
 
-Kontext:
-- S&I. bietet handgemachte Hochzeitswebsites mit eigener Domain ab 1.290€
-- 7 Design-Themes: Classic, Editorial, Botanical, Contemporary, Luxe, Neon, Video
-- Features: RSVP, Gästeliste, Love Story, Countdown, Foto-Upload, Musik-Wünsche, Passwortschutz, Admin-Dashboard
-- Pakete: Starter (1.290€/6Mo), Standard (1.490€/8Mo), Premium (1.990€/12Mo)
-- Zielgruppe: Verlobte Paare mit Anspruch an Design, 25-40 Jahre, DACH-Raum
-- Tonalität: Warm aber selbstbewusst, nie billig oder kitschig, leicht editorial
-- Website: sarahiver.com
+    const brand = `Du arbeitest für S&I. Wedding (sarahiver.com) — ein Premium-Hochzeitswebsite-Service aus Hamburg von Sarah & Iver.
+Kontext: handgemachte Hochzeitswebsites mit eigener Domain. Themes: Classic, Editorial, Botanical, Contemporary, Luxe, Neon, Video. Features: RSVP, Gästeliste, Love Story, Countdown, Foto-Upload, Musik-Wünsche, Passwortschutz, Admin-Dashboard. Zielgruppe: verlobte Paare mit Designanspruch, 25–40, DACH-Raum. Tonalität: warm aber selbstbewusst, leicht editorial, nie billig oder kitschig.
+Nische-Realität: fast aller virale Wedding-Website-Content ist US/englisch (Zola, The Knot, Joy). Deutschsprachiger Content ist nahezu unbesetztes Whitespace — das ist der strategische Vorteil.`;
+
+    let platformBlock, schema, searchHint;
+    if (isPinterest) {
+      platformBlock = `Plattform: PINTEREST (2:3 Pin). Pinterest ist eine SUCHMASCHINE, kein Feed.
+- Weniger Aggression, mehr Aspiration + Nutzwert; evergreen statt Trend-Hetze.
+- "headline" = keyword-reiches, suchbares Versprechen (z.B. "Hochzeitswebsite Ideen", "Save-the-Date Wording").
+- "caption" = SEO-Beschreibung (2–3 Sätze, keyword-reich, endet mit sanftem CTA).
+- "hashtags" = 4–6 Pinterest-Keywords/Begriffe, die Paare wirklich in die Suche eingeben (Komma-getrennt).
+Optimiere für Speichern (Saves), Klicks und Keyword-Ranking.`;
+      schema = `[{"eyebrow":"...","headline":"keyword-reiches Versprechen","accentWord":"ein Wort aus headline","body":"1–2 Sätze Nutzwert","caption":"SEO-Beschreibung mit Keywords","hashtags":"keyword1, keyword2, keyword3"}]  (genau 3 Objekte im Array)`;
+      searchHint = 'Nutze web_search um aktuell gut rankende Pinterest-Keywords rund um Hochzeitswebsites zu finden (suche "wedding website ideas pinterest", "hochzeitswebsite ideen pinterest"). Verwende die stärksten Such-Keywords in den Vorschlägen.';
+    } else {
+      platformBlock = `Plattform: INSTAGRAM (Reel/Post, 4:5). Ziel: Scroll-Stopp in den ersten 2 Sekunden; optimiert auf Saves, Sends und Kommentare.
+- "headline" = aggressiver, scroll-stoppender Hook, der den Betrachter direkt anspricht. Neugierlücke öffnen, Auflösung zurückhalten.
+- "caption" = 3–5 Sätze, warm aber mit Sog, endet mit Kommentar-Bait + dezentem CTA (z.B. "Link in Bio").
+- "hashtags" = genau 5 Hashtags mit hoher Reichweite für Hochzeitswebsites.
+${triggerLine}`;
+      schema = `[{"eyebrow":"...","headline":"scroll-stoppender Hook","accentWord":"ein Wort aus headline","body":"1–2 Sätze, max 25 Wörter","caption":"...","hashtags":"#tag1 #tag2 #tag3 #tag4 #tag5"}]  (genau 3 Objekte im Array)`;
+      searchHint = 'Nutze web_search um aktuelle, trendende Hochzeits-Hashtags auf Instagram zu finden (suche "trending wedding hashtags 2026 Instagram deutsch"). Verwende die gefundenen Hashtags.';
+    }
+
+    const prompt = `${brand}
+
+${platformBlock}
 
 Theme: "${THEMES[theme].name}" — Layout: "${LAYOUTS[layout].name}"
 Kategorie: "${cat.label}" — ${topicContext}
+${layout === 'list' ? "List-Layout: body = 5–7 Items, eins pro Zeile, Format 'Titel|Beschreibung'." : ''}
 
-Erstelle genau 3 verschiedene Vorschläge. Jeder Vorschlag braucht:
-- eyebrow: Kurzer Overline-Text (2-4 Wörter)
-- headline: Haupttext (max 10 Wörter, emotional & knapp)
-- accentWord: EXAKT ein Wort aus der Headline das hervorgehoben wird (muss wortwörtlich in headline vorkommen)
-- body: Beschreibung (1-2 Sätze, max 25 Wörter)
-- caption: Instagram-Caption (3-5 Sätze, warm & persönlich, mit Emoji, endet mit CTA wie "Link in Bio" oder "Schreibt uns eine DM")
-- hashtags: Genau 5 Hashtags — die mit der höchsten Reichweite für Hochzeitswebsites (z.B. #hochzeit #wedding #hochzeitswebsite #braut2026 #hochzeitsplanung)
-${layout === 'list' ? "List-Layout: body = 5-7 Items, eins pro Zeile. Format: 'Titel|Beschreibung'" : ''}
+Regeln:
+- accentWord muss WORTWÖRTLICH in headline vorkommen.
+- ${useTrends ? 'Beziehe aktuelle Trends ein (über die Web-Suche).' : 'Web-Suche ist deaktiviert — nutze dein Wissen.'}
 
 Antworte NUR mit validem JSON Array, kein Markdown:
-[{"eyebrow":"...","headline":"...","accentWord":"...","body":"...","caption":"...","hashtags":"#tag1 #tag2 ..."},{"eyebrow":"...","headline":"...","accentWord":"...","body":"...","caption":"...","hashtags":"#tag1 #tag2 ..."},{"eyebrow":"...","headline":"...","accentWord":"...","body":"...","caption":"...","hashtags":"#tag1 #tag2 ..."}]`;
+${schema}`;
 
     try {
       const response = await adminFetch('/api/ai-suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, searchHint, webSearch: useTrends }),
       });
       const data = await response.json();
       // Extract text from all content blocks (may include tool_use, tool_result, text)
@@ -545,7 +585,9 @@ Antworte NUR mit validem JSON Array, kein Markdown:
   };
 
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  const igLink = isMobile ? 'instagram://camera' : 'https://www.instagram.com/';
+  const igLink = isPinterest
+    ? 'https://www.pinterest.com/'
+    : (isMobile ? 'instagram://camera' : 'https://www.instagram.com/');
 
   // ==========================================
   // DOWNLOAD
@@ -568,8 +610,8 @@ Antworte NUR mit validem JSON Array, kein Markdown:
     try {
       // Create a full-size (1080×1350) offscreen clone for sharp rendering
       const clone = el.cloneNode(true);
-      clone.style.width = '1080px';
-      clone.style.height = '1350px';
+      clone.style.width = (ASPECT.W * 3) + 'px';
+      clone.style.height = (ASPECT.H * 3) + 'px';
       clone.style.transform = 'scale(1)';
       clone.style.position = 'fixed';
       clone.style.left = '-9999px';
@@ -613,8 +655,8 @@ Antworte NUR mit validem JSON Array, kein Markdown:
         useCORS: true,
         allowTaint: true,
         backgroundColor: null,
-        width: 360,
-        height: 450,
+        width: ASPECT.W,
+        height: ASPECT.H,
         imageTimeout: 0,
         logging: false,
       });
@@ -622,14 +664,14 @@ Antworte NUR mit validem JSON Array, kein Markdown:
       document.body.removeChild(clone);
 
       const a = document.createElement('a');
-      a.download = `si-${theme}-${layout}.png`;
+      a.download = `si-${platform}-${theme}-${layout}.png`;
       a.href = canvas.toDataURL('image/png', 1.0);
       a.click();
     } catch (err) {
       console.error('Download error:', err);
       alert('Nutze Screenshot als Alternative: Mac ⌘+Shift+4 / Win Win+Shift+S');
     }
-  }, [theme, layout]);
+  }, [theme, layout, ASPECT.W, ASPECT.H, platform]);
 
   // ==========================================
   // RENDER HEADLINE WITH ACCENT
@@ -655,7 +697,7 @@ Antworte NUR mit validem JSON Array, kein Markdown:
     ? <div style={{ position: 'absolute', top: 0, right: 0, width: 70, height: 70, background: t.tertiary || t.accent, opacity: 0.15 }} />
     : <div style={{ position: 'absolute', top: 0, right: 0, width: 60, height: 60, borderRight: `1.5px solid ${t.accent}`, borderTop: `1.5px solid ${t.accent}`, opacity: 0.3 }} />;
   const footer = <div style={ft}><span style={{ ...ftx, color: t.accent, opacity: isDark ? 0.5 : 1 }}>sarahiver.com</span><span style={ftx}>{pageNum}</span></div>;
-  const W = 360, H = 450;
+  const W = ASPECT.W, H = ASPECT.H;
 
   const renderPost = () => {
     switch (layout) {
@@ -790,7 +832,7 @@ Antworte NUR mit validem JSON Array, kein Markdown:
                 </Field>
                 {caption && (
                   <CaptionBox>
-                    <Label>Caption + Hashtags</Label>
+                    <Label>{isPinterest ? 'Beschreibung + Keywords' : 'Caption + Hashtags'}</Label>
                     <Textarea value={caption} onChange={e => setCaption(e.target.value)} rows={8} style={{ fontSize: '0.8rem', lineHeight: 1.6 }} />
                     <CopyButton onClick={copyCaption}>
                       {captionCopied ? '✓ Kopiert!' : '📋 Caption kopieren'}
@@ -815,6 +857,22 @@ Antworte NUR mit validem JSON Array, kein Markdown:
                     <Textarea value={customPrompt} onChange={e => setCustomPrompt(e.target.value)} rows={2} placeholder="z.B. Warum Passwortschutz wichtig ist..." />
                   </Field>
                 )}
+
+                {!isPinterest && (
+                  <>
+                    <SectionLabel>Hook-Stil</SectionLabel>
+                    <ChipRow>
+                      {HOOK_TRIGGERS.map(h => (
+                        <Chip key={h.id} $active={hookTrigger === h.id} onClick={() => setHookTrigger(h.id)}>{h.label}</Chip>
+                      ))}
+                    </ChipRow>
+                  </>
+                )}
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: colors.gray, margin: '0 0 1rem', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={useTrends} onChange={e => setUseTrends(e.target.checked)} />
+                  Aktuelle Trends einbeziehen (Web-Suche)
+                </label>
 
                 <PrimaryButton $loading={aiLoading} onClick={generateSuggestions}>
                   {aiLoading ? <><Spinner /> Generiere...</> : '🤖 3 Vorschläge generieren'}
@@ -845,9 +903,9 @@ Antworte NUR mit validem JSON Array, kein Markdown:
 
           {/* Download + Instagram */}
           <ActionBar>
-            <SecondaryButton onClick={downloadPNG}>⬇ PNG Download (1080×1350)</SecondaryButton>
+            <SecondaryButton onClick={downloadPNG}>⬇ PNG Download ({ASPECT.label})</SecondaryButton>
             <InstagramButton onClick={prepareForInstagram}>
-              📱 Für Instagram vorbereiten
+              📱 Für {platformName} vorbereiten
             </InstagramButton>
           </ActionBar>
           {igReady && (
@@ -856,12 +914,12 @@ Antworte NUR mit validem JSON Array, kein Markdown:
                 <IgStep $done={true}>✅ Bild heruntergeladen {isMobile ? '(in Fotos/Galerie)' : ''}</IgStep>
                 <IgStep $done={true}>✅ Caption in Zwischenablage kopiert</IgStep>
                 <IgStep $done={false}>{isMobile
-                  ? '📱 Instagram öffnen → + → Post → Bild aus Galerie wählen → Caption einfügen (lange drücken → Einsetzen)'
-                  : '📱 Instagram öffnen → + → Post → Bild einfügen → Caption einfügen (Strg+V)'
+                  ? `📱 ${platformName} öffnen → + → ${isPinterest ? 'Pin erstellen' : 'Post'} → Bild aus Galerie wählen → Text einfügen (lange drücken → Einsetzen)`
+                  : `📱 ${platformName} öffnen → + → ${isPinterest ? 'Pin erstellen' : 'Post'} → Bild einfügen → Text einfügen (Strg+V)`
                 }</IgStep>
               </IgReadySteps>
               <IgOpenLink href={igLink} target="_blank" rel="noopener noreferrer">
-                Instagram öffnen →
+                {platformName} öffnen →
               </IgOpenLink>
             </IgReadyBox>
           )}

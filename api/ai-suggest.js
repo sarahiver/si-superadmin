@@ -19,9 +19,22 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { prompt } = req.body || {};
+    const { prompt, searchHint, webSearch = true } = req.body || {};
     if (!prompt) {
       return res.status(400).json({ error: 'Missing prompt' });
+    }
+
+    // Default-Suchhinweis (Backward-Compat für Instagram); per searchHint überschreibbar.
+    const defaultHint = '\n\nWichtig: Nutze web_search um aktuelle, trendende Hochzeits-Hashtags auf Instagram zu finden (suche nach "trending wedding hashtags 2025 2026 Instagram deutsch"). Verwende die gefundenen trendenden Hashtags in deinen Vorschlägen.';
+    const content = webSearch ? prompt + (searchHint ? '\n\n' + searchHint : defaultHint) : prompt;
+
+    const requestBody = {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content }],
+    };
+    if (webSearch) {
+      requestBody.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
     }
 
     const apiResponse = await fetch('https://api.anthropic.com/v1/messages', {
@@ -31,22 +44,7 @@ export default async function handler(req, res) {
         'x-api-key': ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2048,
-        tools: [
-          {
-            type: 'web_search_20250305',
-            name: 'web_search',
-          },
-        ],
-        messages: [
-          {
-            role: 'user',
-            content: prompt + '\n\nWichtig: Nutze web_search um aktuelle, trendende Hochzeits-Hashtags auf Instagram zu finden (suche nach "trending wedding hashtags 2025 2026 Instagram deutsch"). Verwende die gefundenen trendenden Hashtags in deinen Vorschlägen.',
-          },
-        ],
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const data = await apiResponse.json();
