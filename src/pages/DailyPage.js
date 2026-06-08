@@ -1,10 +1,14 @@
 // src/pages/DailyPage.js
 // "Heute" — einmal morgens ein Klick: Trend-Analyse läuft, entscheidet Reel vs. Post,
-// erstellt das komplette Posting und verbindet es mit dem passenden Cloudinary-Asset.
+// erstellt das komplette Posting + holt ein passendes Live-Stock-Asset (Pexels).
+//   - Post  -> "In Generator übernehmen" (Bild + Text -> PNG-Export)
+//   - Reel  -> "Fertiges Reel erstellen": KI-Slides + Pexels-Video -> MP4 (clientseitig,
+//              stumm; Trending-Audio beim Posten in der IG-App). Kein Editor.
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { THEMES } from '../lib/reelThemes';
+import { THEMES, loadThemeFontsForCanvas } from '../lib/reelThemes';
 import { adminFetch } from '../lib/apiClient';
+import { exportReelMP4 } from '../lib/reelExporter';
 import InstagramPage from './InstagramPage';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
@@ -21,6 +25,118 @@ async function urlToDataUrl(url) {
   });
 }
 
+// ---- Reel-Helfer (clientseitig, kein Editor) --------------------------------
+
+let _elId = 1000;
+function nextElId() { return _elId++; }
+
+// AI-Items -> Slides (gleiche Element-Struktur wie der Reels-Editor)
+function buildSlidesFromItems(items) {
+  return items.map((item, i) => {
+    const elements = [
+      { id: nextElId(), type: 'logo', text: 'S&I.', animation: 'fadeIn', delay: 0.2, animDuration: 0.5, xPercent: 0.067, yPercent: 0.04 },
+    ];
+    if (item.eyebrow) {
+      elements.push({ id: nextElId(), type: 'eyebrow', text: item.eyebrow, animation: 'fadeUp', delay: 0.4, animDuration: 0.5, xPercent: 0.067, yPercent: 0.35 });
+    }
+    elements.push({ id: nextElId(), type: 'divider', text: '', animation: 'fadeUp', delay: 0.6, animDuration: 0.4, xPercent: 0.067, yPercent: 0.39 });
+    elements.push({ id: nextElId(), type: 'headline', text: item.headline || 'Headline', animation: 'fadeUp', delay: 0.7, animDuration: 0.6, xPercent: 0.067, yPercent: 0.42, fontSize: 80 });
+    if (item.accentWord) {
+      elements.push({ id: nextElId(), type: 'accentWord', text: item.accentWord, animation: 'fadeUp', delay: 1.2, animDuration: 0.5, xPercent: 0.067, yPercent: 0.60 });
+    }
+    if (item.body) {
+      elements.push({ id: nextElId(), type: 'body', text: item.body, animation: 'fadeUp', delay: 1.3, animDuration: 0.5, xPercent: 0.067, yPercent: item.accentWord ? 0.68 : 0.60 });
+    }
+    elements.push({ id: nextElId(), type: 'footer', text: '', animation: 'fadeIn', delay: 1.5, animDuration: 0.5, xPercent: 0.067, yPercent: 0.96 });
+    return {
+      id: nextElId(),
+      duration: 4,
+      transitionIn: i === 0 ? 'none' : 'crossfade',
+      transitionDuration: 0.5,
+      backgroundType: 'solid',
+      backgroundImage: null,
+      backgroundDarken: 0.4,
+      elements,
+    };
+  });
+}
+
+// Pexels-Video CORS-sauber laden: fetch -> Blob -> objectURL (sonst "taintet"
+// der Canvas und der VideoFrame-Export schlägt fehl).
+async function loadVideoEl(url) {
+  let resp;
+  try {
+    resp = await fetch(url, { mode: 'cors' });
+  } catch {
+    throw new Error('Dieser Clip ist nicht direkt verarbeitbar (CORS). Bitte oben einen anderen Clip wählen.');
+  }
+  if (!resp.ok) throw new Error('Video-Download fehlgeschlagen (' + resp.status + ').');
+  const blob = await resp.blob();
+  const objUrl = URL.createObjectURL(blob);
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.src = objUrl;
+  await new Promise((res, rej) => {
+    const ok = () => { cleanup(); res(); };
+    const fail = () => { cleanup(); rej(new Error('Video konnte nicht dekodiert werden.')); };
+    const cleanup = () => { video.removeEventListener('loadeddata', ok); video.removeEventListener('error', fail); };
+    video.addEventListener('loadeddata', ok, { once: true });
+    video.addEventListener('error', fail, { once: true });
+  });
+  if (!video.duration || isNaN(video.duration) || !isFinite(video.duration)) {
+    await new Promise((res) => { video.addEventListener('loadedmetadata', res, { once: true }); setTimeout(res, 600); });
+  }
+  return { video, objUrl };
+}
+
+// Aus dem Tages-Vorschlag ein 3–5-Slide-Reel-Skript machen.
+async function generateReelItems(suggestion) {
+  const themeName = THEMES[suggestion.theme]?.name || suggestion.theme;
+  const prompt = `Du bist Content Creator für S&I. Wedding (sarahiver.com) — Premium-Hochzeitswebsites aus Hamburg.
+Mache aus folgendem Posting-Vorschlag ein Instagram-Reel-Skript (9:16, 3–5 Slides, je ca. 4 Sek):
+- Hook/Thema: "${suggestion.headline || ''}"
+- Kontext: "${suggestion.body || ''}"
+- Begründung heute: "${suggestion.reason || ''}"
+- Theme: "${themeName}"
+
+Regeln:
+- Slide 1 = der Hook (scroll-stoppend, in den ersten 2 Sek).
+- Mittelteil = 1–3 Slides mit konkretem Mehrwert / Argument / Feature.
+- Letzter Slide = CTA (z.B. "Link in Bio", "sarahiver.com").
+- Texte SEHR kurz (Reels = schnell, knackig): headline max 8 Wörter, body max 20 Wörter (oder "").
+- accentWord: ein einzelnes Wort, das WORTWÖRTLICH in der jeweiligen headline vorkommt (oder "").
+
+Antworte NUR mit validem JSON-Array, kein Markdown:
+[{"eyebrow":"...","headline":"...","body":"...","accentWord":"..."}, ...]`;
+
+  try {
+    const res = await adminFetch('/api/ai-suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    const data = await res.json();
+    const text = (data.content || []).filter((i) => i.type === 'text').map((i) => i.text || '').join('\n');
+    const clean = text.replace(/```json|```/g, '').trim();
+    const m = clean.match(/\[[\s\S]*\]/);
+    if (m) {
+      const parsed = JSON.parse(m[0]);
+      if (Array.isArray(parsed) && parsed.length) return parsed.slice(0, 5);
+    }
+  } catch {
+    /* fällt unten auf den Vorschlag zurück */
+  }
+  // Fallback: aus dem Tages-Vorschlag selbst zwei Slides bauen
+  return [
+    { eyebrow: suggestion.eyebrow || '', headline: suggestion.headline || 'S&I. Wedding', body: suggestion.body || '', accentWord: suggestion.accentWord || '' },
+    { eyebrow: '', headline: 'Link in Bio', body: 'sarahiver.com', accentWord: '' },
+  ];
+}
+
+// ----------------------------------------------------------------------------
+
 export default function DailyPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -31,6 +147,13 @@ export default function DailyPage() {
   const [seedKey, setSeedKey] = useState(0);
   const [captionCopied, setCaptionCopied] = useState(false);
   const [takingOver, setTakingOver] = useState(false);
+
+  // Reel-Render-State
+  const [rendering, setRendering] = useState(false);
+  const [renderProgress, setRenderProgress] = useState(0);
+  const [renderStatus, setRenderStatus] = useState('');
+  const [renderError, setRenderError] = useState(null);
+  const [renderDone, setRenderDone] = useState(false);
 
   const themeIds = Object.keys(THEMES);
 
@@ -61,6 +184,10 @@ Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
     setAssets([]);
     setSeed(null);
     setSelected(0);
+    setRenderError(null);
+    setRenderStatus('');
+    setRenderDone(false);
+    setRenderProgress(0);
     try {
       // 1) Analyse + komplettes Posting
       const aiRes = await adminFetch('/api/ai-suggest', {
@@ -114,12 +241,12 @@ Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
     if (!suggestion) return;
     setTakingOver(true);
     let image = null;
-    const asset = assets[selected];
-    if (asset && asset.resource_type === 'image') {
+    const a = assets[selected];
+    if (a && a.resource_type === 'image') {
       try {
-        image = await urlToDataUrl(asset.download_url || asset.secure_url);
+        image = await urlToDataUrl(a.download_url || a.secure_url);
       } catch {
-        image = asset.download_url || asset.secure_url; // Fallback (ggf. CORS-Hinweis beim Export)
+        image = a.download_url || a.secure_url; // Fallback (ggf. CORS-Hinweis beim Export)
       }
     }
     setSeed({
@@ -137,8 +264,57 @@ Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
     setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100);
   };
 
+  // Reel komplett automatisch rendern (kein Editor): KI-Slides -> Pexels-Video -> MP4.
+  const renderReel = async () => {
+    if (!suggestion) return;
+    const vid = assets[selected];
+    if (!vid || vid.resource_type !== 'video') {
+      setRenderError('Kein Video ausgewählt.');
+      return;
+    }
+    setRendering(true);
+    setRenderError(null);
+    setRenderDone(false);
+    setRenderProgress(0);
+    setRenderStatus('KI erstellt Slide-Texte…');
+    let objUrl = null;
+    try {
+      // 1) Slide-Texte
+      const items = await generateReelItems(suggestion);
+      const slides = buildSlidesFromItems(items);
+
+      // 2) Fonts fürs Canvas + Video CORS-sauber laden
+      setRenderStatus('Schriften & Video werden geladen…');
+      await loadThemeFontsForCanvas(suggestion.theme).catch(() => {});
+      const loaded = await loadVideoEl(vid.secure_url);
+      objUrl = loaded.objUrl;
+
+      // 3) Reel rendern + als MP4 herunterladen
+      setRenderStatus('Reel wird gerendert…');
+      const reelData = {
+        themeId: suggestion.theme,
+        slides,
+        globalBgElement: loaded.video,
+        globalBgDarken: 0.45,
+      };
+      await exportReelMP4(reelData, {
+        onProgress: (p) => setRenderProgress(p),
+        onStatus: (s) => setRenderStatus(s),
+      });
+      setRenderDone(true);
+      setRenderStatus('✓ MP4 heruntergeladen.');
+    } catch (e) {
+      setRenderError(e.message || 'Render fehlgeschlagen.');
+      setRenderStatus('');
+    } finally {
+      if (objUrl) URL.revokeObjectURL(objUrl);
+      setRendering(false);
+    }
+  };
+
   const asset = assets[selected];
   const isReel = suggestion?.format === 'reel';
+  const canRenderReel = !!asset && asset.resource_type === 'video';
 
   return (
     <Wrap>
@@ -146,7 +322,7 @@ Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
         <GenerateButton onClick={run} disabled={loading}>
           {loading ? <><Spinner /> Analyse läuft…</> : '✨ Heutigen Vorschlag erstellen'}
         </GenerateButton>
-        <p>Trend-Analyse → Format-Entscheidung → komplettes Posting + passendes Cloudinary-Asset.</p>
+        <p>Trend-Analyse → Format-Entscheidung → komplettes Posting + passendes Live-Stock-Asset (Pexels).</p>
       </Intro>
 
       {error && <Banner $error>{error}</Banner>}
@@ -185,14 +361,14 @@ Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
                   {assets.length > 1 && (
                     <Thumbs>
                       {assets.map((a, i) => (
-                        <Thumb key={i} $active={i === selected} onClick={() => setSelected(i)}>
+                        <Thumb key={i} $active={i === selected} onClick={() => { setSelected(i); setRenderError(null); setRenderDone(false); setRenderStatus(''); }}>
                           <img src={a.thumb} alt="" />
                         </Thumb>
                       ))}
                     </Thumbs>
                   )}
                   <a href={asset.download_url || asset.secure_url} download target="_blank" rel="noreferrer">
-                    <DownloadBtn>⬇ {asset.resource_type === 'video' ? 'Video' : 'Bild'} herunterladen</DownloadBtn>
+                    <DownloadBtn>⬇ {asset.resource_type === 'video' ? 'Original-Video' : 'Bild'} herunterladen</DownloadBtn>
                   </a>
                   <Attribution>Fotos &amp; Videos von <a href="https://www.pexels.com" target="_blank" rel="noreferrer">Pexels</a>. Für den fertigen Post ist keine Angabe nötig.</Attribution>
                 </>
@@ -220,8 +396,37 @@ Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
                 {takingOver ? 'Übernehme…' : '🎨 In Generator übernehmen (Bild + Text)'}
               </PrimaryBtn>
             )}
+
             {isReel && (
-              <Note>🎬 Reel: Video herunterladen, Hook „{suggestion.headline}" als Text-Overlay in CapCut, Caption einfügen — fertig.</Note>
+              <ReelActions>
+                <PrimaryBtn onClick={renderReel} disabled={rendering || !canRenderReel}>
+                  {rendering ? 'Rendere…' : '🎬 Fertiges Reel erstellen & herunterladen'}
+                </PrimaryBtn>
+
+                {(rendering || renderStatus) && (
+                  <RenderStatusWrap>
+                    <RenderBar><div style={{ width: `${Math.round(renderProgress * 100)}%` }} /></RenderBar>
+                    <RenderStatusText $done={renderDone}>{renderStatus}</RenderStatusText>
+                  </RenderStatusWrap>
+                )}
+
+                {renderError && (
+                  <Banner $error style={{ marginTop: '0.5rem' }}>
+                    {renderError} Tipp: oben einen anderen Clip wählen und erneut rendern.
+                  </Banner>
+                )}
+
+                {renderDone && (
+                  <SuccessNote>
+                    ✓ MP4 liegt in deinem Download-Ordner. Caption oben kopieren → Video auf Google&nbsp;Drive →
+                    am Handy in der IG-App posten und Trending-Audio drüberlegen.
+                  </SuccessNote>
+                )}
+
+                <Note style={{ marginTop: '0.4rem' }}>
+                  Wird <strong>stumm</strong> gerendert (Text über Video, 1080×1920). Musik fügst du beim Posten in der App hinzu.
+                </Note>
+              </ReelActions>
             )}
           </ActionRow>
         </Card>
@@ -309,6 +514,21 @@ const PrimaryBtn = styled.button`
   &:hover { opacity: 0.92; } &:disabled { opacity: 0.6; pointer-events: none; }
 `;
 const Note = styled.div`font-family: 'Inter', sans-serif; font-size: 0.82rem; color: ${colors.black}; line-height: 1.5;`;
+
+const ReelActions = styled.div`display: flex; flex-direction: column; gap: 0.5rem; width: 100%;`;
+const RenderStatusWrap = styled.div`display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.4rem;`;
+const RenderBar = styled.div`
+  height: 4px; background: ${colors.lightGray}; overflow: hidden;
+  div { height: 100%; background: ${colors.red}; transition: width 0.1s linear; }
+`;
+const RenderStatusText = styled.div`
+  font-family: 'Inter', sans-serif; font-size: 0.75rem; line-height: 1.4;
+  color: ${p => p.$done ? '#0a7d33' : colors.gray};
+`;
+const SuccessNote = styled.div`
+  font-family: 'Inter', sans-serif; font-size: 0.8rem; line-height: 1.5; color: ${colors.black};
+  background: #EEF8F0; border: 1px solid #BFE6C9; padding: 0.7rem 0.9rem; margin-top: 0.4rem;
+`;
 
 const GeneratorWrap = styled.div`border-top: 2px solid ${colors.lightGray}; padding-top: 1.5rem;`;
 const Empty = styled.div`font-family: 'Inter', sans-serif; font-size: 0.8rem; color: ${colors.gray}; padding: 1rem; border: 1px dashed ${colors.lightGray};`;

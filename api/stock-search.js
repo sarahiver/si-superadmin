@@ -19,10 +19,13 @@ function buildQuery(keywords) {
 
 function pickVideoFile(files) {
   if (!files || !files.length) return null;
-  // Bevorzuge Hochformat, dann höchste Auflösung.
-  const portrait = files.filter((f) => f.height >= f.width);
+  // Bevorzuge Hochformat; Zielauflösung ~1080x1920 (Canvas-Größe).
+  // Keine 4K-Dateien — die machen den Client-Render unnötig langsam/groß.
+  const portrait = files.filter((f) => (f.height || 0) >= (f.width || 0));
   const pool = portrait.length ? portrait : files;
-  return pool.sort((a, b) => (b.height || 0) - (a.height || 0))[0];
+  return [...pool].sort(
+    (a, b) => Math.abs((a.height || 0) - 1920) - Math.abs((b.height || 0) - 1920)
+  )[0];
 }
 
 export default async function handler(req, res) {
