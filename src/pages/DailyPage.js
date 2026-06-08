@@ -14,6 +14,24 @@ import InstagramPage from './InstagramPage';
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 const LAYOUT_IDS = ['statement', 'split', 'list', 'dark', 'fullbleed'];
 
+// Gemeinsame Stimme/Textregeln für ALLE generierten Texte (Post + Reel-Slides).
+const COPY_RULES = `STIMME & TEXTREGELN (strikt einhalten):
+- EMOTIONAL, nicht faktenbasiert. Es geht um das Gefühl: Vorfreude, Liebe, Verbundenheit, der eine besondere Tag, Stolz auf den eigenen Stil. NICHT um Features, Statistiken, Prozente oder Jahreszahlen.
+- VERBOTEN sind Clickbait- und Listicle-Muster: "dieser eine Trick", "X Dinge die…", "Premium Paare wissen…", "das machen alle falsch", "bevor es zu spät ist". Das ist billig und unter dem Niveau der Marke.
+- VERBOTEN sind Zahlen/Jahreszahlen in eyebrow und headline (kein "2026", keine Prozente, keine "3 Tipps"). Nur erlaubt, wenn emotional zwingend.
+- VERBOTEN ist das Nennen interner Design-Theme-Namen im sichtbaren Text (Classic, Editorial, Botanical, Contemporary, Luxe, Neon, Video). Das Theme bestimmt nur das Aussehen, niemals die Worte. Statt "Editorial statt kitschig" lieber das Gefühl beschreiben.
+- Durchgehend DEUTSCH, auch der eyebrow. Keine englischen Overlines.
+- Paare direkt ansprechen ("ihr", "eure"), warm und auf Augenhöhe.
+- headline = ein Gefühl oder ein Bild, kein Verkaufsversprechen.
+
+SO NICHT (schlecht):
+- eyebrow "WEDDING WEBSITES 2026" · headline "Premium Paare wissen diesen Website-Trick" · body "Editorial statt kitschig."
+- headline "3 Dinge die eure Gäste lieben werden"
+
+SO JA (nur das Register, NICHT wörtlich übernehmen):
+- eyebrow "Euer Tag" · headline "Alles, was ihr fühlt — an einem Ort" · body "Eure Geschichte, eure Worte. Ein Zuhause im Netz für euren Tag."
+- eyebrow "Noch vor dem Ja" · headline "Die schönste Vorfreude beginnt hier"`;
+
 async function urlToDataUrl(url) {
   const r = await fetch(url, { mode: 'cors' });
   const blob = await r.blob();
@@ -93,20 +111,20 @@ async function loadVideoEl(url) {
 
 // Aus dem Tages-Vorschlag ein 3–5-Slide-Reel-Skript machen.
 async function generateReelItems(suggestion) {
-  const themeName = THEMES[suggestion.theme]?.name || suggestion.theme;
   const prompt = `Du bist Content Creator für S&I. Wedding (sarahiver.com) — Premium-Hochzeitswebsites aus Hamburg.
-Mache aus folgendem Posting-Vorschlag ein Instagram-Reel-Skript (9:16, 3–5 Slides, je ca. 4 Sek):
-- Hook/Thema: "${suggestion.headline || ''}"
+Mache aus folgendem Vorschlag ein Instagram-Reel-Skript (9:16, 3–5 Slides, je ca. 4 Sek):
+- Thema/Gefühl: "${suggestion.headline || ''}"
 - Kontext: "${suggestion.body || ''}"
-- Begründung heute: "${suggestion.reason || ''}"
-- Theme: "${themeName}"
+- Emotionaler Winkel: "${suggestion.trigger || suggestion.reason || ''}"
 
-Regeln:
-- Slide 1 = der Hook (scroll-stoppend, in den ersten 2 Sek).
-- Mittelteil = 1–3 Slides mit konkretem Mehrwert / Argument / Feature.
-- Letzter Slide = CTA (z.B. "Link in Bio", "sarahiver.com").
-- Texte SEHR kurz (Reels = schnell, knackig): headline max 8 Wörter, body max 20 Wörter (oder "").
-- accentWord: ein einzelnes Wort, das WORTWÖRTLICH in der jeweiligen headline vorkommt (oder "").
+Aufbau:
+- Slide 1 = emotionaler Einstieg, sofort spürbar (kein Clickbait, keine Frage-Falle).
+- Mittelteil = 1–3 Slides, die das Gefühl vertiefen oder eine kleine Idee/Geschichte erzählen — KEIN Feature-Listing, KEINE Aufzählung mit Zahlen.
+- Letzter Slide = ruhiger CTA (z.B. "Link in Bio", "sarahiver.com").
+- Texte SEHR kurz: headline max 8 Wörter, body max 18 Wörter (oder "").
+- accentWord: ein einzelnes EMOTIONALES Wort, das WORTWÖRTLICH in der jeweiligen headline vorkommt (oder "").
+
+${COPY_RULES}
 
 Antworte NUR mit validem JSON-Array, kein Markdown:
 [{"eyebrow":"...","headline":"...","body":"...","accentWord":"..."}, ...]`;
@@ -161,21 +179,23 @@ export default function DailyPage() {
     ? `${suggestion.caption || ''}${suggestion.hashtags ? '\n\n' + suggestion.hashtags : ''}`
     : '';
 
-  const buildPrompt = () => `Du bist Social-Media-Stratege für S&I. Wedding (sarahiver.com) — Premium-Hochzeitswebsites aus Hamburg, DACH-Raum. Tonalität: warm, selbstbewusst, editorial, nie kitschig.
+  const buildPrompt = () => `Du bist Social-Media-Stratege für S&I. Wedding (sarahiver.com) — Premium-Hochzeitswebsites aus Hamburg, DACH-Raum. Tonalität: warm, selbstbewusst, leicht editorial, nie kitschig.
 
 Aufgabe: Erstelle EINEN kompletten Posting-Vorschlag für HEUTE auf Instagram.
 
-1) Analysiere via Web-Suche, was im Wedding-Website-Umfeld gerade läuft (Trends, Formate, wiederkehrende Diskussionen). Deutschsprachiger Content ist Whitespace — das ist der Vorteil.
-2) Entscheide selbst das Format: "post" (Foto/Carousel) oder "reel" (Kurzvideo) — je nachdem, was heute am stärksten performt.
-3) Wähle den stärksten Hook-Trigger (Überraschung, Angst/Scham, Ego, Dringlichkeit, Verlangen). Hook stoppt den Scroll in den ersten 2 Sekunden, Neugierlücke öffnen.
-4) Wähle ein Theme aus: ${themeIds.join(', ')}.
-5) Wähle ein Layout aus: ${LAYOUT_IDS.join(', ')}. Bei "post" bevorzuge "fullbleed" oder "split", damit das Bild zur Geltung kommt.
-6) Liefere "visualKeywords": 4–6 englische Substantive zum Finden des passenden Bildes/Videos (z.B. "bride", "table setting", "wedding rings", "couple", "stationery").
+1) Analysiere via Web-Suche, welche Themen, Gefühle und Fragen rund um Hochzeit & Hochzeitswebsites Paare gerade bewegen. Nutze das NUR, um ein relevantes, emotional aufgeladenes Thema zu finden — KEIN Trend-Report, KEINE Statistik. Deutschsprachiger Content ist Whitespace.
+2) Entscheide selbst das Format: "post" (Foto/Carousel) oder "reel" (Kurzvideo).
+3) Wähle EINEN emotionalen Winkel: Vorfreude, Verbundenheit, Romantik/Sehnsucht, Stolz auf den eigenen Stil, oder das Besondere des einen Tages. KEINE Angst-, Druck- oder Ego-Hooks.
+4) Wähle ein Theme (nur fürs Aussehen, NICHT im Text nennen): ${themeIds.join(', ')}.
+5) Wähle ein Layout: ${LAYOUT_IDS.join(', ')}. Bei "post" bevorzuge "fullbleed" oder "split".
+6) Liefere "visualKeywords": 4–6 englische Substantive zum Finden des Bildes/Videos (z.B. "bride", "table setting", "wedding rings", "couple", "stationery").
 
-accentWord MUSS wortwörtlich in headline vorkommen.
+${COPY_RULES}
+
+accentWord MUSS wortwörtlich in headline vorkommen und sollte ein emotionales Wort sein.
 
 Antworte NUR mit EINEM validen JSON-Objekt, kein Markdown:
-{"format":"post|reel","platform":"instagram","theme":"<id>","layout":"<id>","trigger":"<trigger>","eyebrow":"...","headline":"scroll-stoppender Hook","accentWord":"ein Wort aus headline","body":"1–2 Sätze","caption":"3–5 Sätze, warm mit Sog, endet mit Kommentar-Bait + dezentem CTA","hashtags":"#tag1 #tag2 #tag3 #tag4 #tag5","visualKeywords":["...","..."],"reason":"1 Satz: warum dieser Vorschlag heute"}`;
+{"format":"post|reel","platform":"instagram","theme":"<id>","layout":"<id>","trigger":"<emotionaler Winkel>","eyebrow":"deutsch, ohne Zahlen","headline":"ein Gefühl oder Bild, kein Verkaufsversprechen","accentWord":"emotionales Wort aus headline","body":"1–2 warme Sätze, kein Feature-Listing","caption":"3–5 Sätze, warm mit Sog, endet mit einer echten Frage + dezentem CTA","hashtags":"#tag1 #tag2 #tag3 #tag4 #tag5","visualKeywords":["...","..."],"reason":"1 Satz: warum dieser emotionale Winkel heute"}`;
 
   const run = async () => {
     setLoading(true);
