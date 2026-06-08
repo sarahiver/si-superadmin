@@ -429,26 +429,26 @@ const Hint = styled.p`
 // ============================================
 // MAIN COMPONENT
 // ============================================
-export default function InstagramPage({ platform = 'instagram' }) {
+export default function InstagramPage({ platform = 'instagram', seed = null }) {
   const isPinterest = platform === 'pinterest';
   const platformName = isPinterest ? 'Pinterest' : 'Instagram';
   const ASPECT = isPinterest
     ? { W: 360, H: 540, label: '1080×1620', ratio: '2:3' }
     : { W: 360, H: 450, label: '1080×1350', ratio: '4:5' };
-  const [theme, setTheme] = useState('classic');
-  const [layout, setLayout] = useState('statement');
-  const [eyebrow, setEyebrow] = useState('Premium Hochzeitswebsites');
-  const [headline, setHeadline] = useState('Eure Hochzeit verdient mehr als ein Template.');
-  const [accentWord, setAccentWord] = useState('Template.');
-  const [bodyText, setBodyText] = useState('Handgemacht in Hamburg. Mit Liebe zum Detail.');
-  const [image, setImage] = useState(null);
+  const [theme, setTheme] = useState(seed?.theme || 'classic');
+  const [layout, setLayout] = useState(seed?.layout || 'statement');
+  const [eyebrow, setEyebrow] = useState(seed?.eyebrow ?? 'Premium Hochzeitswebsites');
+  const [headline, setHeadline] = useState(seed?.headline ?? 'Eure Hochzeit verdient mehr als ein Template.');
+  const [accentWord, setAccentWord] = useState(seed?.accentWord ?? 'Template.');
+  const [bodyText, setBodyText] = useState(seed?.body ?? 'Handgemacht in Hamburg. Mit Liebe zum Detail.');
+  const [image, setImage] = useState(seed?.image || null);
   const [pageNum, setPageNum] = useState('');
   const [tab, setTab] = useState('edit');
   const [aiCategory, setAiCategory] = useState('vorstellung');
   const [customPrompt, setCustomPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
-  const [caption, setCaption] = useState('');
+  const [caption, setCaption] = useState(seed?.caption || '');
   const [captionCopied, setCaptionCopied] = useState(false);
   const [igReady, setIgReady] = useState(false);
   const [hookTrigger, setHookTrigger] = useState('auto');

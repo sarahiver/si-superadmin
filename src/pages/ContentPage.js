@@ -6,20 +6,25 @@ import Layout from '../components/Layout';
 import InstagramPage from './InstagramPage';
 import ReelsPage from './ReelsPage';
 import PinterestPage from './PinterestPage';
+import DailyPage from './DailyPage';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
 export default function ContentPage() {
-  const [activeTab, setActiveTab] = useState('instagram');
+  const [activeTab, setActiveTab] = useState('daily');
 
   return (
     <Layout>
       <PageHeader>
         <h1>Content</h1>
-        <p>Instagram Posts, Reels und Pinterest Pins erstellen — Theme wählen, generieren, herunterladen</p>
+        <p>Heute-Workflow, Instagram, Pinterest & Reels — analysieren, generieren, herunterladen</p>
       </PageHeader>
 
       <TabBar>
+        <Tab $active={activeTab === 'daily'} onClick={() => setActiveTab('daily')}>
+          <TabIcon>✨</TabIcon>
+          Heute
+        </Tab>
         <Tab $active={activeTab === 'instagram'} onClick={() => setActiveTab('instagram')}>
           <TabIcon>📸</TabIcon>
           Instagram Posts
@@ -34,6 +39,7 @@ export default function ContentPage() {
         </Tab>
       </TabBar>
 
+      {activeTab === 'daily' && <DailyPage />}
       {activeTab === 'instagram' && <InstagramPage />}
       {activeTab === 'pinterest' && <PinterestPage />}
       {activeTab === 'reels' && <ReelsPage />}
