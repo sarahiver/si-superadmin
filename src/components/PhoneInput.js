@@ -144,6 +144,7 @@ const Dropdown = styled.div`
   left: 0;
   z-index: 1000;
   width: 280px;
+  max-width: calc(100vw - 2rem);
   max-height: 260px;
   overflow-y: auto;
   background: ${p => p.$variant === 'dark' ? '#1a1a1a' : '#fff'};

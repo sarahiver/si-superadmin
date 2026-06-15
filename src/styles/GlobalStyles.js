@@ -18,6 +18,39 @@ const GlobalStyles = createGlobalStyle`
     font-size: 14px;
     line-height: 1.5;
   }
+
+  /* Kein horizontales Auslaufen auf dem Handy (Backstop für alle Seiten) */
+  html, body {
+    overflow-x: hidden;
+  }
+  img, video {
+    max-width: 100%;
+    height: auto;
+  }
+  svg {
+    max-width: 100%;
+  }
+
+  /* iOS-Zoom verhindern: Felder < 16px lassen Safari beim Fokus reinzoomen.
+     Praktisch alle Inputs hier liegen bei 0.85rem–14px.
+     !important schlägt die element-spezifischen styled-components-Klassen. */
+  @media (max-width: 768px) {
+    input:not([type='checkbox']):not([type='radio']):not([type='range']),
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
+
+  /* "Bewegung reduzieren" respektieren (OS-Einstellung) */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
   
   a {
     color: inherit;
