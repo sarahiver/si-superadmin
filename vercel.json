@@ -5,7 +5,7 @@
       "schedule": "0 7 * * *"
     },
     {
-      "path": "/api/pinterest-cron",
+      "path": "/api/pinterest",
       "schedule": "0 9 * * *"
     }
   ]

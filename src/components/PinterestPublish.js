@@ -137,7 +137,7 @@ export default function PinterestPublish({ getImageBase64, title, description, o
       })
       .catch(() => setStatus({ msg: 'Boards konnten nicht geladen werden (Token gesetzt?)', err: true }));
 
-    adminFetch('/api/blog-list?action=list')
+    adminFetch('/api/pinterest?action=blog_list')
       .then(r => r.json())
       .then(d => setSlugs(d.slugs || []))
       .catch(() => {});
@@ -147,7 +147,7 @@ export default function PinterestPublish({ getImageBase64, title, description, o
     if (!selectedSlug) return;
     setSeedBusy(true);
     try {
-      const meta = await adminFetch(`/api/blog-list?action=meta&slug=${selectedSlug}`).then(r => r.json());
+      const meta = await adminFetch(`/api/pinterest?action=blog_meta&slug=${selectedSlug}`).then(r => r.json());
       setLink(meta.url);
       onSeedArticle?.(meta); // setzt KI-Prompt im Generator
     } catch {
