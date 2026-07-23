@@ -5,6 +5,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import styled, { css } from 'styled-components';
 import { THEMES } from '../lib/reelThemes';
 import { adminFetch } from '../lib/apiClient';
+import PinterestPublish from '../components/PinterestPublish';
 
 // ============================================
 // DESIGN TOKENS
@@ -592,9 +593,9 @@ ${schema}`;
   // ==========================================
   // DOWNLOAD
   // ==========================================
-  const downloadPNG = useCallback(async () => {
+  const renderToDataUrl = useCallback(async () => {
     const el = postRef.current;
-    if (!el) return;
+    if (!el) return null;
 
     // Load html2canvas if needed
     if (!window.html2canvas) {
@@ -663,15 +664,41 @@ ${schema}`;
 
       document.body.removeChild(clone);
 
-      const a = document.createElement('a');
-      a.download = `si-${platform}-${theme}-${layout}.png`;
-      a.href = canvas.toDataURL('image/png', 1.0);
-      a.click();
+      return canvas.toDataURL('image/png', 1.0);
     } catch (err) {
-      console.error('Download error:', err);
+      console.error('Render error:', err);
       alert('Nutze Screenshot als Alternative: Mac ⌘+Shift+4 / Win Win+Shift+S');
+      return null;
     }
-  }, [theme, layout, ASPECT.W, ASPECT.H, platform]);
+  }, [ASPECT.W, ASPECT.H]);
+
+  const downloadPNG = useCallback(async () => {
+    const dataUrl = await renderToDataUrl();
+    if (!dataUrl) return;
+    const a = document.createElement('a');
+    a.download = `si-${platform}-${theme}-${layout}.png`;
+    a.href = dataUrl;
+    a.click();
+  }, [renderToDataUrl, platform, theme, layout]);
+
+  // Für Pinterest-API: reines Base64 ohne DataURL-Prefix
+  const getImageBase64 = useCallback(async () => {
+    const dataUrl = await renderToDataUrl();
+    if (!dataUrl) throw new Error('Bild konnte nicht gerendert werden');
+    return dataUrl.split(',')[1];
+  }, [renderToDataUrl]);
+
+  // Artikel-Seed aus dem Publish-Panel: füttert die KI mit Titel + Beschreibung
+  const seedFromArticle = useCallback((meta) => {
+    setAiCategory('custom');
+    setCustomPrompt(
+      `Erstelle Pins, die auf diesen Blog-Artikel neugierig machen (der Pin verlinkt auf den Artikel):\n` +
+      `Titel: ${meta.title}\n` +
+      `Beschreibung: ${meta.description}\n` +
+      `Der Pin soll das Kernversprechen des Artikels tragen — suchbar, evergreen, zum Speichern.`
+    );
+    setTab('ai');
+  }, []);
 
   // ==========================================
   // RENDER HEADLINE WITH ACCENT
@@ -900,6 +927,15 @@ ${schema}`;
               </>
             )}
           </Panel>
+
+          {isPinterest && (
+            <PinterestPublish
+              getImageBase64={getImageBase64}
+              title={headline}
+              description={caption}
+              onSeedArticle={seedFromArticle}
+            />
+          )}
 
           {/* Download + Instagram */}
           <ActionBar>
