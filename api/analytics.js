@@ -32,6 +32,14 @@ export default async function handler(req, res) {
     }
     const period = String(periodNum);
 
+    // ── Hostname-Trennung (seit Cross-Domain-Tracking mit siwedding.de, Jul 2026) ──
+    // Marketing-KPIs nur von sarahiver.com; Demo-Seiten (siwedding.de) separat.
+    const MARKETING_HOST = { filter: { fieldName: 'hostName', inListFilter: { values: ['sarahiver.com', 'www.sarahiver.com'] } } };
+    const DEMO_HOST = { filter: { fieldName: 'hostName', inListFilter: { values: ['siwedding.de', 'www.siwedding.de'] } } };
+    const withHost = (host, existing) => existing
+      ? ({ andGroup: { expressions: [host, existing] } })
+      : host;
+
     // "1" = Heute (today only), "2" = Gestern (yesterday only), else = last N days
     let startDate, endDate, prevStartDate, prevEndDate;
     if (period === '1') {
@@ -57,13 +65,14 @@ export default async function handler(req, res) {
       landingPages,
       allEvents, formFunnel, blogArticles,
       dailyVisitors, hourlyVisitors,
-      themeDetail, packageDetail, demoDetail,
-      // A/B Test Queries
-      abVariantOverview, abVariantConversions, abScrollDepth,
+      demoSources, packageDetail, demoDetail,
+      // Demo-Site Queries (siwedding.de)
+      demoPages, demoEvents,
     ] = await Promise.all([
       // 1) Overview (current)
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
+        dimensionFilter: MARKETING_HOST,
         metrics: [
           { name: 'activeUsers' }, { name: 'sessions' }, { name: 'screenPageViews' },
           { name: 'bounceRate' }, { name: 'averageSessionDuration' },
@@ -74,6 +83,7 @@ export default async function handler(req, res) {
       // 2) Overview (previous)
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate: prevStartDate, endDate: prevEndDate }],
+        dimensionFilter: MARKETING_HOST,
         metrics: [
           { name: 'activeUsers' }, { name: 'sessions' }, { name: 'screenPageViews' },
           { name: 'bounceRate' }, { name: 'averageSessionDuration' },
@@ -84,6 +94,7 @@ export default async function handler(req, res) {
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'pagePath' }],
+        dimensionFilter: MARKETING_HOST,
         metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }, { name: 'bounceRate' }, { name: 'averageSessionDuration' }],
         orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
         limit: 25,
@@ -92,6 +103,7 @@ export default async function handler(req, res) {
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
+        dimensionFilter: MARKETING_HOST,
         metrics: [{ name: 'sessions' }, { name: 'activeUsers' }, { name: 'bounceRate' }, { name: 'conversions' }],
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
         limit: 20,
@@ -100,6 +112,7 @@ export default async function handler(req, res) {
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'country' }],
+        dimensionFilter: MARKETING_HOST,
         metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
         orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
         limit: 15,
@@ -108,6 +121,7 @@ export default async function handler(req, res) {
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'city' }],
+        dimensionFilter: MARKETING_HOST,
         metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
         orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
         limit: 15,
@@ -116,12 +130,14 @@ export default async function handler(req, res) {
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'deviceCategory' }],
+        dimensionFilter: MARKETING_HOST,
         metrics: [{ name: 'activeUsers' }, { name: 'sessions' }, { name: 'bounceRate' }, { name: 'averageSessionDuration' }],
       }),
       // 8) Browsers
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'browser' }],
+        dimensionFilter: MARKETING_HOST,
         metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
         orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
         limit: 10,
@@ -130,6 +146,7 @@ export default async function handler(req, res) {
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'operatingSystem' }],
+        dimensionFilter: MARKETING_HOST,
         metrics: [{ name: 'activeUsers' }],
         orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
         limit: 8,
@@ -138,6 +155,7 @@ export default async function handler(req, res) {
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'landingPagePlusQueryString' }],
+        dimensionFilter: MARKETING_HOST,
         metrics: [{ name: 'sessions' }, { name: 'bounceRate' }, { name: 'averageSessionDuration' }],
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
         limit: 15,
@@ -146,6 +164,7 @@ export default async function handler(req, res) {
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'eventName' }],
+        dimensionFilter: MARKETING_HOST,
         metrics: [{ name: 'eventCount' }, { name: 'totalUsers' }],
         orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
         limit: 30,
@@ -155,18 +174,18 @@ export default async function handler(req, res) {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'eventName' }],
         metrics: [{ name: 'eventCount' }],
-        dimensionFilter: { orGroup: { expressions: [
+        dimensionFilter: withHost(MARKETING_HOST, { orGroup: { expressions: [
           { filter: { fieldName: 'eventName', stringFilter: { value: 'form_start' } } },
           { filter: { fieldName: 'eventName', stringFilter: { value: 'generate_lead' } } },
           { filter: { fieldName: 'eventName', stringFilter: { value: 'form_error' } } },
-        ]}},
+        ]}}),
       }),
       // 13) Blog articles
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'pagePath' }],
         metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }, { name: 'averageSessionDuration' }],
-        dimensionFilter: { filter: { fieldName: 'pagePath', stringFilter: { matchType: 'BEGINS_WITH', value: '/blog/' } } },
+        dimensionFilter: withHost(MARKETING_HOST, { filter: { fieldName: 'pagePath', stringFilter: { matchType: 'BEGINS_WITH', value: '/blog/' } } }),
         orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
         limit: 20,
       }),
@@ -174,6 +193,7 @@ export default async function handler(req, res) {
       runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'date' }],
+        dimensionFilter: MARKETING_HOST,
         metrics: [{ name: 'activeUsers' }, { name: 'sessions' }, { name: 'screenPageViews' }, { name: 'newUsers' }],
         orderBys: [{ dimension: { dimensionName: 'date' } }],
       }),
@@ -181,15 +201,17 @@ export default async function handler(req, res) {
       parseInt(period) <= 2 ? runReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'hour' }],
+        dimensionFilter: MARKETING_HOST,
         metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
         orderBys: [{ dimension: { dimensionName: 'hour' } }],
       }) : Promise.resolve(null),
       // 16-18) Custom dim queries (safe)
+      // Demo-Klicks nach Einstiegspunkt (source: hero / sticky_bar / filmstrip / filmstrip_mobile)
       safeReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'customEvent:to_theme' }],
+        dimensions: [{ name: 'customEvent:source' }],
         metrics: [{ name: 'eventCount' }],
-        dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'theme_switch' } } },
+        dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'demo_click' } } },
         orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
       }),
       safeReport(accessToken, GA4_PROPERTY_ID, {
@@ -206,28 +228,23 @@ export default async function handler(req, res) {
         dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'demo_click' } } },
         orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
       }),
-      // A/B Test: Besucher pro Variante
+      // Demo-Seiten (siwedding.de): meistbesuchte Demos
       safeReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'customUser:ab_variant' }],
-        metrics: [{ name: 'activeUsers' }, { name: 'sessions' }, { name: 'averageSessionDuration' }, { name: 'bounceRate' }],
+        dimensions: [{ name: 'pagePath' }],
+        metrics: [{ name: 'activeUsers' }, { name: 'screenPageViews' }, { name: 'averageSessionDuration' }],
+        dimensionFilter: DEMO_HOST,
         orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
+        limit: 15,
       }),
-      // A/B Test: Conversions pro Variante
+      // Demo-Seiten: Events (page_view, demo_overlay_cta, ...)
       safeReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'customUser:ab_variant' }],
-        metrics: [{ name: 'eventCount' }],
-        dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'ab_conversion' } } },
+        dimensions: [{ name: 'eventName' }],
+        metrics: [{ name: 'eventCount' }, { name: 'totalUsers' }],
+        dimensionFilter: DEMO_HOST,
         orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
-      }),
-      // A/B Test: Scroll-Tiefe pro Variante
-      safeReport(accessToken, GA4_PROPERTY_ID, {
-        dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'customUser:ab_variant' }, { name: 'customEvent:percent_scrolled' }],
-        metrics: [{ name: 'eventCount' }],
-        dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'scroll_depth_milestone' } } },
-        orderBys: [{ dimension: { dimensionName: 'customEvent:percent_scrolled' } }],
+        limit: 20,
       }),
     ]);
 
@@ -248,27 +265,22 @@ export default async function handler(req, res) {
       landingPages: parseRows(landingPages, ['page'], ['sessions', 'bounceRate', 'avgDuration']),
       allEvents: eventsData,
       eventSummary: {
-        themeSwitches: ec('theme_switch'), demoClicks: ec('demo_click'),
+        demoClicks: ec('demo_click'),
         selectItem: ec('select_item'), formStart: ec('form_start'),
         generateLead: ec('generate_lead'), formError: ec('form_error'),
         ctaClick: ec('cta_click'), scrollEvents: ec('scroll'),
-        // A/B Events
-        abModalShown: ec('theme_modal_shown'), abModalSelected: ec('theme_modal_selected'),
-        abConversions: ec('ab_conversion'), abVariantAssigned: ec('ab_variant_assigned'),
       },
       formFunnel: parseRows(formFunnel, ['event'], ['count']),
       blogArticles: parseRows(blogArticles, ['pagePath'], ['views', 'users', 'avgDuration']),
       dailyVisitors: parseRows(dailyVisitors, ['date'], ['users', 'sessions', 'pageViews', 'newUsers']),
       hourlyVisitors: hourlyVisitors ? parseRows(hourlyVisitors, ['hour'], ['users', 'sessions']) : null,
-      themeDetail: themeDetail ? parseRows(themeDetail, ['theme'], ['clicks']) : null,
+      demoSources: demoSources ? parseRows(demoSources, ['source'], ['clicks']) : null,
       packageDetail: packageDetail ? parseRows(packageDetail, ['package'], ['clicks']) : null,
       demoDetail: demoDetail ? parseRows(demoDetail, ['url'], ['clicks']) : null,
-      hasCustomDims: themeDetail !== null,
-      // A/B Test Data
-      abVariantOverview: abVariantOverview ? parseRows(abVariantOverview, ['variant'], ['users', 'sessions', 'avgDuration', 'bounceRate']) : null,
-      abVariantConversions: abVariantConversions ? parseRows(abVariantConversions, ['variant'], ['conversions']) : null,
-      abScrollDepth: abScrollDepth ? parseRows(abScrollDepth, ['variant', 'percent'], ['count']) : null,
-      hasABData: abVariantOverview !== null,
+      hasCustomDims: demoDetail !== null,
+      // Demo-Site Data (siwedding.de)
+      demoPages: demoPages ? parseRows(demoPages, ['page'], ['users', 'views', 'avgDuration']) : null,
+      demoEvents: demoEvents ? parseRows(demoEvents, ['event'], ['count', 'users']) : null,
     });
   } catch (error) {
     console.error('Analytics API error:', error);
