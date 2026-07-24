@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import styled, { keyframes } from 'styled-components';
 import Layout from '../components/Layout';
 import { adminFetch } from '../lib/apiClient';
+import { generateAnalyticsReport } from '../lib/analyticsReportPDF';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5', blue: '#3B82F6', purple: '#8B5CF6' };
 
@@ -80,6 +81,13 @@ export default function AnalyticsPage() {
             ))}
           </PeriodSelector>
           <RefreshBtn onClick={fetchAnalytics} disabled={loading}>↻</RefreshBtn>
+          <ReportBtn
+            onClick={() => generateAnalyticsReport(data, PERIODS.find(p => p.value === period)?.label || `${period} Tage`)}
+            disabled={!data}
+            title="Marketing-Report als PDF herunterladen"
+          >
+            📄 Report
+          </ReportBtn>
         </HeaderRight>
       </Header>
 
@@ -395,6 +403,60 @@ export default function AnalyticsPage() {
             )}
           </Collapsible>
 
+          {/* ============ GOOGLE SEARCH CONSOLE ============ */}
+          <Collapsible title="Google Suche (Search Console)" icon="🔍" defaultOpen={true}
+            badge={data.gsc ? `${data.gsc.totals.clicks} Klicks` : null}>
+            {data.gsc ? (
+              <>
+                <KPIGrid style={{ marginBottom: '1rem' }}>
+                  <KPICard><KPILabel>Klicks</KPILabel><KPIValue>{data.gsc.totals.clicks}</KPIValue></KPICard>
+                  <KPICard><KPILabel>Impressionen</KPILabel><KPIValue>{data.gsc.totals.impressions}</KPIValue></KPICard>
+                  <KPICard><KPILabel>CTR</KPILabel><KPIValue>{data.gsc.totals.ctr}%</KPIValue></KPICard>
+                  <KPICard><KPILabel>Ø Position</KPILabel><KPIValue>{data.gsc.totals.position}</KPIValue></KPICard>
+                </KPIGrid>
+                <TwoCol>
+                  <Panel>
+                    <PanelTitle>Top Suchanfragen</PanelTitle>
+                    <BarList>{data.gsc.queries.map((q, i) => {
+                      const mx = Math.max(...data.gsc.queries.map(x => x.clicks), 1);
+                      return (
+                        <BarItem key={i}>
+                          <BarLbl title={`Pos. ${q.position} · CTR ${q.ctr}% · ${q.impressions} Impr.`}>{q.query}</BarLbl>
+                          <BarTrack><BarFill $w={(q.clicks / mx) * 100} $c={colors.blue} /></BarTrack>
+                          <BarVal>{q.clicks}</BarVal>
+                        </BarItem>
+                      );
+                    })}</BarList>
+                  </Panel>
+                  <Panel>
+                    <PanelTitle>Top Seiten in der Suche</PanelTitle>
+                    <BarList>{data.gsc.pages.map((pg, i) => {
+                      const mx = Math.max(...data.gsc.pages.map(x => x.clicks), 1);
+                      const path = pg.page.replace(/^https?:\/\/[^/]+/, '') || '/';
+                      return (
+                        <BarItem key={i}>
+                          <BarLbl title={`Pos. ${pg.position} · CTR ${pg.ctr}% · ${pg.impressions} Impr.`}>{path}</BarLbl>
+                          <BarTrack><BarFill $w={(pg.clicks / mx) * 100} $c={colors.purple} /></BarTrack>
+                          <BarVal>{pg.clicks}</BarVal>
+                        </BarItem>
+                      );
+                    })}</BarList>
+                  </Panel>
+                </TwoCol>
+              </>
+            ) : (
+              <NoData>
+                GSC nicht verbunden{data.gscError ? ` — ${data.gscError}` : ''}.<br />
+                <small>
+                  Setup: In der Search Console (sarahiver.com-Property) unter Einstellungen → Nutzer und Berechtigungen
+                  die Service-Account-E-Mail (aus GOOGLE_SERVICE_ACCOUNT_JSON, Feld client_email) als Nutzer mit
+                  Berechtigung "Uneingeschränkt" hinzufügen. Optional GSC_SITE_URL in Vercel setzen
+                  (Standard: sc-domain:sarahiver.com — bei URL-Property stattdessen https://www.sarahiver.com/).
+                </small>
+              </NoData>
+            )}
+          </Collapsible>
+
           {/* ============ ALL EVENTS ============ */}
           <Collapsible title="Alle Events" icon="📊" badge={`${(data.allEvents || []).length} Events`}>
             <Table>
@@ -495,6 +557,19 @@ const Header = styled.div`display:flex;justify-content:space-between;align-items
 const HeaderRight = styled.div`display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;`;
 const PeriodSelector = styled.div`display:flex;border:2px solid ${colors.black};flex-wrap:wrap;`;
 const PeriodBtn = styled.button`font-family:'Inter',sans-serif;font-size:.65rem;font-weight:${p=>p.$active?600:400};padding:.45rem .8rem;cursor:pointer;border:none;background:${p=>p.$active?colors.black:'transparent'};color:${p=>p.$active?colors.white:colors.black};transition:all .15s;&:hover{background:${p=>p.$active?colors.black:colors.lightGray}}`;
+const ReportBtn = styled.button`
+  border: 1px solid ${colors.lightGray};
+  background: ${colors.black};
+  color: #fff;
+  border-radius: 6px;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  opacity: ${p => (p.disabled ? 0.5 : 1)};
+`;
+
 const RefreshBtn = styled.button`font-size:1.2rem;padding:.35rem .6rem;cursor:pointer;border:2px solid ${colors.black};background:transparent;transition:all .15s;&:hover{background:${colors.black};color:${colors.white}}&:disabled{opacity:.4}`;
 const LoadingState = styled.div`display:flex;align-items:center;justify-content:center;gap:1rem;padding:6rem 2rem;color:${colors.gray};font-family:'Inter',sans-serif;`;
 const Spinner = styled.div`width:24px;height:24px;border:3px solid ${colors.lightGray};border-top-color:${colors.red};border-radius:50%;animation:${spin} .8s linear infinite;`;

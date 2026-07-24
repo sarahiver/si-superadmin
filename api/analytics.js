@@ -252,7 +252,56 @@ export default async function handler(req, res) {
     const eventsData = parseRows(allEvents, ['event'], ['count', 'users']);
     const ec = (name) => eventsData.find(e => e.event === name)?.count || 0;
 
+    // ── Google Search Console (gleicher Service Account; muss als Nutzer der
+    //    GSC-Property hinzugefügt sein, sonst kommt gscError zurück) ──
+    let gsc = null;
+    let gscError = null;
+    try {
+      const siteUrl = process.env.GSC_SITE_URL || 'sc-domain:sarahiver.com';
+      const gscQuery = (body) =>
+        fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ startDate, endDate, ...body }),
+        }).then(async (r) => {
+          const d = await r.json();
+          if (!r.ok) throw new Error(d?.error?.message || `GSC ${r.status}`);
+          return d;
+        });
+
+      const [gscTotals, gscQueries, gscPages] = await Promise.all([
+        gscQuery({}), // ohne Dimension = Gesamtwerte
+        gscQuery({ dimensions: ['query'], rowLimit: 15 }),
+        gscQuery({ dimensions: ['page'], rowLimit: 15 }),
+      ]);
+
+      const mapRows = (d, key) => (d.rows || []).map(r => ({
+        [key]: r.keys?.[0] || '',
+        clicks: r.clicks || 0,
+        impressions: r.impressions || 0,
+        ctr: Math.round((r.ctr || 0) * 1000) / 10,
+        position: Math.round((r.position || 0) * 10) / 10,
+      }));
+
+      const t = gscTotals.rows?.[0] || {};
+      gsc = {
+        siteUrl,
+        totals: {
+          clicks: t.clicks || 0,
+          impressions: t.impressions || 0,
+          ctr: Math.round((t.ctr || 0) * 1000) / 10,
+          position: Math.round((t.position || 0) * 10) / 10,
+        },
+        queries: mapRows(gscQueries, 'query'),
+        pages: mapRows(gscPages, 'page'),
+      };
+    } catch (err) {
+      gscError = String(err.message || err);
+    }
+
     res.status(200).json({
+      gsc,
+      gscError,
       overview: parseOverview(overview),
       overviewPrev: parseOverview(overviewPrev),
       pages: parseRows(pages, ['pagePath'], ['pageViews', 'users', 'bounceRate', 'avgDuration']),
@@ -326,7 +375,7 @@ function parseRows(report, dimNames, metricNames) {
 async function getAccessToken(sa) {
   const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const now = Math.floor(Date.now() / 1000);
-  const claims = base64url(JSON.stringify({ iss: sa.client_email, scope: 'https://www.googleapis.com/auth/analytics.readonly', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }));
+  const claims = base64url(JSON.stringify({ iss: sa.client_email, scope: 'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }));
   const sig = await signRS256(`${header}.${claims}`, sa.private_key);
   const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${header}.${claims}.${sig}` });
   if (!r.ok) { const e = await r.text(); throw new Error(`Token: ${e}`); }
