@@ -258,11 +258,25 @@ export default async function handler(req, res) {
     let gscError = null;
     try {
       const siteUrl = process.env.GSC_SITE_URL || 'sc-domain:sarahiver.com';
+      // GSC verlangt YYYY-MM-DD (GA4-Relativdaten wie "30daysAgo" sind ungültig)
+      const toISO = (d) => d.toISOString().slice(0, 10);
+      const now = new Date();
+      let gscStartDate, gscEndDate;
+      if (period === '1') {
+        gscStartDate = gscEndDate = toISO(now);
+      } else if (period === '2') {
+        const y = new Date(now); y.setDate(y.getDate() - 1);
+        gscStartDate = gscEndDate = toISO(y);
+      } else {
+        const s0 = new Date(now); s0.setDate(s0.getDate() - periodNum);
+        gscStartDate = toISO(s0);
+        gscEndDate = toISO(now);
+      }
       const gscQuery = (body) =>
         fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ startDate, endDate, ...body }),
+          body: JSON.stringify({ startDate: gscStartDate, endDate: gscEndDate, ...body }),
         }).then(async (r) => {
           const d = await r.json();
           if (!r.ok) throw new Error(d?.error?.message || `GSC ${r.status}`);
