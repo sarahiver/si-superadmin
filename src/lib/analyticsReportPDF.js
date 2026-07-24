@@ -94,13 +94,19 @@ export function generateAnalyticsReport(data, periodLabel) {
   );
   y += 4;
 
-  // ── Website (GA4) ──
+  // ── Website (GA4) — mit Delta zur Vorperiode ──
   const o = data.overview || {};
+  const op = data.overviewPrev || {};
+  const delta = (cur, prev) => {
+    if (prev == null || cur == null || prev === 0) return '';
+    const pct = Math.round(((cur - prev) / prev) * 100);
+    return `  (${pct >= 0 ? '+' : ''}${pct}% vs. Vorperiode)`;
+  };
   heading('Website (sarahiver.com)');
   kpiRow([
-    ['Besucher', o.activeUsers ?? '–'],
-    ['Sitzungen', o.sessions ?? '–'],
-    ['Seitenaufrufe', o.screenPageViews ?? '–'],
+    [`Besucher${delta(o.activeUsers, op.activeUsers)}`, o.activeUsers ?? '–'],
+    [`Sitzungen${delta(o.sessions, op.sessions)}`, o.sessions ?? '–'],
+    [`Seitenaufrufe${delta(o.screenPageViews, op.screenPageViews)}`, o.screenPageViews ?? '–'],
     ['Bounce Rate', o.bounceRate != null ? `${Math.round(o.bounceRate * 100)}%` : '–'],
   ]);
 
@@ -108,18 +114,29 @@ export function generateAnalyticsReport(data, periodLabel) {
   const ev = (name) => data.eventSummary?.[name] ?? 0;
   const demoEv = (name) => (data.demoEvents || []).find(e => e.event === name) || {};
   heading('Conversion-Funnel');
-  table(
-    ['Schritt', 'Wert'],
-    [
-      ['Besucher', o.activeUsers ?? 0],
-      ['Demo geklickt', ev('demoClicks')],
-      ['Demo besucht (siwedding.de)', demoEv('page_view').users || 0],
-      ['Demo-CTA geklickt', demoEv('demo_overlay_cta').count || 0],
-      ['Formular gestartet', ev('formStart')],
-      ['Anfrage gesendet', ev('generateLead')],
-    ],
-    [120, 54]
-  );
+  const funnelSteps = [
+    ['Besucher', o.activeUsers ?? 0],
+    ['Demo geklickt', ev('demoClicks')],
+    ['Demo besucht (siwedding.de)', demoEv('page_view').users || 0],
+    ['Demo-CTA geklickt', demoEv('demo_overlay_cta').count || 0],
+    ['Formular gestartet', ev('formStart')],
+    ['Anfrage gesendet', ev('generateLead')],
+  ];
+  const funnelRows = funnelSteps.map(([label, val], i) => {
+    if (i === 0) return [label, val, ''];
+    const prevVal = funnelSteps[i - 1][1];
+    const rate = prevVal > 0 ? `${Math.round((val / prevVal) * 100)}% v. Vorstufe` : '–';
+    return [label, val, rate];
+  });
+  // Gesamt-Conversion als letzte Zeile
+  const visitors = funnelSteps[0][1];
+  const leads = funnelSteps[5][1];
+  funnelRows.push([
+    'Gesamt: Besucher → Anfrage',
+    '',
+    visitors > 0 ? `${Math.round((leads / visitors) * 1000) / 10}%` : '–',
+  ]);
+  table(['Schritt', 'Wert', 'Rate'], funnelRows, [100, 32, 42]);
 
   // ── Demo-Klicks nach Einstieg ──
   if ((data.demoSources || []).length) {
@@ -135,6 +152,13 @@ export function generateAnalyticsReport(data, periodLabel) {
   if (data.gsc) {
     const g = data.gsc;
     heading('Google Suche (Search Console)');
+    checkPage(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7.5);
+    doc.setTextColor(140);
+    doc.text('Hinweis: Google liefert GSC-Daten mit 2-3 Tagen Verzögerung — die jüngsten Tage fehlen systembedingt.', M, y);
+    doc.setFont('helvetica', 'normal');
+    y += 6;
     kpiRow([
       ['Klicks', g.totals.clicks],
       ['Impressionen', g.totals.impressions],
