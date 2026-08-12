@@ -1433,6 +1433,7 @@ export default function ProjectDetailPage() {
         custom_price: data.custom_price || 0,
         custom_extras: data.custom_extras || [],
         component_config: data.component_config || {},
+        custom_styles: data.custom_styles || {},
         component_order: data.component_order || DEFAULT_COMPONENT_ORDER,
         active_components: data.active_components || [...CORE_COMPONENTS],
         std_date: data.std_date || '',
@@ -1637,8 +1638,9 @@ export default function ProjectDetailPage() {
   };
 
   const toggleComponent = (compId) => {
-    const comp = ALL_COMPONENTS.find(c => c.id === compId);
-    if (comp?.core) return;
+    // Hero wird auf der Website immer gerendert und bleibt daher fix.
+    // Alle anderen Basis-Komponenten (Countdown, Love Story, RSVP) sind abwählbar.
+    if (compId === 'hero') return;
     const current = formData.active_components || [];
     handleChange('active_components', current.includes(compId) ? current.filter(i => i !== compId) : [...current, compId]);
   };
@@ -1720,6 +1722,7 @@ export default function ProjectDetailPage() {
       custom_domain: formData.custom_domain, active_components: formData.active_components,
       component_order: formData.component_order,
       component_config: formData.component_config || {},
+      custom_styles: formData.custom_styles || {},
       std_date: formData.std_date || null, archive_date: formData.archive_date || null,
       password_protected: formData.password_protected || false,
       favicon_emoji: formData.favicon_emoji || null,
@@ -2223,6 +2226,35 @@ export default function ProjectDetailPage() {
             
             <SettingsGrid>
               <FormGroup><Label>Theme</Label><Select value={formData.theme || 'botanical'} onChange={e => handleChange('theme', e.target.value)}>{Object.values(THEMES).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</Select></FormGroup>
+              {formData.theme === 'editorial' && (
+                <FormGroup>
+                  <Label>Highlight-Farbe (Editorial)</Label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="color"
+                      value={formData.custom_styles?.accent_color || THEME_ACCENT_COLORS.editorial}
+                      onChange={e => handleChange('custom_styles', { ...(formData.custom_styles || {}), accent_color: e.target.value })}
+                      style={{ width: '44px', height: '36px', padding: 0, border: `1px solid ${colors.lightGray}`, borderRadius: '6px', background: 'none', cursor: 'pointer' }}
+                    />
+                    <Input
+                      value={formData.custom_styles?.accent_color || ''}
+                      onChange={e => handleChange('custom_styles', { ...(formData.custom_styles || {}), accent_color: e.target.value })}
+                      placeholder={THEME_ACCENT_COLORS.editorial}
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const { accent_color, ...rest } = formData.custom_styles || {};
+                        handleChange('custom_styles', rest);
+                      }}
+                      style={{ padding: '0.5rem 0.75rem', border: `1px solid ${colors.lightGray}`, borderRadius: '6px', background: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}
+                    >
+                      Standard
+                    </button>
+                  </div>
+                </FormGroup>
+              )}
               <FormGroup><Label>Status</Label><Select value={formData.status || 'draft'} onChange={e => handleChange('status', e.target.value)}>{Object.entries(PROJECT_STATUS).map(([k, v]) => <option key={k} value={k} disabled={!canUseStatus(k)}>{v.label}{!canUseStatus(k) && ' (nicht gebucht)'}</option>)}</Select></FormGroup>
               <FormGroup><Label>STD-Datum (Save the Date)</Label><Input type="date" value={formData.std_date?.split('T')[0] || ''} onChange={e => handleChange('std_date', e.target.value)} disabled={!canUseStatus('std')} /></FormGroup>
               <FormGroup><Label>Archiv-Datum</Label><Input type="date" value={formData.archive_date?.split('T')[0] || ''} onChange={e => handleChange('archive_date', e.target.value)} disabled={!canUseStatus('archive')} /></FormGroup>
@@ -2723,7 +2755,7 @@ export default function ProjectDetailPage() {
                     <span className="drag-handle">☰</span>
                     <span className="checkbox">{isActive && '✓'}</span>
                     <span className="name">{comp.name}</span>
-                    {comp.core && <span className="badge">Basis</span>}
+                    {compId === 'hero' ? <span className="badge">Fix</span> : comp.core ? <span className="badge">Basis</span> : null}
                   </ComponentItem>
                 );
               })}
