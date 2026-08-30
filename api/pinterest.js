@@ -100,6 +100,32 @@ async function isDuplicate({ title, link }) {
 
 // ── Blog-Artikel als Pin-Rohstoff (vorher api/blog-list.js) ──
 const SITE = 'https://www.sarahiver.com';
+
+// Kostenlose Tools — die stärksten Pin-Ziele (feste Metadaten)
+const TOOLS = [
+  {
+    slug: 'hochzeitsbudget-rechner',
+    url: `${SITE}/hochzeitsbudget-rechner`,
+    title: 'Hochzeitsbudget-Rechner: Was kostet eure Hochzeit wirklich?',
+    description: 'Gästezahl wählen, 8 kurze Fragen beantworten – realistische Kostenschätzung erhalten. Kostenlos, ohne Anmeldung.',
+    image: null,
+  },
+  {
+    slug: 'hochzeitsdatum-finder',
+    url: `${SITE}/hochzeitsdatum-finder`,
+    title: 'Hochzeitsdatum-Finder: Schnapszahlen, Feiertage & Brückentage',
+    description: 'Alle besten Hochzeitstermine 2027 & 2028 – für jedes Bundesland, Österreich und die Schweiz. Kostenlos.',
+    image: null,
+  },
+  {
+    slug: 'brautpaar-quiz',
+    url: `${SITE}/brautpaar-quiz`,
+    title: 'Brautpaar-Quiz-Generator: Fragen für Polterabend, JGA & Hochzeit',
+    description: 'Euer persönliches Brautpaar-Quiz in 2 Minuten: 50 Fragen, eigene ergänzen, drucken oder präsentieren. Kostenlos.',
+    image: null,
+  },
+];
+const toolMeta = (slug) => TOOLS.find((t) => t.slug === slug) || null;
 let blogCache = { slugs: null, ts: 0, meta: {} };
 const BLOG_CACHE_MS = 60 * 60 * 1000;
 
@@ -119,11 +145,13 @@ async function getBlogMeta(slug) {
     const html = await fetch(`${SITE}/blog/${slug}`).then(r => r.text());
     const title = (html.match(/<title>([^<]*)<\/title>/) || [])[1] || slug;
     const description = (html.match(/<meta name="description" content="([^"]*)"/) || [])[1] || '';
+    const ogImage = (html.match(/<meta property="og:image" content="([^"]*)"/) || [])[1] || null;
     blogCache.meta[slug] = {
       slug,
       url: `${SITE}/blog/${slug}`,
       title: title.replace(/\s*\|\s*S&amp;I\..*$/, '').replace(/&amp;/g, '&').trim(),
       description: description.replace(/&amp;/g, '&'),
+      image: ogImage && !/si_og_image/.test(ogImage) ? ogImage : null, // Standard-OG-Bild nicht als Pin-Foto verwenden
     };
   }
   return blogCache.meta[slug];
@@ -275,13 +303,15 @@ export default async function handler(req, res) {
     // ── Blog-Rohstoff ──
     if (action === 'blog_list') {
       const slugs = await getBlogSlugs();
-      return res.status(200).json({ slugs });
+      return res.status(200).json({ slugs, tools: TOOLS.map(({ slug, title }) => ({ slug, title })) });
     }
     if (action === 'blog_meta') {
       const { slug } = req.query;
       if (!slug || !/^[a-z0-9-]+$/.test(slug)) {
         return res.status(400).json({ error: 'Ungültiger slug' });
       }
+      const tool = toolMeta(slug);
+      if (tool) return res.status(200).json(tool);
       return res.status(200).json(await getBlogMeta(slug));
     }
 

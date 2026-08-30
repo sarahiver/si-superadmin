@@ -6,10 +6,12 @@
 import React from 'react';
 import InstagramPage from './InstagramPage';
 import { PinQueue } from '../components/PinterestPublish';
+import PinBatchGenerator from '../components/PinBatchGenerator';
 
 export default function PinterestPage() {
   return (
     <>
+      <PinBatchGenerator />
       <InstagramPage platform="pinterest" />
       <PinQueue />
     </>
