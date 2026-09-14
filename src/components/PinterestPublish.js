@@ -124,24 +124,37 @@ export default function PinterestPublish({ getImageBase64, title, description, o
   const [selectedSlug, setSelectedSlug] = useState('');
   const [seedBusy, setSeedBusy] = useState(false);
 
-  useEffect(() => {
+  const loadBoards = useCallback(() => {
     adminFetch('/api/pinterest?action=boards')
       .then(r => r.json())
       .then(d => {
         if (d.boards?.length) {
           setBoards(d.boards);
-          setBoardId(d.boards[0].id);
+          setBoardId(prev => prev || d.boards[0].id);
         } else if (d.error) {
           setStatus({ msg: `Boards: ${d.error}`, err: true });
+        } else {
+          setStatus({ msg: 'Keine Boards im Pinterest-Konto gefunden — lege auf Pinterest zuerst eine Pinnwand an.', err: true });
         }
       })
-      .catch(() => setStatus({ msg: 'Boards konnten nicht geladen werden (Token gesetzt?)', err: true }));
+      .catch(() => setStatus({ msg: 'Boards konnten nicht geladen werden (Pinterest verbunden?)', err: true }));
+  }, []);
+
+  // Verbindung kann in einem anderen Tab entstanden sein
+  useEffect(() => {
+    const onConnected = () => loadBoards();
+    window.addEventListener('pinterestConnected', onConnected);
+    return () => window.removeEventListener('pinterestConnected', onConnected);
+  }, [loadBoards]);
+
+  useEffect(() => {
+    loadBoards();
 
     adminFetch('/api/pinterest?action=blog_list')
       .then(r => r.json())
       .then(d => setSlugs(d.slugs || []))
       .catch(() => {});
-  }, []);
+  }, [loadBoards]);
 
   const seedFromArticle = async () => {
     if (!selectedSlug) return;
@@ -342,6 +355,26 @@ export function PinterestConnect() {
   };
 
   useEffect(() => { load(); }, [load]);
+
+  // Der OAuth-Flow läuft in einem zweiten Tab. Kommt der Fokus zurück, Status
+  // neu prüfen — und bei frischer Verbindung die Board-Listen benachrichtigen.
+  useEffect(() => {
+    const onFocus = () => {
+      adminFetch('/api/pinterest?action=status')
+        .then(readJson)
+        .then(d => {
+          setState(s => {
+            if (d.connected && !s.connected) {
+              window.dispatchEvent(new CustomEvent('pinterestConnected'));
+            }
+            return { loading: false, ...d };
+          });
+        })
+        .catch(() => {});
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
 
   const connect = async () => {
     setBusy(true);

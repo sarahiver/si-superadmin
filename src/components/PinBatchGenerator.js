@@ -299,15 +299,29 @@ export default function PinBatchGenerator() {
   const [results, setResults] = useState([]);
   const cancelRef = useRef(false);
 
-  useEffect(() => {
+  // api/pinterest liefert { boards: [...] } — das frühere d.items war immer
+  // undefined, deshalb blieb die Board-Auswahl dauerhaft leer.
+  const loadBoards = useCallback(() => {
     adminFetch('/api/pinterest?action=boards')
       .then(r => r.json())
       .then(d => {
-        const items = d.items || [];
+        const items = d.boards || d.items || [];
         setBoards(items);
-        if (items[0]) setBoardId(items[0].id);
+        if (items[0]) setBoardId(prev => prev || items[0].id);
       })
       .catch(() => {});
+  }, []);
+
+  // Nach dem OAuth-Fenster ist die Verbindung neu — Boards dann nachladen,
+  // ohne dass die Seite neu geladen werden muss.
+  useEffect(() => {
+    const onConnected = () => loadBoards();
+    window.addEventListener('pinterestConnected', onConnected);
+    return () => window.removeEventListener('pinterestConnected', onConnected);
+  }, [loadBoards]);
+
+  useEffect(() => {
+    loadBoards();
     adminFetch('/api/pinterest?action=blog_list')
       .then(r => r.json())
       .then(d => {
@@ -317,7 +331,7 @@ export default function PinBatchGenerator() {
         setSelected(new Set((d.tools || []).map(t => t.slug)));
       })
       .catch(() => {});
-  }, []);
+  }, [loadBoards]);
 
   const toggle = (slug) =>
     setSelected(cur => {
