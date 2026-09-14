@@ -309,12 +309,37 @@ export function PinterestConnect() {
   const [state, setState] = useState({ loading: true });
   const [busy, setBusy] = useState(false);
 
+  // Antwort erst als Text lesen: stürzt die Function ab, liefert Vercel HTML —
+  // ein blindes r.json() würde daraus nur "Unexpected token 'A'" machen.
+  const readJson = async (res) => {
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(
+        `Serverfehler (HTTP ${res.status}). Antwort war kein JSON: ${text.slice(0, 120)}`
+      );
+    }
+  };
+
   const load = useCallback(() => {
     adminFetch('/api/pinterest?action=status')
-      .then(r => r.json())
+      .then(readJson)
       .then(d => setState({ loading: false, ...d }))
       .catch(err => setState({ loading: false, error: String(err.message || err) }));
   }, []);
+
+  const selftest = async () => {
+    setBusy(true);
+    try {
+      const data = await readJson(await adminFetch('/api/pinterest?action=selftest'));
+      setState(s => ({ ...s, selftest: data, error: null }));
+    } catch (err) {
+      setState(s => ({ ...s, error: String(err.message || err) }));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -322,7 +347,7 @@ export function PinterestConnect() {
     setBusy(true);
     try {
       const res = await adminFetch('/api/pinterest?action=oauth_url');
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error || 'Fehler');
       // Neues Fenster: nach der Zustimmung landet Pinterest auf /api/pinterest
       window.open(data.url, '_blank', 'noopener');
@@ -381,7 +406,24 @@ export function PinterestConnect() {
         </>
       )}
 
-      {state.error && <Status style={{ color: colors.red }}>{state.error}</Status>}
+      {state.error && (
+        <>
+          <Status style={{ color: colors.red }}>{state.error}</Status>
+          <Buttons>
+            <Btn type="button" onClick={selftest} disabled={busy}>Selbsttest ausführen</Btn>
+          </Buttons>
+        </>
+      )}
+
+      {state.selftest && (
+        <pre style={{
+          marginTop: '0.75rem', padding: '0.75rem', background: '#F7F7F7',
+          border: `1px solid ${colors.lightGray}`, borderRadius: 6,
+          fontSize: '0.72rem', lineHeight: 1.5, overflowX: 'auto',
+        }}>
+          {JSON.stringify(state.selftest, null, 2)}
+        </pre>
+      )}
     </Panel>
   );
 }

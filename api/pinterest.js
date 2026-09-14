@@ -11,16 +11,27 @@
 //      PINTEREST_SCOPES (optional), SUPABASE_URL, SUPABASE_SERVICE_KEY,
 //      ADMIN_JWT_SECRET, CRON_SECRET, PINTEREST_PINS_PER_DAY
 //      PINTEREST_ACCESS_TOKEN nur noch als Notfall-Fallback.
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { setCorsHeaders, verifySessionToken } from './lib/auth.js';
 
 const PINTEREST_API = 'https://api.pinterest.com/v5';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+// Lazy statt beim Modul-Load: createClient() mit fehlenden Env-Variablen wirft
+// sofort, und Vercel antwortet dann mit einer HTML-Fehlerseite ("A server error
+// has occurred") statt mit JSON — im Frontend sieht das aus wie ein Parse-Fehler.
+let _supabase = null;
+function getSupabase() {
+  if (_supabase) return _supabase;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_KEY fehlen in den Vercel-Env-Variablen');
+  _supabase = createClient(url, key);
+  return _supabase;
+}
+
+// Proxy, damit der bestehende Code unverändert `supabase.from(...)` nutzen kann
+const supabase = { from: (table) => getSupabase().from(table) };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OAUTH / TOKEN-VERWALTUNG
@@ -362,6 +373,18 @@ async function runCron() {
 }
 
 export default async function handler(req, res) {
+  try {
+    return await route(req, res);
+  } catch (err) {
+    // Letztes Netz: ohne das liefert Vercel bei einem unerwarteten Fehler eine
+    // HTML-Seite, und das Frontend scheitert am JSON.parse.
+    console.error('Pinterest handler crash:', err);
+    if (res.headersSent) return undefined;
+    return res.status(500).json({ error: String(err?.message || err).slice(0, 400) });
+  }
+}
+
+async function route(req, res) {
   // ── OAuth-Callback von Pinterest (kein Admin-Token möglich → signierter state) ──
   if (req.method === 'GET' && (req.query.code || req.query.error)) {
     return handleOAuthCallback(req, res);
@@ -391,6 +414,27 @@ export default async function handler(req, res) {
   const action = req.method === 'GET' ? req.query.action : req.body?.action;
 
   try {
+    // ── Selbsttest: sagt konkret, was fehlt (Env-Variablen, Tabellen) ──
+    if (action === 'selftest') {
+      const env = {
+        PINTEREST_APP_ID: !!process.env.PINTEREST_APP_ID,
+        PINTEREST_APP_SECRET: !!process.env.PINTEREST_APP_SECRET,
+        PINTEREST_REDIRECT_URI: process.env.PINTEREST_REDIRECT_URI || '(Standard: ' + redirectUri() + ')',
+        PINTEREST_SCOPES: process.env.PINTEREST_SCOPES || '(Standard: ' + DEFAULT_SCOPES + ')',
+        SUPABASE_URL: !!process.env.SUPABASE_URL,
+        SUPABASE_SERVICE_KEY: !!process.env.SUPABASE_SERVICE_KEY,
+        ADMIN_JWT_SECRET: !!process.env.ADMIN_JWT_SECRET,
+        CRON_SECRET: !!process.env.CRON_SECRET,
+        PINTEREST_ACCESS_TOKEN_fallback: !!process.env.PINTEREST_ACCESS_TOKEN,
+      };
+      const tables = {};
+      for (const t of ['pinterest_tokens', 'pinterest_queue']) {
+        const { error } = await supabase.from(t).select('id').limit(1);
+        tables[t] = error ? `FEHLER: ${error.message}` : 'ok';
+      }
+      return res.status(200).json({ env, tables });
+    }
+
     // ── Verbindungsstatus (für das Panel im Dashboard) ──
     if (action === 'status') {
       const row = await loadTokenRow();
