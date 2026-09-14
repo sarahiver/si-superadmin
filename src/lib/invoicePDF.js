@@ -1,7 +1,7 @@
 // src/lib/invoicePDF.js
 // Generiert professionelle Rechnung im S&I. Editorial Stil
 import { jsPDF } from 'jspdf';
-import { PACKAGES, formatPrice } from './constants';
+import { getPackage, formatPrice } from './pricing';
 import { buildEPCPayload, generateQRSVG, encodeToModules } from './qrGenerator';
 
 // S&I. Farben
@@ -195,7 +195,7 @@ export function generateInvoicePDF(project, pricing, options = {}) {
   doc.text('Gesamt', pw - m - 3, y + 5.5, { align: 'right' });
   y += 12;
 
-  const pkg = PACKAGES[project.package] || PACKAGES.starter;
+  const pkg = getPackage(project.package);
   let pos = 1;
   const positions = [];
 
@@ -211,7 +211,7 @@ export function generateInvoicePDF(project, pricing, options = {}) {
   } else {
     positions.push({
       pos: pos++,
-      desc: `${pkg.name}-Paket – Hochzeits-Website\nInkl. ${pkg.hosting} Hosting, ${pkg.features.length} Features`,
+      desc: `${pkg.name} – Hochzeitswebsite\n${pkg.hosting}. Alle Website-Komponenten, QR-Code`,
       qty: 1,
       unit: formatPrice(pricing.packagePrice),
       total: formatPrice(pricing.packagePrice),
@@ -236,18 +236,6 @@ export function generateInvoicePDF(project, pricing, options = {}) {
             total: formatPrice(price),
           });
         }
-      });
-    }
-
-    // Extra-Komponenten
-    if (pricing.extraComponentsPrice > 0) {
-      const count = project.extra_components_count || 0;
-      positions.push({
-        pos: pos++,
-        desc: 'Zusätzliche Komponenten',
-        qty: count,
-        unit: formatPrice(50),
-        total: formatPrice(pricing.extraComponentsPrice),
       });
     }
 

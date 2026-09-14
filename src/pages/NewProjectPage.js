@@ -6,7 +6,11 @@ import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
 import { createProject } from '../lib/supabase';
-import { THEMES, PACKAGES, CORE_COMPONENTS, DEFAULT_COMPONENT_ORDER, formatPrice } from '../lib/constants';
+import { THEMES, CORE_COMPONENTS, DEFAULT_COMPONENT_ORDER } from '../lib/constants';
+import {
+  PACKAGE_LIST, ADDON_LIST, getPackage, isFeatureIncluded,
+  calculatePricing, formatPrice,
+} from '../lib/pricing';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
@@ -88,6 +92,27 @@ const PackageCard = styled.div`
   .note { font-size: 0.7rem; color: ${colors.gray}; margin-top: 0.25rem; }
 `;
 
+const AddonRow = styled.div`
+  display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.25rem;
+`;
+
+const AddonChip = styled.button`
+  display: flex; align-items: center; gap: 0.75rem;
+  border: 2px solid ${p => p.$selected ? colors.red : colors.lightGray};
+  background: ${p => p.$selected ? `${colors.red}10` : colors.background};
+  padding: 0.7rem 1rem; cursor: ${p => p.$included ? 'default' : 'pointer'};
+  font-family: 'Inter', sans-serif; font-size: 0.85rem; transition: all 0.2s ease;
+  &:hover { border-color: ${p => p.$included ? colors.lightGray : colors.black}; }
+  strong { font-weight: 600; color: ${p => p.$included ? colors.gray : colors.red}; }
+`;
+
+const PriceTotal = styled.div`
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid ${colors.lightGray};
+  font-family: 'Inter', sans-serif; font-size: 0.85rem; color: ${colors.gray};
+  strong { font-size: 1.5rem; font-weight: 700; color: ${colors.black}; }
+`;
+
 const ThemeSelector = styled.div`
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;
   @media (max-width: 600px) { grid-template-columns: repeat(2, 1fr); }
@@ -132,7 +157,8 @@ export default function NewProjectPage() {
     wedding_date: fromRequest?.wedding_date || '',
     slug: '',
     theme: fromRequest?.interested_theme || 'botanical',
-    package: fromRequest?.interested_package || 'starter',
+    package: fromRequest?.interested_package || 'website',
+    addons: [],
     client_name: fromRequest?.name || '',
     client_email: fromRequest?.email || '',
     // Partner-System Felder
@@ -173,7 +199,8 @@ export default function NewProjectPage() {
     }
 
     setIsSaving(true);
-    const pkg = PACKAGES[formData.package];
+    const pkg = getPackage(formData.package);
+    const pricing = calculatePricing(formData);
     
     const projectData = {
       partner1_name: formData.partner1_name,
@@ -189,10 +216,13 @@ export default function NewProjectPage() {
       admin_password: Math.random().toString(36).substring(2, 10),
       active_components: [...CORE_COMPONENTS],
       component_order: DEFAULT_COMPONENT_ORDER,
-      total_price: pkg?.price || 0,
-      addons: [],
-      extra_components_count: 0,
+      total_price: pricing.total,
+      addons: formData.addons || [],
       discount: 0,
+      // Paketabhängige Features direkt setzen — das Kunden-Dashboard liest
+      // has_std/has_archive und nicht die Paket-ID.
+      has_std: pkg.includesSaveTheDate || (formData.addons || []).includes('save_the_date'),
+      has_archive: pkg.includesArchive || (formData.addons || []).includes('archive'),
       // Partner-System
       partner_code_id: formData.partner_code_id || null,
       coupon_code: formData.coupon_code || null,
@@ -277,7 +307,7 @@ export default function NewProjectPage() {
           </SectionHeader>
           <SectionBody>
             <PackageSelector>
-              {Object.values(PACKAGES).map(pkg => (
+              {PACKAGE_LIST.map(pkg => (
                 <PackageCard key={pkg.id} $selected={formData.package === pkg.id}
                   onClick={() => handleChange('package', pkg.id)}>
                   <div className="name">{pkg.name}</div>
@@ -286,6 +316,39 @@ export default function NewProjectPage() {
                 </PackageCard>
               ))}
             </PackageSelector>
+
+            {/* Add-ons direkt bei der Anlage — QR und alle Komponenten sind
+                immer inklusive und tauchen hier bewusst nicht auf. */}
+            <AddonRow>
+              {ADDON_LIST.map(addon => {
+                const included = isFeatureIncluded(formData.package, addon.id);
+                const selected = included || (formData.addons || []).includes(addon.id);
+                return (
+                  <AddonChip
+                    key={addon.id}
+                    type="button"
+                    $selected={selected}
+                    $included={included}
+                    disabled={included}
+                    onClick={() => {
+                      if (included) return;
+                      const cur = formData.addons || [];
+                      handleChange('addons', cur.includes(addon.id)
+                        ? cur.filter(a => a !== addon.id)
+                        : [...cur, addon.id]);
+                    }}
+                  >
+                    <span>{addon.name}</span>
+                    <strong>{included ? 'inklusive' : `+${formatPrice(addon.price)}`}</strong>
+                  </AddonChip>
+                );
+              })}
+            </AddonRow>
+
+            <PriceTotal>
+              <span>Gesamt</span>
+              <strong>{formatPrice(calculatePricing(formData).total)}</strong>
+            </PriceTotal>
           </SectionBody>
         </Section>
 

@@ -5,7 +5,8 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import Layout from '../components/Layout';
 import { getProjects } from '../lib/supabase';
-import { PACKAGES, PROJECT_STATUS, THEMES, formatPrice } from '../lib/constants';
+import { PROJECT_STATUS, THEMES, formatPrice } from '../lib/constants';
+import { getPackage } from '../lib/pricing';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
@@ -218,7 +219,7 @@ export default function ProjectsPage() {
         ) : (
           paginatedProjects.map(project => {
             const status = PROJECT_STATUS[project.status];
-            const pkg = PACKAGES[project.package];
+            const pkg = getPackage(project.package);
             const theme = THEMES[project.theme];
             return (
               <TableRow key={project.id} to={`/projects/${project.id}`} data-couple={project.couple_names || 'Unbenannt'}>

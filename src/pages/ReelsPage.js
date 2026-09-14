@@ -310,7 +310,7 @@ Kontext:
 - S&I. bietet handgemachte Hochzeitswebsites mit eigener Domain ab 1.290€
 - 7 Design-Themes: Classic, Editorial, Botanical, Contemporary, Luxe, Neon, Video
 - Features: RSVP, Gästeliste, Love Story, Countdown, Foto-Upload, Musik-Wünsche, Passwortschutz, Admin-Dashboard
-- Pakete: Starter (1.290€/6Mo), Standard (1.490€/8Mo), Premium (1.990€/12Mo)
+- Pakete: Website (990 €), All In (1.490 €) — beide online bis 3 Monate nach der Hochzeit
 - Tonalität: Warm aber selbstbewusst, nie billig oder kitschig, leicht editorial
 
 Thema/Anweisung: "${aiPrompt}"
@@ -526,7 +526,7 @@ Kontext:
 - S&I. bietet handgemachte Hochzeitswebsites mit eigener Domain ab 1.290€
 - 7 Design-Themes: Classic, Editorial, Botanical, Contemporary, Luxe, Neon, Video
 - Features: RSVP, Gästeliste, Love Story, Countdown, Foto-Upload, Musik-Wünsche, Passwortschutz
-- Pakete: Starter (1.290€/6Mo), Standard (1.490€/8Mo), Premium (1.990€/12Mo)
+- Pakete: Website (990 €), All In (1.490 €) — beide online bis 3 Monate nach der Hochzeit
 - Zielgruppe: Verlobte Paare, 25-40 Jahre, DACH-Raum
 - Tonalität: Warm aber selbstbewusst, nie billig oder kitschig, leicht editorial
 

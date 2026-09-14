@@ -1,7 +1,7 @@
 // src/lib/contractPDF.js
 // Ausführlicher Vertrag für Online-Dienstleistungen im S&I. Editorial Stil
 import { jsPDF } from 'jspdf';
-import { PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from './constants';
+import { getPackage, calculatePricing, formatPrice } from './pricing';
 import { SIGNATURE_IVER_GENTZ } from './signatureData';
 
 // S&I. Farben
@@ -48,6 +48,8 @@ function formatDate(date) {
  * Generiert ausführlichen Vertrag-PDF
  */
 export function generateContractPDF(project, pricing, options = {}) {
+  // Fallback: Vertrag darf nie ohne Preisberechnung erzeugt werden
+  pricing = pricing || calculatePricing(project);
   const doc = new jsPDF();
   const pw = doc.internal.pageSize.getWidth();
   const ph = doc.internal.pageSize.getHeight();
@@ -56,7 +58,7 @@ export function generateContractPDF(project, pricing, options = {}) {
 
   const contractNumber = options.contractNumber || generateContractNumber();
   const contractDate = options.contractDate || new Date();
-  const pkg = PACKAGES[project.package] || PACKAGES.starter;
+  const pkg = getPackage(project.package);
 
   // Hilfsfunktionen
   const setColor = (type) => {
@@ -234,19 +236,17 @@ export function generateContractPDF(project, pricing, options = {}) {
   addSection('2', 'Leistungsumfang');
   addParagraph(`Gewähltes Paket: ${pkg.name}`);
   addParagraph('Der Leistungsumfang umfasst:');
-  pkg.features.forEach(feature => {
+  pkg.deliverables.forEach(feature => {
     addBullet(feature);
   });
 
-  if ((project.addons || []).length > 0) {
+  // addonLines enthält auch die im Paket bereits abgedeckten Leistungen —
+  // sie werden als "im Paket enthalten" ausgewiesen, aber nicht berechnet.
+  const extraLines = (pricing.addonLines || []).filter(line => !line.included);
+  if (extraLines.length > 0) {
     y += 3;
     addParagraph('Zusätzlich gebuchte Leistungen:');
-    project.addons.forEach(addonId => {
-      const addon = ADDONS[addonId];
-      if (addon) {
-        addBullet(`${addon.name}: ${addon.description}`);
-      }
-    });
+    extraLines.forEach(line => addBullet(`${line.name}: ${line.description}`));
   }
 
   addSection('3', 'Vergütung und Zahlungsbedingungen');
@@ -268,9 +268,9 @@ export function generateContractPDF(project, pricing, options = {}) {
       doc.text(`+ ${formatPrice(pricing.addonsPrice)}`, pw - m - 5, y, { align: 'right' });
       y += 6;
     }
-    if (pricing.extraComponentsPrice > 0) {
-      doc.text('Extra-Komponenten', m + 5, y);
-      doc.text(`+ ${formatPrice(pricing.extraComponentsPrice)}`, pw - m - 5, y, { align: 'right' });
+    if (pricing.customExtrasPrice > 0) {
+      doc.text('Weitere Positionen', m + 5, y);
+      doc.text(`+ ${formatPrice(pricing.customExtrasPrice)}`, pw - m - 5, y, { align: 'right' });
       y += 6;
     }
     if (pricing.discount > 0) {

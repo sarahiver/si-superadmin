@@ -5,7 +5,8 @@ import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
 import { getProjects, syncAllProjectStatuses } from '../lib/supabase';
-import { PACKAGES, PROJECT_STATUS, formatPrice } from '../lib/constants';
+import { PROJECT_STATUS } from '../lib/constants';
+import { getPackage, calculateHostingDates as centralHostingDates, formatPrice } from '../lib/pricing';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5', purple: '#8B5CF6', blue: '#3B82F6' };
 
@@ -13,92 +14,60 @@ const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10
 // HOSTING HELPER FUNCTIONS
 // ============================================
 
-function getHostingDuration(pkg) {
-  switch (pkg) {
-    case 'starter': return 6;
-    case 'standard': return 8;
-    case 'premium': return 12;
-    case 'individual': return 12;
-    default: return 6;
-  }
-}
-
 function calculateHostingDates(project) {
-  const pkg = project.package || 'starter';
-  const hostingMonths = getHostingDuration(pkg);
-  const totalHostingDays = hostingMonths * 30;
+  // Laufzeit hängt jetzt am Hochzeitsdatum (Hochzeit + 3 Monate), nicht mehr
+  // am Paket. Explizite Termine aus der DB haben weiterhin Vorrang, damit
+  // Bestandsprojekte mit abweichend vereinbarten Zeiträumen unberührt bleiben.
   const today = new Date();
+  const derived = centralHostingDates(project.wedding_date, {
+    hasSaveTheDate: project.has_std ?? false,
+  });
 
-  // Explicit dates from DB have priority
-  if (project.hosting_start_date && project.hosting_end_date) {
-    const startDate = new Date(project.hosting_start_date);
-    const endDate = new Date(project.hosting_end_date);
-    const daysRemaining = Math.ceil((endDate - today) / (24 * 60 * 60 * 1000));
-    const daysElapsed = Math.ceil((today - startDate) / (24 * 60 * 60 * 1000));
+  const startDate = project.hosting_start_date
+    ? new Date(project.hosting_start_date)
+    : (derived.start ? new Date(derived.start) : null);
+  const endDate = project.hosting_end_date
+    ? new Date(project.hosting_end_date)
+    : (derived.end ? new Date(derived.end) : null);
 
+  if (!startDate || !endDate) {
     return {
-      startDate,
-      endDate,
-      hostingMonths,
-      totalHostingDays,
-      daysRemaining,
-      daysElapsed,
-      isExpired: daysRemaining < 0,
-      isExpiringSoon: daysRemaining >= 0 && daysRemaining <= 30,
-      isWarning: daysRemaining > 30 && daysRemaining <= 60,
-      hasStarted: today >= startDate,
+      startDate: null, endDate: null,
+      hostingMonths: null, totalHostingDays: null,
+      daysRemaining: null, daysElapsed: 0,
+      isExpired: false, isExpiringSoon: false, isWarning: false,
+      hasStarted: false,
     };
   }
 
-  // No explicit dates - estimate based on status
-  // For live/std/archive projects without dates, assume hosting started at created_at
-  const isActive = ['live', 'std', 'archive'].includes(project.status);
+  const day = 24 * 60 * 60 * 1000;
+  const totalHostingDays = Math.max(1, Math.ceil((endDate - startDate) / day));
+  const daysRemaining = Math.ceil((endDate - today) / day);
+  const daysElapsed = Math.max(0, Math.ceil((today - startDate) / day));
 
-  if (isActive) {
-    // Use created_at as hosting start (best guess without explicit date)
-    const startDate = new Date(project.created_at);
-    const endDate = new Date(startDate.getTime() + (totalHostingDays * 24 * 60 * 60 * 1000));
-    const daysRemaining = Math.ceil((endDate - today) / (24 * 60 * 60 * 1000));
-    const daysElapsed = Math.ceil((today - startDate) / (24 * 60 * 60 * 1000));
-
-    return {
-      startDate,
-      endDate,
-      hostingMonths,
-      totalHostingDays,
-      daysRemaining: Math.min(daysRemaining, totalHostingDays), // Cap at total
-      daysElapsed,
-      isExpired: daysRemaining < 0,
-      isExpiringSoon: daysRemaining >= 0 && daysRemaining <= 30,
-      isWarning: daysRemaining > 30 && daysRemaining <= 60,
-      hasStarted: true,
-    };
-  }
-
-  // Project not yet active - show total hosting duration instead
   return {
-    startDate: null,
-    endDate: null,
-    hostingMonths,
+    startDate,
+    endDate,
+    hostingMonths: Math.round(totalHostingDays / 30),
     totalHostingDays,
-    daysRemaining: totalHostingDays, // Show total available days
-    daysElapsed: 0,
-    isExpired: false,
-    isExpiringSoon: false,
-    isWarning: false,
-    hasStarted: false,
+    daysRemaining,
+    daysElapsed,
+    isExpired: daysRemaining < 0,
+    isExpiringSoon: daysRemaining >= 0 && daysRemaining <= 30,
+    isWarning: daysRemaining > 30 && daysRemaining <= 60,
+    hasStarted: today >= startDate,
   };
 }
 
 function hasSTD(project) {
   if (project.has_std !== undefined) return project.has_std;
-  const pkg = PACKAGES[project.package];
+  const pkg = getPackage(project.package);
   return pkg?.includesSaveTheDate || false;
 }
 
 function hasArchive(project) {
   if (project.has_archive !== undefined) return project.has_archive;
-  const pkg = PACKAGES[project.package];
+  const pkg = getPackage(project.package);
   return pkg?.includesArchive || false;
 }
 
@@ -395,7 +364,7 @@ export default function DashboardPage() {
         <ProjectsGrid>
           {recentProjects.map(project => {
             const status = PROJECT_STATUS[project.status];
-            const pkg = PACKAGES[project.package];
+            const pkg = getPackage(project.package);
             const displayUrl = project.custom_domain || (project.slug ? `siwedding.de/${project.slug}` : null);
             const hosting = calculateHostingDates(project);
             const hostingPercent = hosting.hostingMonths > 0

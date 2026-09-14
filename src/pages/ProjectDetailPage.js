@@ -6,7 +6,12 @@ import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
 import { getProjectById, updateProject, deleteProject, supabase, getPartnerCodeById, getPartnerPayoutByProject, createPartnerPayout, updatePartnerPayout, getNextPayoutInvoiceNumber } from '../lib/supabase';
-import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS, PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from '../lib/constants';
+import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS } from '../lib/constants';
+import {
+  PACKAGE_LIST, ADDON_LIST, getPackage, normalizePackageId, isFeatureIncluded,
+  getAddonPrice, calculatePricing, formatPrice,
+  calculateHostingDates as centralHostingDates, HOSTING_MONTHS_AFTER_WEDDING,
+} from '../lib/pricing';
 import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail } from '../lib/emailService';
 import { generateContractPDF } from '../lib/contractPDF';
 import { generateInvoicePDF } from '../lib/invoicePDF';
@@ -262,7 +267,6 @@ const PriceSummary = styled.div`background: ${colors.black}; color: white; paddi
 const SettingsGrid = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid ${colors.lightGray}; @media (max-width: 600px) { grid-template-columns: 1fr; }`;
 const ComponentListContainer = styled.div`border: 2px solid ${colors.lightGray};`;
 const ComponentListHeader = styled.div`display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: ${colors.background}; .count { font-family: 'Oswald', sans-serif; font-size: 0.9rem; } .hint { font-size: 0.7rem; color: ${colors.gray}; }`;
-const ComponentWarning = styled.div`background: ${colors.orange}20; border: 1px solid ${colors.orange}; color: ${colors.orange}; padding: 0.75rem 1rem; font-size: 0.8rem; strong { font-weight: 600; }`;
 const ComponentItem = styled.div`display: flex; align-items: center; gap: 1rem; padding: 0.875rem 1rem; background: ${p => p.$active ? colors.black : colors.white}; color: ${p => p.$active ? colors.white : colors.black}; border-bottom: 1px solid ${colors.lightGray}; cursor: pointer; transition: all 0.15s ease; &:last-child { border-bottom: none; } &:hover { background: ${p => p.$active ? colors.black : colors.background}; } .drag-handle { color: ${p => p.$active ? colors.gray : colors.lightGray}; cursor: grab; } .checkbox { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: 2px solid ${p => p.$active ? colors.white : colors.black}; background: ${p => p.$active ? colors.white : 'transparent'}; color: ${colors.black}; font-size: 0.75rem; font-weight: 700; } .name { flex: 1; font-size: 0.9rem; font-weight: 500; } .badge { font-size: 0.6rem; font-weight: 600; text-transform: uppercase; padding: 0.2rem 0.5rem; background: ${p => p.$active ? colors.red : colors.background}; color: ${p => p.$active ? colors.white : colors.gray}; }`;
 
 // Component Config / Variants Styles
@@ -1353,46 +1357,13 @@ export default function ProjectDetailPage() {
   const [showHostingOverride, setShowHostingOverride] = useState(false);
 
   // Hosting calculation helpers
-  const getHostingMonths = (pkg) => {
-    switch (pkg) {
-      case 'starter': return 6;
-      case 'standard': return 8;
-      case 'premium': return 12;
-      case 'individual': return 12;
-      default: return 6;
-    }
-  };
+  // Laufzeit-Logik liegt zentral in lib/pricing.js
 
+  // Termine kommen aus lib/pricing.js: Hostingende = Hochzeit + 3 Monate,
+  // STD-Start = Hochzeit - 2 Monate. Keine 6/8/12-Monatslogik mehr.
   const calculateHostingDates = (weddingDate, pkg, status) => {
-    if (!weddingDate) return { start: null, end: null, stdEnd: null, archiveEnd: null };
-
-    const wedding = new Date(weddingDate);
-    const hostingMonths = getHostingMonths(pkg);
-
-    // STD startet 2 Monate vor Hochzeit, endet bei Hochzeit
-    const stdStart = new Date(wedding);
-    stdStart.setMonth(stdStart.getMonth() - 2);
-
-    // Hosting startet bei STD-Start oder Hochzeit (je nach Paket)
-    const hostingStart = new Date(stdStart);
-
-    // Hosting endet X Monate nach Start
-    const hostingEnd = new Date(hostingStart);
-    hostingEnd.setMonth(hostingEnd.getMonth() + hostingMonths);
-
-    // STD endet bei Hochzeit
-    const stdEnd = new Date(wedding);
-
-    // Archiv endet 3 Monate nach Hochzeit
-    const archiveEnd = new Date(wedding);
-    archiveEnd.setMonth(archiveEnd.getMonth() + 3);
-
-    return {
-      start: hostingStart.toISOString().split('T')[0],
-      end: hostingEnd.toISOString().split('T')[0],
-      stdEnd: stdEnd.toISOString().split('T')[0],
-      archiveEnd: archiveEnd.toISOString().split('T')[0],
-    };
+    const hasSaveTheDate = formData.has_std ?? isFeatureIncluded(pkg, 'save_the_date');
+    return centralHostingDates(weddingDate, { hasSaveTheDate });
   };
 
   const formatDateDE = (dateStr) => {
@@ -1426,9 +1397,8 @@ export default function ProjectDetailPage() {
       setProject(data);
       setFormData({
         ...data,
-        package: data.package || 'starter',
+        package: normalizePackageId(data.package),
         addons: data.addons || [],
-        extra_components_count: data.extra_components_count || 0,
         discount: data.discount || 0,
         custom_price: data.custom_price || 0,
         custom_extras: data.custom_extras || [],
@@ -1441,8 +1411,8 @@ export default function ProjectDetailPage() {
         // Hosting fields
         hosting_start_date: data.hosting_start_date || '',
         hosting_end_date: data.hosting_end_date || '',
-        has_std: data.has_std ?? (PACKAGES[data.package]?.includesSaveTheDate || false),
-        has_archive: data.has_archive ?? (PACKAGES[data.package]?.includesArchive || false),
+        has_std: data.has_std ?? isFeatureIncluded(data.package, 'save_the_date'),
+        has_archive: data.has_archive ?? isFeatureIncluded(data.package, 'archive'),
         std_end_date: data.std_end_date || '',
         archive_end_date: data.archive_end_date || '',
         // Kundenabwicklung fields
@@ -1505,10 +1475,10 @@ export default function ProjectDetailPage() {
 
       // Update has_std/has_archive based on package change
       if (field === 'package') {
-        const pkg = PACKAGES[value];
+        const pkg = getPackage(value);
         if (pkg) {
           // Only auto-set if not manually overridden (check if it was included in old package)
-          const oldPkg = PACKAGES[prev.package];
+          const oldPkg = getPackage(prev.package);
           if (!oldPkg?.includesSaveTheDate && !prev.addons?.includes('save_the_date')) {
             updated.has_std = pkg.includesSaveTheDate || prev.addons?.includes('save_the_date');
           }
@@ -1520,7 +1490,7 @@ export default function ProjectDetailPage() {
 
       // Update has_std/has_archive when addons change
       if (field === 'addons') {
-        const pkg = PACKAGES[prev.package];
+        const pkg = getPackage(prev.package);
         updated.has_std = pkg?.includesSaveTheDate || value?.includes('save_the_date');
         updated.has_archive = pkg?.includesArchive || value?.includes('archive');
       }
@@ -1529,32 +1499,16 @@ export default function ProjectDetailPage() {
     });
   };
 
-  const selectedPackage = PACKAGES[formData.package] || PACKAGES.starter;
+  const selectedPackage = getPackage(formData.package);
   const isIndividual = formData.package === 'individual';
 
-  const pricing = useMemo(() => {
-    const pkg = PACKAGES[formData.package] || PACKAGES.starter;
-    const customExtras = formData.custom_extras || [];
-    const customExtrasPrice = customExtras.reduce((sum, extra) => sum + (parseFloat(extra.amount) || 0), 0);
-
-    if (formData.package === 'individual') {
-      return { packagePrice: 0, addonsPrice: 0, extraComponentsPrice: 0, customExtrasPrice, discount: 0, total: (formData.custom_price || 0) + customExtrasPrice };
-    }
-    const addons = formData.addons || [];
-    const extraCount = formData.extra_components_count || 0;
-    const discount = formData.discount || 0;
-    let packagePrice = pkg.price;
-    let addonsPrice = 0;
-    addons.forEach(addonId => {
-      if (!isFeatureIncluded(formData.package, addonId)) {
-        addonsPrice += getAddonPrice(addonId, formData.package);
-      }
-    });
-    const extraOverLimit = Math.max(0, extraCount - pkg.extraComponentsIncluded);
-    const extraComponentsPrice = extraOverLimit * (ADDONS.extra_component?.price || 50);
-    const total = Math.max(0, packagePrice + addonsPrice + extraComponentsPrice + customExtrasPrice - discount);
-    return { packagePrice, addonsPrice, extraComponentsPrice, customExtrasPrice, discount, total };
-  }, [formData.package, formData.addons, formData.extra_components_count, formData.discount, formData.custom_price, formData.custom_extras]);
+  // Zentrale Berechnung aus lib/pricing.js — vorher lag hier eine zweite
+  // Kopie, die sich von der in emailService.js unterschied (customExtras).
+  const pricing = useMemo(
+    () => calculatePricing(formData),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [formData.package, formData.addons, formData.discount, formData.custom_price, formData.custom_extras]
+  );
 
   const toggleAddon = (addonId) => {
     if (isFeatureIncluded(formData.package, addonId)) return;
@@ -1646,9 +1600,7 @@ export default function ProjectDetailPage() {
   };
 
 
-  const activeExtraCount = useMemo(() => (formData.active_components || []).filter(id => !CORE_COMPONENTS.includes(id)).length, [formData.active_components]);
-  const allowedExtraCount = useMemo(() => (PACKAGES[formData.package]?.extraComponentsIncluded || 0) + (formData.extra_components_count || 0), [formData.package, formData.extra_components_count]);
-  const isOverLimit = activeExtraCount > allowedExtraCount && allowedExtraCount < 999;
+  // Komponenten-Limits entfallen: alle Komponenten sind in jedem Paket inklusive.
 
   const handleDragStart = (e, compId) => { setDraggedItem(compId); e.dataTransfer.effectAllowed = 'move'; };
   const handleDragOver = (e, compId) => {
@@ -1715,7 +1667,7 @@ export default function ProjectDetailPage() {
       couple_names: `${formData.partner1_name || ''} & ${formData.partner2_name || ''}`.trim(),
       wedding_date: formData.wedding_date || null, slug: formData.slug, location: formData.location,
       hashtag: formData.hashtag, display_email: formData.display_email, display_phone: formData.display_phone,
-      package: formData.package, addons: formData.addons, extra_components_count: formData.extra_components_count,
+      package: formData.package, addons: formData.addons,
       discount: formData.discount, custom_price: formData.custom_price, custom_extras: formData.custom_extras || [],
       total_price: pricing.total,
       theme: formData.theme, status: formData.status, admin_password: formData.admin_password,
@@ -2089,7 +2041,7 @@ export default function ProjectDetailPage() {
           <CollapsibleSection number="03" title="Paket & Einstellungen" defaultOpen={false}>
             <Label>Paket</Label>
             <PackageSelector>
-              {Object.values(PACKAGES).map(p => (
+              {PACKAGE_LIST.map(p => (
                 <PackageCard key={p.id} $selected={formData.package === p.id} onClick={() => handleChange('package', p.id)}>
                   <div className="name">{p.name}</div>
                   <div className="price">{p.price > 0 ? formatPrice(p.price) : 'Individuell'}</div>
@@ -2100,15 +2052,15 @@ export default function ProjectDetailPage() {
             
             <FeatureList>
               <div className="title">Enthalten</div>
-              <ul>{selectedPackage.features.map((f, i) => <li key={i}>{f}</li>)}</ul>
+              <ul>{selectedPackage.deliverables.map((f, i) => <li key={i}>{f}</li>)}</ul>
             </FeatureList>
             
             {!isIndividual && (
               <AddonsSection>
                 <div className="title">Zusatzoptionen</div>
-                {['save_the_date', 'archive', 'qr_code', 'invitation_design'].map(addonId => {
-                  const addon = ADDONS[addonId];
-                  if (!addon) return null;
+                <div className="description" style={{ marginBottom: '0.75rem' }}>QR-Code und alle Website-Komponenten sind in jedem Paket inklusive.</div>
+                {ADDON_LIST.map(addon => {
+                  const addonId = addon.id;
                   const included = isFeatureIncluded(formData.package, addonId);
                   const selected = (formData.addons || []).includes(addonId);
                   return (
@@ -2122,21 +2074,6 @@ export default function ProjectDetailPage() {
                     </AddonItem>
                   );
                 })}
-                
-                {selectedPackage.extraComponentsIncluded < 999 && (
-                  <ExtraComponentsRow>
-                    <div className="info">
-                      <div className="name">Extra Komponenten</div>
-                      <div className="description">{selectedPackage.extraComponentsIncluded} inkl., weitere je {formatPrice(50)}</div>
-                    </div>
-                    <div className="counter">
-                      <button onClick={() => handleChange('extra_components_count', Math.max(0, (formData.extra_components_count || 0) - 1))} disabled={!formData.extra_components_count}>−</button>
-                      <span>{formData.extra_components_count || 0}</span>
-                      <button onClick={() => handleChange('extra_components_count', (formData.extra_components_count || 0) + 1)}>+</button>
-                    </div>
-                    <div className="price">+{formatPrice(Math.max(0, (formData.extra_components_count || 0) - selectedPackage.extraComponentsIncluded) * 50)}</div>
-                  </ExtraComponentsRow>
-                )}
                 
                 <ExtraComponentsRow>
                   <div className="info"><div className="name">Rabatt</div></div>
@@ -2210,7 +2147,6 @@ export default function ProjectDetailPage() {
                 <>
                   <div className="row"><span className="label">Paket ({selectedPackage.name})</span><span>{formatPrice(pricing.packagePrice)}</span></div>
                   {pricing.addonsPrice > 0 && <div className="row"><span className="label">Zusatzoptionen</span><span>+{formatPrice(pricing.addonsPrice)}</span></div>}
-                  {pricing.extraComponentsPrice > 0 && <div className="row"><span className="label">Extra Komponenten</span><span>+{formatPrice(pricing.extraComponentsPrice)}</span></div>}
                   {pricing.customExtrasPrice > 0 && <div className="row"><span className="label">Individuelle Extras</span><span>+{formatPrice(pricing.customExtrasPrice)}</span></div>}
                   {pricing.discount > 0 && <div className="row discount"><span className="label">Rabatt</span><span>-{formatPrice(pricing.discount)}</span></div>}
                 </>
@@ -2346,7 +2282,7 @@ export default function ProjectDetailPage() {
                       <HostingCard>
                         <div className="label">Hosting Start</div>
                         <div className="value">{formatDateDE(hostingStart)}</div>
-                        <div className="hint">{getHostingMonths(formData.package)} Monate ({selectedPackage.name})</div>
+                        <div className="hint">Bis {HOSTING_MONTHS_AFTER_WEDDING} Monate nach der Hochzeit</div>
                       </HostingCard>
                       <HostingCard $warning={isWarning} $success={!isWarning && !isExpired && daysRemaining !== null}>
                         <div className="label">Hosting Ende</div>
@@ -2740,7 +2676,6 @@ export default function ProjectDetailPage() {
 
           {/* Section 06: Komponenten */}
           <CollapsibleSection number="06" title="Komponenten" defaultOpen={false}>
-            {isOverLimit && <ComponentWarning>⚠️ <strong>{activeExtraCount}</strong> Extra aktiv, aber nur <strong>{allowedExtraCount}</strong> gebucht!</ComponentWarning>}
             <ComponentListContainer>
               <ComponentListHeader>
                 <span className="count">{(formData.active_components || []).length} aktiv</span>
@@ -2973,7 +2908,7 @@ export default function ProjectDetailPage() {
             <InfoHeader>Projekt-Info</InfoHeader>
             <InfoBody>
               <InfoRow><span className="label">Erstellt</span><span className="value">{project.created_at ? new Date(project.created_at).toLocaleDateString('de-DE') : '-'}</span></InfoRow>
-              <InfoRow><span className="label">Paket</span><span className="value">{PACKAGES[formData.package]?.name}</span></InfoRow>
+              <InfoRow><span className="label">Paket</span><span className="value">{getPackage(formData.package)?.name}</span></InfoRow>
               <InfoRow><span className="label">Theme</span><span className="value">{THEMES[formData.theme]?.name}</span></InfoRow>
               <InfoRow><span className="label">Hochzeit</span><span className="value">{formData.wedding_date ? new Date(formData.wedding_date).toLocaleDateString('de-DE') : '-'}</span></InfoRow>
               <InfoRow><span className="label">Gesamt</span><span className="value" style={{ color: colors.red, fontWeight: 700 }}>{formatPrice(pricing.total)}</span></InfoRow>

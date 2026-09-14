@@ -3,7 +3,7 @@
 
 import { supabase } from './supabase';
 import { adminFetch } from './apiClient';
-import { PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from './constants';
+import { getPackage, calculatePricing, formatPrice } from './pricing';
 import { generateContractPDF } from './contractPDF';
 import { generateInvoicePDF } from './invoicePDF';
 import { generateWebsiteQRSVG, encodeToModules } from './qrGenerator';
@@ -120,29 +120,24 @@ const THEME_COLORS = {
 // BUCHUNGSÜBERSICHT FÜR E-MAIL
 // ============================================
 function generateBookingHTML(project, pricing, colors) {
-  const pkg = PACKAGES[project.package] || PACKAGES.starter;
-  const addons = project.addons || [];
+  const pkg = getPackage(project.package);
   
   let bookingRows = '';
   
   // Paket
-  if (project.package === 'individual') {
-    bookingRows += `<tr><td style="padding: 8px 0; border-bottom: 1px solid #eee;">Individual-Paket</td><td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right; font-weight: 500;">${formatPrice(pricing.total)}</td></tr>`;
+  if (pricing.isCustom) {
+    bookingRows += `<tr><td style="padding: 8px 0; border-bottom: 1px solid #eee;">${pkg.name}</td><td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right; font-weight: 500;">${formatPrice(pricing.total)}</td></tr>`;
   } else {
     bookingRows += `<tr><td style="padding: 8px 0; border-bottom: 1px solid #eee;">Paket ${pkg.name}</td><td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right; font-weight: 500;">${formatPrice(pricing.packagePrice)}</td></tr>`;
     
-    // Addons
-    addons.forEach(addonId => {
-      const addon = ADDONS[addonId];
-      if (addon && !isFeatureIncluded(project.package, addonId)) {
-        const price = getAddonPrice(addonId, project.package);
-        bookingRows += `<tr><td style="padding: 8px 0; border-bottom: 1px solid #eee;">+ ${addon.name}</td><td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right;">+${formatPrice(price)}</td></tr>`;
-      }
+    // Add-ons: enthaltene Leistungen werden ausgewiesen, aber nicht berechnet
+    (pricing.addonLines || []).forEach(line => {
+      const value = line.included ? 'inklusive' : `+${formatPrice(line.price)}`;
+      bookingRows += `<tr><td style="padding: 8px 0; border-bottom: 1px solid #eee;">+ ${line.name}</td><td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right;">${value}</td></tr>`;
     });
-    
-    // Extra Komponenten
-    if (pricing.extraComponentsPrice > 0) {
-      bookingRows += `<tr><td style="padding: 8px 0; border-bottom: 1px solid #eee;">+ ${project.extra_components_count || 0} Extra-Komponenten</td><td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right;">+${formatPrice(pricing.extraComponentsPrice)}</td></tr>`;
+
+    if (pricing.customExtrasPrice > 0) {
+      bookingRows += `<tr><td style="padding: 8px 0; border-bottom: 1px solid #eee;">+ Weitere Positionen</td><td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right;">+${formatPrice(pricing.customExtrasPrice)}</td></tr>`;
     }
     
     // Rabatt
@@ -391,33 +386,9 @@ function generateEmailHTML(type, variables, theme = 'editorial') {
   return templates[type] || templates.welcome;
 }
 
-// ============================================
-// PRICING BERECHNEN
-// ============================================
-function calculatePricing(project) {
-  const pkg = PACKAGES[project.package] || PACKAGES.starter;
-  
-  if (project.package === 'individual') {
-    return { packagePrice: 0, addonsPrice: 0, extraComponentsPrice: 0, discount: 0, total: project.custom_price || 0 };
-  }
-  
-  const addons = project.addons || [];
-  let addonsPrice = 0;
-  addons.forEach(addonId => {
-    if (!isFeatureIncluded(project.package, addonId)) {
-      addonsPrice += getAddonPrice(addonId, project.package);
-    }
-  });
-  
-  const extraCount = project.extra_components_count || 0;
-  const extraOverLimit = Math.max(0, extraCount - (pkg.extraComponentsIncluded || 0));
-  const extraComponentsPrice = extraOverLimit * 50;
-  
-  const discount = project.discount || 0;
-  const total = Math.max(0, pkg.price + addonsPrice + extraComponentsPrice - discount);
-  
-  return { packagePrice: pkg.price, addonsPrice, extraComponentsPrice, discount, total };
-}
+// Preisberechnung kommt aus lib/pricing.js — hier lag vorher eine zweite
+// Kopie, die customExtras nicht kannte und deshalb andere Summen lieferte
+// als die Anzeige im SuperAdmin.
 
 // ============================================
 // E-MAIL SENDEN VIA BREVO
@@ -489,7 +460,7 @@ export async function sendWelcomeEmails(project) {
   const invoiceResult = generateInvoicePDF(project, pricing, { returnBase64: true });
 
   const websiteUrl = project.custom_domain || `siwedding.de/${project.slug}`;
-  const hasQR = (project.addons || []).includes('qr_code') || isFeatureIncluded(project.package, 'qr_code');
+  const hasQR = true; // QR-Code ist in jedem Paket enthalten
 
   const variables = {
     partner1_name: project.partner1_name,
@@ -552,7 +523,7 @@ export async function sendWelcomeEmails(project) {
 // ============================================
 export async function sendGoLiveEmail(project) {
   const websiteUrl = project.custom_domain || `siwedding.de/${project.slug}`;
-  const hasQR = (project.addons || []).includes('qr_code') || isFeatureIncluded(project.package, 'qr_code');
+  const hasQR = true; // QR-Code ist in jedem Paket enthalten
   
   // QR-Code als PNG-Attachment wenn gebucht
   const attachments = [];

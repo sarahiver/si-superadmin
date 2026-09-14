@@ -1,7 +1,7 @@
 // src/lib/themedContractPDF.js
 // Generiert Vertrag-PDF im Theme-Design
 import { jsPDF } from 'jspdf';
-import { PACKAGES, ADDONS, isFeatureIncluded, getAddonPrice, formatPrice } from './constants';
+import { getPackage, calculatePricing, formatPrice } from './pricing';
 
 // Theme Farben (RGB für jsPDF)
 const THEME_COLORS = {
@@ -122,7 +122,7 @@ export function generateThemedContractPDF(project, pricing) {
   setColor('accent');
   doc.text('Leistungsumfang', m, y); y += 8;
   
-  const pkg = PACKAGES[project.package] || PACKAGES.starter;
+  const pkg = getPackage(project.package);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   setColor('primary');
@@ -130,25 +130,22 @@ export function generateThemedContractPDF(project, pricing) {
   
   doc.setFont('helvetica', 'normal');
   setColor();
-  pkg.features.forEach(f => {
+  pkg.deliverables.forEach(f => {
     newPage(6);
     doc.text(`• ${f}`, m + 5, y);
     y += 5;
   });
   
   // Addons
-  if ((project.addons || []).length > 0) {
+  const extraLines = (pricing.addonLines || []).filter(line => !line.included);
+  if (extraLines.length > 0) {
     y += 3;
     doc.setFont('helvetica', 'bold');
     doc.text('Zusatzoptionen:', m, y); y += 6;
     doc.setFont('helvetica', 'normal');
-    project.addons.forEach(addonId => {
-      const addon = ADDONS[addonId];
-      if (addon && !isFeatureIncluded(project.package, addonId)) {
-        const price = getAddonPrice(addonId, project.package);
-        doc.text(`• ${addon.name} (+${formatPrice(price)})`, m + 5, y);
-        y += 5;
-      }
+    extraLines.forEach(line => {
+      doc.text(`• ${line.name} (+${formatPrice(line.price)})`, m + 5, y);
+      y += 5;
     });
   }
   y += 10;
@@ -172,7 +169,7 @@ export function generateThemedContractPDF(project, pricing) {
   setColor();
   
   if (project.package === 'individual') {
-    doc.text('Individual-Paket', m + 5, y);
+    doc.text(pkg.name, m + 5, y);
     doc.text(formatPrice(pricing.total), priceX, y, { align: 'right' });
     y += 7;
   } else {
@@ -185,9 +182,9 @@ export function generateThemedContractPDF(project, pricing) {
       doc.text(`+${formatPrice(pricing.addonsPrice)}`, priceX, y, { align: 'right' });
       y += 7;
     }
-    if (pricing.extraComponentsPrice > 0) {
-      doc.text('Extra-Komponenten', m + 5, y);
-      doc.text(`+${formatPrice(pricing.extraComponentsPrice)}`, priceX, y, { align: 'right' });
+    if (pricing.customExtrasPrice > 0) {
+      doc.text('Weitere Positionen', m + 5, y);
+      doc.text(`+${formatPrice(pricing.customExtrasPrice)}`, priceX, y, { align: 'right' });
       y += 7;
     }
     if (pricing.discount > 0) {
