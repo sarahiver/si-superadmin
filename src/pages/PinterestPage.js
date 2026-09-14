@@ -5,12 +5,13 @@
 // über die Pinterest-API (api/pinterest.js) + täglichen Cron.
 import React from 'react';
 import InstagramPage from './InstagramPage';
-import { PinQueue } from '../components/PinterestPublish';
+import { PinQueue, PinterestConnect } from '../components/PinterestPublish';
 import PinBatchGenerator from '../components/PinBatchGenerator';
 
 export default function PinterestPage() {
   return (
     <>
+      <PinterestConnect />
       <PinBatchGenerator />
       <InstagramPage platform="pinterest" />
       <PinQueue />

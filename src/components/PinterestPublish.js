@@ -299,6 +299,93 @@ const SmallBtn = styled.button`
   &:hover { border-color: ${colors.black}; }
 `;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// VERBINDUNGS-PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+// Zeigt, ob die Pinterest-App per OAuth verbunden ist, und startet den Flow.
+// Ohne gültige Verbindung schlagen Direkt-Pin, Queue und Cron fehl — deshalb
+// steht das Panel ganz oben auf der Pinterest-Seite.
+export function PinterestConnect() {
+  const [state, setState] = useState({ loading: true });
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    adminFetch('/api/pinterest?action=status')
+      .then(r => r.json())
+      .then(d => setState({ loading: false, ...d }))
+      .catch(err => setState({ loading: false, error: String(err.message || err) }));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const connect = async () => {
+    setBusy(true);
+    try {
+      const res = await adminFetch('/api/pinterest?action=oauth_url');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Fehler');
+      // Neues Fenster: nach der Zustimmung landet Pinterest auf /api/pinterest
+      window.open(data.url, '_blank', 'noopener');
+    } catch (err) {
+      setState(s => ({ ...s, error: String(err.message || err) }));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disconnect = async () => {
+    if (!window.confirm('Verbindung trennen? Queue und Cron pausieren, bis neu verbunden wird.')) return;
+    setBusy(true);
+    await adminFetch('/api/pinterest?action=disconnect', { method: 'POST' }).catch(() => {});
+    setBusy(false);
+    load();
+  };
+
+  if (state.loading) {
+    return <Panel><PanelTitle>Pinterest-Verbindung</PanelTitle><Status>Prüfe Verbindung…</Status></Panel>;
+  }
+
+  return (
+    <Panel>
+      <PanelTitle>Pinterest-Verbindung</PanelTitle>
+
+      {state.connected ? (
+        <>
+          <Status>
+            Verbunden{state.username ? ` als @${state.username}` : ''}
+            {' · '}Token erneuert sich automatisch
+            {state.expires_at ? ` (aktuell gültig bis ${new Date(state.expires_at).toLocaleString('de-DE')})` : ''}
+          </Status>
+          {!state.can_write && (
+            <Status style={{ color: colors.red }}>
+              Achtung: Die Verbindung hat keine Schreibrechte (pins:write). Direkt-Pin,
+              Queue und Cron werden fehlschlagen. Neu verbinden, sobald die App für
+              Schreib-Scopes freigegeben ist.
+            </Status>
+          )}
+          <Buttons>
+            <Btn type="button" onClick={connect} disabled={busy}>Neu verbinden</Btn>
+            <Btn type="button" onClick={disconnect} disabled={busy}>Trennen</Btn>
+          </Buttons>
+        </>
+      ) : (
+        <>
+          <Status>
+            Nicht verbunden.{state.fallback ? ' Aktuell läuft nur das manuell gesetzte PINTEREST_ACCESS_TOKEN — das verfällt nach 24 Stunden.' : ''}
+          </Status>
+          <Buttons>
+            <Btn type="button" onClick={connect} disabled={busy}>
+              {busy ? 'Öffne Pinterest…' : 'Pinterest verbinden'}
+            </Btn>
+          </Buttons>
+        </>
+      )}
+
+      {state.error && <Status style={{ color: colors.red }}>{state.error}</Status>}
+    </Panel>
+  );
+}
+
 export function PinQueue() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
