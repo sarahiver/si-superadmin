@@ -20,13 +20,31 @@ const PINTEREST_API = 'https://api.pinterest.com/v5';
 // Lazy statt beim Modul-Load: createClient() mit fehlenden Env-Variablen wirft
 // sofort, und Vercel antwortet dann mit einer HTML-Fehlerseite ("A server error
 // has occurred") statt mit JSON — im Frontend sieht das aus wie ein Parse-Fehler.
+// Im Repo existieren drei Namenskonventionen nebeneinander (api/db.js nutzt
+// SUPABASE_SERVICE_ROLE_KEY, api/auth/verify.js REACT_APP_SUPABASE_URL,
+// api/brevo-webhook.js NEXT_PUBLIC_*). Deshalb hier alle Varianten akzeptieren,
+// statt eine zu erzwingen.
+const SUPABASE_URL_VARS = ['SUPABASE_URL', 'REACT_APP_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL'];
+// WICHTIG: nur Service-Role-Keys. Der anon-Key käme an pinterest_tokens nicht
+// heran (RLS ohne Policy) und würde still fehlschlagen.
+const SUPABASE_KEY_VARS = ['SUPABASE_SERVICE_KEY', 'SUPABASE_SERVICE_ROLE_KEY'];
+
+const firstEnv = (names) => names.find((n) => process.env[n]);
+
 let _supabase = null;
 function getSupabase() {
   if (_supabase) return _supabase;
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_KEY fehlen in den Vercel-Env-Variablen');
-  _supabase = createClient(url, key);
+  const urlVar = firstEnv(SUPABASE_URL_VARS);
+  const keyVar = firstEnv(SUPABASE_KEY_VARS);
+  if (!urlVar || !keyVar) {
+    throw new Error(
+      'Supabase-Zugang fehlt. Gesucht wurde nach ' +
+      `URL (${SUPABASE_URL_VARS.join(' / ')}): ${urlVar || 'nichts gefunden'}; ` +
+      `Service-Key (${SUPABASE_KEY_VARS.join(' / ')}): ${keyVar || 'nichts gefunden'}. ` +
+      'In Vercel setzen und neu deployen.'
+    );
+  }
+  _supabase = createClient(process.env[urlVar], process.env[keyVar]);
   return _supabase;
 }
 
@@ -421,8 +439,8 @@ async function route(req, res) {
         PINTEREST_APP_SECRET: !!process.env.PINTEREST_APP_SECRET,
         PINTEREST_REDIRECT_URI: process.env.PINTEREST_REDIRECT_URI || '(Standard: ' + redirectUri() + ')',
         PINTEREST_SCOPES: process.env.PINTEREST_SCOPES || '(Standard: ' + DEFAULT_SCOPES + ')',
-        SUPABASE_URL: !!process.env.SUPABASE_URL,
-        SUPABASE_SERVICE_KEY: !!process.env.SUPABASE_SERVICE_KEY,
+        supabase_url_var: firstEnv(SUPABASE_URL_VARS) || 'FEHLT (' + SUPABASE_URL_VARS.join(' / ') + ')',
+        supabase_service_key_var: firstEnv(SUPABASE_KEY_VARS) || 'FEHLT (' + SUPABASE_KEY_VARS.join(' / ') + ')',
         ADMIN_JWT_SECRET: !!process.env.ADMIN_JWT_SECRET,
         CRON_SECRET: !!process.env.CRON_SECRET,
         PINTEREST_ACCESS_TOKEN_fallback: !!process.env.PINTEREST_ACCESS_TOKEN,
