@@ -406,12 +406,16 @@ export default function PinBatchGenerator() {
           throw new Error(err.error || `HTTP ${res.status}`);
         } else {
           setStatus(`geplant für ${scheduled} (${layout})`, 'ok');
+          // Queue-Anzeige unten aktualisieren — ohne dieses Event blieb sie
+          // auf "0 geplant" stehen, obwohl die Einträge gespeichert waren.
+          window.dispatchEvent(new CustomEvent('pinQueueChanged'));
         }
       } catch (err) {
         setStatus(`Fehler: ${String(err.message || err)}`, 'err');
       }
     }
     setBusy(false);
+    window.dispatchEvent(new CustomEvent('pinQueueChanged'));
   }, [selected, boardId, boards, startDate]);
 
   return (
