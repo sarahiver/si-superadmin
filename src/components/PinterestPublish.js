@@ -421,6 +421,11 @@ export function PinterestConnect() {
               Schreib-Scopes freigegeben ist.
             </Status>
           )}
+          <Status style={{ color: colors.gray }}>
+            Hinweis: Mit Trial-Zugriff lehnt Pinterest das Erstellen von Pins in der
+            Produktion ab — unabhängig von den Scopes. Geplante Pins bleiben in der
+            Queue erhalten und gehen raus, sobald Standard-Zugriff freigegeben ist.
+          </Status>
           <Buttons>
             <Btn type="button" onClick={connect} disabled={busy}>Neu verbinden</Btn>
             <Btn type="button" onClick={disconnect} disabled={busy}>Trennen</Btn>

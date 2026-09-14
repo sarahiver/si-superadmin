@@ -15,7 +15,18 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { setCorsHeaders, verifySessionToken } from './lib/auth.js';
 
-const PINTEREST_API = 'https://api.pinterest.com/v5';
+// Produktion oder Sandbox. Im Trial-Zugriff lehnt die Produktions-API das
+// Erstellen von Pins grundsätzlich ab ("Apps with Trial access may not create
+// Pins in production"). Zum Testen der kompletten Kette:
+//   PINTEREST_API_BASE=https://api-sandbox.pinterest.com/v5
+// Achtung: Die Sandbox braucht ein eigenes Sandbox-Token aus dem Portal,
+// der OAuth-Token von hier funktioniert dort nicht.
+const PINTEREST_API = process.env.PINTEREST_API_BASE || 'https://api.pinterest.com/v5';
+
+// Fehlermeldung von Pinterest, wenn die Trial-Stufe das Pinnen blockiert.
+// Kein echter Fehler des Eintrags — also nicht als "failed" abschreiben.
+const isTrialBlock = (msg) =>
+  /Trial access may not create Pins/i.test(String(msg || ''));
 
 // Lazy statt beim Modul-Load: createClient() mit fehlenden Env-Variablen wirft
 // sofort, und Vercel antwortet dann mit einer HTML-Fehlerseite ("A server error
@@ -284,11 +295,15 @@ export async function publishQueueRow(row) {
       .eq('id', row.id);
     return { ok: true, pin_id: pin.id };
   } catch (err) {
+    const message = String(err.message || err);
+    // Trial-Block: Eintrag NICHT verbrennen. Er bleibt geplant und geht raus,
+    // sobald Standard-Zugriff freigegeben ist — das Bild bleibt erhalten.
+    const blocked = isTrialBlock(message);
     await supabase
       .from('pinterest_queue')
-      .update({ status: 'failed', error: String(err.message || err) })
+      .update({ status: blocked ? 'queued' : 'failed', error: message })
       .eq('id', row.id);
-    return { ok: false, error: String(err.message || err) };
+    return { ok: false, error: message, blocked };
   }
 }
 
@@ -386,8 +401,18 @@ async function runCron() {
     // eslint-disable-next-line no-await-in-loop
     const r = await publishQueueRow(row);
     results.push({ id: row.id, title: row.title, ...r });
+    // Blockiert die Zugriffsstufe das Pinnen, bringt jeder weitere Versuch
+    // dasselbe Ergebnis — Lauf abbrechen und das Kontingent schonen.
+    if (r.blocked) {
+      return {
+        published: 0,
+        blocked: true,
+        reason: 'Trial-Zugriff: Pinterest erlaubt kein Pinnen in der Produktion. Standard-Zugriff beantragen.',
+        results,
+      };
+    }
   }
-  return { published: results.length, results };
+  return { published: results.filter(r => r.ok).length, results };
 }
 
 export default async function handler(req, res) {
