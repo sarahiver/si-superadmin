@@ -2,6 +2,7 @@
 // Brevo E-Mail Service für S&I.
 
 import { supabase } from './supabase';
+import { projectHost } from './projectUrl';
 import { adminFetch } from './apiClient';
 import { getPackage, calculatePricing, formatPrice } from './pricing';
 import { generateContractPDF } from './contractPDF';
@@ -459,7 +460,7 @@ export async function sendWelcomeEmails(project) {
   // Rechnung als PDF generieren (mit Zahlungsplan)
   const invoiceResult = generateInvoicePDF(project, pricing, { returnBase64: true });
 
-  const websiteUrl = project.custom_domain || `siwedding.de/${project.slug}`;
+  const websiteUrl = projectHost(project);
   const hasQR = true; // QR-Code ist in jedem Paket enthalten
 
   const variables = {
@@ -522,7 +523,7 @@ export async function sendWelcomeEmails(project) {
 // WEITERE E-MAIL FUNKTIONEN
 // ============================================
 export async function sendGoLiveEmail(project) {
-  const websiteUrl = project.custom_domain || `siwedding.de/${project.slug}`;
+  const websiteUrl = projectHost(project);
   const hasQR = true; // QR-Code ist in jedem Paket enthalten
   
   // QR-Code als PNG-Attachment wenn gebucht

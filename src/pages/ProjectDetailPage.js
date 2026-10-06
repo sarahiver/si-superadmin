@@ -5,6 +5,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
+import { projectUrls, projectHost, normalizeDomain } from '../lib/projectUrl';
 import { getProjectById, updateProject, deleteProject, supabase, getPartnerCodeById, getPartnerPayoutByProject, createPartnerPayout, updatePartnerPayout, getNextPayoutInvoiceNumber } from '../lib/supabase';
 import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS } from '../lib/constants';
 import {
@@ -1385,7 +1386,7 @@ export default function ProjectDetailPage() {
 
   // Render QR code when URL or design options change
   useEffect(() => {
-    const url = formData.custom_domain || (formData.slug ? `siwedding.de/${formData.slug}` : null);
+    const url = projectHost(formData) || null;
     if (url) {
       setTimeout(() => renderQRPreview(url, formData), 100);
     }
@@ -1983,7 +1984,8 @@ export default function ProjectDetailPage() {
   if (!project) return <Layout><div style={{ padding: '2rem' }}>Projekt nicht gefunden</div></Layout>;
 
   const status = PROJECT_STATUS[formData.status];
-  const baseUrl = formData.custom_domain || `siwedding.de/${formData.slug}`;
+  // Normalisiert: ohne Schema, ohne Schrägstrich am Ende (siehe lib/projectUrl.js)
+  const { host: baseUrl, website: websiteUrl, admin: adminUrl } = projectUrls(formData);
   const coupleNames = formData.partner1_name && formData.partner2_name ? `${formData.partner1_name} & ${formData.partner2_name}` : 'Unbenannt';
   const componentOrder = formData.component_order || DEFAULT_COMPONENT_ORDER;
   const emailCount = emailLogs.length;
@@ -2162,6 +2164,50 @@ export default function ProjectDetailPage() {
             
             <SettingsGrid>
               <FormGroup><Label>Theme</Label><Select value={formData.theme || 'botanical'} onChange={e => handleChange('theme', e.target.value)}>{Object.values(THEMES).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</Select></FormGroup>
+              {/* Monogramm: optionale SVG-URL, ersetzt in allen Themes die
+                  generierten Initialen im Logo. Liegt in custom_styles,
+                  deshalb ohne Datenbank-Migration. Die Farbe kommt aus der
+                  Highlight-Farbe — das SVG wird als Maske eingefärbt. */}
+              <FormGroup>
+                <Label>Monogramm (SVG-URL, optional)</Label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {formData.custom_styles?.monogram_url && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        width: '36px', height: '36px', flexShrink: 0,
+                        backgroundColor: formData.custom_styles?.accent_color || THEME_ACCENT_COLORS.editorial,
+                        WebkitMaskImage: `url(${formData.custom_styles.monogram_url})`,
+                        maskImage: `url(${formData.custom_styles.monogram_url})`,
+                        WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
+                        WebkitMaskPosition: 'center', maskPosition: 'center',
+                        WebkitMaskSize: 'contain', maskSize: 'contain',
+                        border: `1px solid ${colors.lightGray}`, borderRadius: '6px',
+                      }}
+                    />
+                  )}
+                  <Input
+                    value={formData.custom_styles?.monogram_url || ''}
+                    onChange={e => handleChange('custom_styles', { ...(formData.custom_styles || {}), monogram_url: e.target.value.trim() })}
+                    placeholder="https://res.cloudinary.com/.../monogramm.svg"
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const { monogram_url, ...rest } = formData.custom_styles || {};
+                      handleChange('custom_styles', rest);
+                    }}
+                    style={{ padding: '0.5rem 0.75rem', border: `1px solid ${colors.lightGray}`, borderRadius: '6px', background: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}
+                  >
+                    Entfernen
+                  </button>
+                </div>
+                <span style={{ fontSize: '0.75rem', color: colors.gray, marginTop: '0.35rem', display: 'block' }}>
+                  Ohne Eintrag zeigt die Hochzeitswebsite die Initialen des Paares. SVG mit einfarbiger Form verwenden — die Farbe setzt das Theme.
+                </span>
+              </FormGroup>
+
               {formData.theme === 'editorial' && (
                 <FormGroup>
                   <Label>Highlight-Farbe (Editorial)</Label>
@@ -2195,7 +2241,7 @@ export default function ProjectDetailPage() {
               <FormGroup><Label>STD-Datum (Save the Date)</Label><Input type="date" value={formData.std_date?.split('T')[0] || ''} onChange={e => handleChange('std_date', e.target.value)} disabled={!canUseStatus('std')} /></FormGroup>
               <FormGroup><Label>Archiv-Datum</Label><Input type="date" value={formData.archive_date?.split('T')[0] || ''} onChange={e => handleChange('archive_date', e.target.value)} disabled={!canUseStatus('archive')} /></FormGroup>
               <FormGroup><Label>Admin Passwort</Label><Input value={formData.admin_password || ''} onChange={e => handleChange('admin_password', e.target.value)} /></FormGroup>
-              <FormGroup><Label>Custom Domain</Label><Input value={formData.custom_domain || ''} onChange={e => handleChange('custom_domain', e.target.value.toLowerCase())} placeholder="anna-max.de" /></FormGroup>
+              <FormGroup><Label>Custom Domain</Label><Input value={formData.custom_domain || ''} onChange={e => handleChange('custom_domain', normalizeDomain(e.target.value.toLowerCase()))} placeholder="anna-max.de" /></FormGroup>
             </SettingsGrid>
 
             {/* Favicon Emoji */}
@@ -2574,12 +2620,12 @@ export default function ProjectDetailPage() {
           {/* Section 05: Links & QR-Code */}
           <CollapsibleSection number="05" title="Links & QR-Code" defaultOpen={false}>
             <LinkBox>
-              <a href={`https://${baseUrl}`} target="_blank" rel="noopener noreferrer">{baseUrl}</a>
-              <button onClick={() => copyToClipboard(`https://${baseUrl}`)}>Copy</button>
+              <a href={websiteUrl} target="_blank" rel="noopener noreferrer">{websiteUrl}</a>
+              <button onClick={() => copyToClipboard(websiteUrl)}>Copy</button>
             </LinkBox>
             <LinkBox>
-              <a href={`https://${baseUrl}/admin`} target="_blank" rel="noopener noreferrer">{baseUrl}/admin</a>
-              <button onClick={() => copyToClipboard(`https://${baseUrl}/admin`)}>Copy</button>
+              <a href={adminUrl} target="_blank" rel="noopener noreferrer">{adminUrl}</a>
+              <button onClick={() => copyToClipboard(adminUrl)}>Copy</button>
             </LinkBox>
             
             {/* QR-Code Designer */}
@@ -2594,7 +2640,7 @@ export default function ProjectDetailPage() {
               </QRPreviewHeader>
               <QRDesignerLayout>
                 {/* Live Preview */}
-                <QRCanvas id="website-qr-preview" data-url={`https://${baseUrl}`} />
+                <QRCanvas id="website-qr-preview" data-url={websiteUrl} />
                 
                 {/* Design Options */}
                 <QRDesignPanel>

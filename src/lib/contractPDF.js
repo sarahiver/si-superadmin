@@ -1,6 +1,7 @@
 // src/lib/contractPDF.js
 // Ausführlicher Vertrag für Online-Dienstleistungen im S&I. Editorial Stil
 import { jsPDF } from 'jspdf';
+import { projectHost } from './projectUrl';
 import { getPackage, calculatePricing, formatPrice } from './pricing';
 import { SIGNATURE_IVER_GENTZ } from './signatureData';
 
@@ -215,7 +216,7 @@ export function generateContractPDF(project, pricing, options = {}) {
 
   const couple = project.couple_names || `${project.partner1_name} & ${project.partner2_name}`;
   const wDate = project.wedding_date ? formatDate(project.wedding_date) : '[Datum folgt]';
-  const url = project.custom_domain || `siwedding.de/${project.slug || '[url]'}`;
+  const url = projectHost(project) || '[url]';
 
   doc.text('PROJEKT', m + 10, y + 10);
   doc.setFont('helvetica', 'normal');

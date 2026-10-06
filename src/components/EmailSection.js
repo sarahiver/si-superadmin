@@ -2,6 +2,7 @@
 // E-Mail Tab für ProjectDetailPage
 
 import React, { useState, useEffect } from 'react';
+import { projectHost } from '../lib/projectUrl';
 import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import { getEmailLogs } from '../lib/supabase';
@@ -210,7 +211,7 @@ export default function EmailSection({ project }) {
       package_name: project.package,
       admin_url: `https://siwedding.de/${project.slug}/admin`,
       admin_password: project.admin_password,
-      website_url: project.custom_domain || `siwedding.de/${project.slug}`,
+      website_url: projectHost(project),
       custom_subject: customSubject,
       custom_title: customSubject,
       custom_message: customMessage,
@@ -243,7 +244,7 @@ export default function EmailSection({ project }) {
       package_name: project.package,
       admin_url: `https://siwedding.de/${project.slug}/admin`,
       admin_password: '********',
-      website_url: project.custom_domain || `siwedding.de/${project.slug}`,
+      website_url: projectHost(project),
       custom_subject: customSubject || 'Vorschau',
       custom_title: customSubject || 'Vorschau',
       custom_message: customMessage || '<p>Ihre Nachricht hier...</p>',

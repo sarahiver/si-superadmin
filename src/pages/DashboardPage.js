@@ -1,5 +1,6 @@
 // src/pages/DashboardPage.js
 import React, { useState, useEffect } from 'react';
+import { projectHost } from '../lib/projectUrl';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import toast from 'react-hot-toast';
@@ -365,7 +366,7 @@ export default function DashboardPage() {
           {recentProjects.map(project => {
             const status = PROJECT_STATUS[project.status];
             const pkg = getPackage(project.package);
-            const displayUrl = project.custom_domain || (project.slug ? `siwedding.de/${project.slug}` : null);
+            const displayUrl = projectHost(project) || null;
             const hosting = calculateHostingDates(project);
             const hostingPercent = hosting.hostingMonths > 0
               ? Math.max(0, 100 - ((hosting.daysRemaining / (hosting.hostingMonths * 30)) * 100))

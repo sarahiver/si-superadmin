@@ -1,6 +1,7 @@
 // src/lib/themedContractPDF.js
 // Generiert Vertrag-PDF im Theme-Design
 import { jsPDF } from 'jspdf';
+import { projectHost } from './projectUrl';
 import { getPackage, calculatePricing, formatPrice } from './pricing';
 
 // Theme Farben (RGB für jsPDF)
@@ -109,7 +110,7 @@ export function generateThemedContractPDF(project, pricing) {
   
   const couple = project.couple_names || `${project.partner1_name} & ${project.partner2_name}`;
   const wDate = project.wedding_date ? new Date(project.wedding_date).toLocaleDateString('de-DE') : '[DATUM]';
-  const url = project.custom_domain || `siwedding.de/${project.slug}`;
+  const url = projectHost(project);
   
   doc.text(`Brautpaar: ${couple}`, m, y); y += 5;
   doc.text(`Hochzeitsdatum: ${wDate}`, m, y); y += 5;
