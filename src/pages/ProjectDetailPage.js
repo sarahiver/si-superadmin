@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
 import { projectUrls, projectHost, normalizeDomain } from '../lib/projectUrl';
+import { uploadFile } from '../lib/cloudinaryUpload';
 import { getProjectById, updateProject, deleteProject, supabase, getPartnerCodeById, getPartnerPayoutByProject, createPartnerPayout, updatePartnerPayout, getNextPayoutInvoiceNumber } from '../lib/supabase';
 import { THEMES, PROJECT_STATUS, ALL_COMPONENTS, DEFAULT_COMPONENT_ORDER, CORE_COMPONENTS } from '../lib/constants';
 import {
@@ -1356,6 +1357,8 @@ export default function ProjectDetailPage() {
   const [expandedEmailId, setExpandedEmailId] = useState(null);
   const [expandedConfigId, setExpandedConfigId] = useState(null);
   const [showHostingOverride, setShowHostingOverride] = useState(false);
+  const [monogramUploading, setMonogramUploading] = useState(false);
+  const [monogramError, setMonogramError] = useState('');
 
   // Hosting calculation helpers
   // Laufzeit-Logik liegt zentral in lib/pricing.js
@@ -1391,6 +1394,26 @@ export default function ProjectDetailPage() {
       setTimeout(() => renderQRPreview(url, formData), 100);
     }
   }, [formData.custom_domain, formData.slug, formData.qr_style, formData.qr_color, formData.qr_logo_type, formData.qr_logo_text, formData.qr_logo_image, formData.qr_frame_style, formData.qr_frame_text]);
+
+  // Lädt eine SVG-Datei direkt nach Cloudinary und schreibt die URL in
+  // custom_styles.monogram_url.
+  const handleMonogramUpload = async (file) => {
+    if (!file) return;
+    setMonogramError('');
+    if (!/\.svg$/i.test(file.name)) {
+      setMonogramError('Bitte eine SVG-Datei wählen — andere Formate lassen sich nicht einfärben.');
+      return;
+    }
+    setMonogramUploading(true);
+    try {
+      const url = await uploadFile(file, { folder: `monogramme/${formData.slug || id}` });
+      handleChange('custom_styles', { ...(formData.custom_styles || {}), monogram_url: url });
+    } catch (err) {
+      setMonogramError(String(err.message || err));
+    } finally {
+      setMonogramUploading(false);
+    }
+  };
 
   const loadProject = async () => {
     const { data } = await getProjectById(id);
@@ -2189,9 +2212,21 @@ export default function ProjectDetailPage() {
                   <Input
                     value={formData.custom_styles?.monogram_url || ''}
                     onChange={e => handleChange('custom_styles', { ...(formData.custom_styles || {}), monogram_url: e.target.value.trim() })}
-                    placeholder="https://res.cloudinary.com/.../monogramm.svg"
+                    placeholder="SVG hochladen oder URL einfügen"
                     style={{ flex: 1 }}
                   />
+                  <label
+                    style={{ padding: '0.5rem 0.75rem', border: `1px solid ${colors.lightGray}`, borderRadius: '6px', background: '#fff', cursor: monogramUploading ? 'wait' : 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                  >
+                    {monogramUploading ? 'Lädt…' : '↑ SVG wählen'}
+                    <input
+                      type="file"
+                      accept=".svg,image/svg+xml"
+                      disabled={monogramUploading}
+                      style={{ display: 'none' }}
+                      onChange={e => { handleMonogramUpload(e.target.files?.[0]); e.target.value = ''; }}
+                    />
+                  </label>
                   <button
                     type="button"
                     onClick={() => {
@@ -2203,8 +2238,8 @@ export default function ProjectDetailPage() {
                     Entfernen
                   </button>
                 </div>
-                <span style={{ fontSize: '0.75rem', color: colors.gray, marginTop: '0.35rem', display: 'block' }}>
-                  Ohne Eintrag zeigt die Hochzeitswebsite die Initialen des Paares. SVG mit einfarbiger Form verwenden — die Farbe setzt das Theme.
+                <span style={{ fontSize: '0.75rem', color: monogramError ? colors.red : colors.gray, marginTop: '0.35rem', display: 'block' }}>
+                  {monogramError || 'Ohne Eintrag zeigt die Hochzeitswebsite die Initialen des Paares. SVG mit einfarbiger Form verwenden — die Farbe setzt das Theme.'}
                 </span>
               </FormGroup>
 
