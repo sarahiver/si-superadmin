@@ -21,14 +21,44 @@ const H = 1620; // 2:3
 // Themes für Pins: Jede Designwelt bringt eigene Farben und Schriften mit,
 // damit ein Pin zum beworbenen Theme passt. Fehlt eine Angabe, gilt classic.
 export const PIN_THEMES = {
-  classic:      { accent: '#C41E3A', bgLight: '#FAFAFA', headlineFont: "'Oswald', sans-serif" },
-  editorial:    { accent: '#C41E3A', bgLight: '#FFFFFF', headlineFont: "'Oswald', sans-serif" },
-  botanical:    { accent: '#5F6650', bgLight: '#F4F2EC', headlineFont: "'Source Serif 4', Georgia, serif" },
-  contemporary: { accent: '#0D0D0D', bgLight: '#F7F7F5', headlineFont: "'Inter', sans-serif" },
-  luxe:         { accent: '#B08D57', bgLight: '#F6F3EE', headlineFont: "'Source Serif 4', Georgia, serif" },
-  neon:         { accent: '#FF2E9A', bgLight: '#0A0A0A', headlineFont: "'Inter', sans-serif" },
-  modern:       { accent: '#2B2B2B', bgLight: '#FFFFFF', headlineFont: "'Inter', sans-serif" },
-  video:        { accent: '#8A1C2B', bgLight: '#101012', headlineFont: "'Oswald', sans-serif" },
+  // Farben und Schriften aus si-wedding-themes/src/themes/<name>/GlobalStyles.js.
+  // Vorher standen hier geschätzte Werte — die Pins sahen dadurch anders aus
+  // als die beworbenen Designs.
+  classic: {
+    accent: '#999999', bgLight: '#FDFCFA', text: '#1A1A1A',
+    headlineFont: "'Cormorant Garamond', Georgia, serif",
+    uiFont: "'Josefin Sans', sans-serif",
+  },
+  editorial: {
+    accent: '#C41E3A', bgLight: '#FAFAFA', text: '#0A0A0A',
+    headlineFont: "'Oswald', 'Arial Narrow', sans-serif",
+    uiFont: "'Inter', -apple-system, sans-serif",
+  },
+  botanical: {
+    accent: '#4CAF50', bgLight: '#F4F6F2', text: '#081208',
+    headlineFont: "'Cormorant Garamond', Georgia, serif",
+    uiFont: "'Montserrat', -apple-system, sans-serif",
+  },
+  contemporary: {
+    accent: '#FF6B6B', bgLight: '#FAFAFA', text: '#0D0D0D',
+    headlineFont: "'Space Grotesk', -apple-system, sans-serif",
+    uiFont: "'Space Grotesk', -apple-system, sans-serif",
+  },
+  luxe: {
+    accent: '#D4AF37', bgLight: '#FFFEF9', text: '#1A1A1A',
+    headlineFont: "'Cormorant', 'Didot', Georgia, serif",
+    uiFont: "'Outfit', 'Montserrat', sans-serif",
+  },
+  neon: {
+    accent: '#ff00ff', bgLight: '#1a1a2e', text: '#ffffff',
+    headlineFont: "'Space Grotesk', sans-serif",
+    uiFont: "'Space Grotesk', sans-serif",
+  },
+  video: {
+    accent: '#6B8CAE', bgLight: '#101014', text: '#FFFFFF',
+    headlineFont: "'Manrope', sans-serif",
+    uiFont: "'Inter', -apple-system, sans-serif",
+  },
 };
 
 const BRAND = {
@@ -199,11 +229,18 @@ function buildPinNode({ layout, eyebrow, headline, accentWord, body, imageUrl, t
   const node = document.createElement('div');
   node.style.cssText = `position:fixed;left:-99999px;top:0;width:${W}px;height:${H}px;overflow:hidden;`;
 
-  const dark = layout === 'fullbleed';
-  const text = dark ? T.textDark : T.text;
+  // Neon und Video sind von Haus aus dunkel — dort gilt die helle Schrift
+  // auch in Layouts, die sonst hell wären.
+  const darkTheme = ['neon', 'video'].includes(theme);
+  const dark = layout === 'fullbleed' || darkTheme;
+  const text = dark ? (T.text && darkTheme ? T.text : T.textDark) : T.text;
 
-  const bgLayer = dark
-    ? `<img src="${escapeHtml(imageUrl)}" crossorigin="anonymous" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" />
+  // Hintergrundbild als background-image, NICHT als <img> mit object-fit:
+  // html2canvas 1.4.1 ignoriert object-fit und zieht das Bild auf die volle
+  // Elementgröße — im Browser sah es richtig aus, im gerenderten PNG war es
+  // verzerrt. background-size: cover wird dagegen korrekt umgesetzt.
+  const bgLayer = dark && imageUrl
+    ? `<div style="position:absolute;inset:0;background-image:url('${escapeHtml(imageUrl)}');background-size:cover;background-position:center;background-repeat:no-repeat;"></div>
        <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,10,0.25) 0%,rgba(10,10,10,0.35) 45%,rgba(10,10,10,0.88) 100%);"></div>`
     : '';
 
@@ -245,11 +282,26 @@ export async function renderPinBase64(pinProps) {
   const node = buildPinNode(pinProps);
   document.body.appendChild(node);
   try {
-    // Bild(er) laden lassen, bevor gerendert wird
-    const imgs = [...node.querySelectorAll('img')];
-    await Promise.all(imgs.map(img => img.complete
-      ? Promise.resolve()
-      : new Promise(res => { img.onload = res; img.onerror = res; })));
+    // Bilder vorladen. Seit der Hintergrund als background-image gesetzt wird
+    // (object-fit wird von html2canvas nicht unterstützt), gibt es kein
+    // <img>-Element mehr, dessen Ladezustand man abfragen könnte — deshalb
+    // wird die URL hier separat geladen. Ohne das rendert html2canvas eine
+    // leere Fläche, weil das Bild noch unterwegs ist.
+    const urls = [
+      ...[...node.querySelectorAll('img')].map(i => i.src),
+      ...[...node.querySelectorAll('[style*="background-image"]')]
+        .map(el => (el.style.backgroundImage.match(/url\(['"]?([^'")]+)/) || [])[1])
+        .filter(Boolean),
+    ];
+    await Promise.all(urls.map(src => new Promise(res => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = res;
+      img.onerror = res;
+      img.src = src;
+      // Notausgang, damit ein hängendes Bild den Lauf nicht blockiert
+      setTimeout(res, 6000);
+    })));
     const canvas = await html2canvas(node.firstElementChild, {
       width: W, height: H, scale: 1, useCORS: true, backgroundColor: null, logging: false,
     });
