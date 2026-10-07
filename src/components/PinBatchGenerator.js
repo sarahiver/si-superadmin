@@ -194,9 +194,14 @@ async function loadHtml2Canvas() {
 export async function renderPinBase64({ layout, eyebrow, headline, accentWord, body, imageUrl, theme }) {
   const html2canvas = await loadHtml2Canvas();
 
-  // Außerhalb des sichtbaren Bereichs montieren, in Zielgröße rendern
+  // Wichtig: in der VORSCHAUGRÖSSE montieren (360×540) und erst html2canvas
+  // mit scale 3 auf 1080×1620 hochrechnen — genau wie die Instagram-Seite.
+  // Direkt in Zielgröße zu rendern geht schief, weil die Komponente ihre
+  // Schriftgrößen in rem angibt: Die bleiben absolut gleich und wirken auf
+  // einer dreifach größeren Fläche winzig.
+  const PW = W / 3, PH = H / 3;
   const host = document.createElement('div');
-  host.style.cssText = `position:fixed;left:-99999px;top:0;width:${W}px;height:${H}px;`;
+  host.style.cssText = `position:fixed;left:-99999px;top:0;width:${PW}px;height:${PH}px;`;
   document.body.appendChild(host);
   const root = createRoot(host);
 
@@ -206,8 +211,8 @@ export async function renderPinBase64({ layout, eyebrow, headline, accentWord, b
         <PostCanvas
           theme={theme || 'classic'}
           layout={layout || 'statement'}
-          W={W}
-          H={H}
+          W={PW}
+          H={PH}
           eyebrow={eyebrow}
           headline={headline}
           accentWord={accentWord}
@@ -236,7 +241,7 @@ export async function renderPinBase64({ layout, eyebrow, headline, accentWord, b
     })));
 
     const canvas = await html2canvas(host.firstElementChild, {
-      width: W, height: H, scale: 1, useCORS: true,
+      width: PW, height: PH, scale: 3, useCORS: true,
       backgroundColor: null, logging: false,
     });
     return canvas.toDataURL('image/png').split(',')[1];
