@@ -114,29 +114,38 @@ export function generateAnalyticsReport(data, periodLabel) {
   const ev = (name) => data.eventSummary?.[name] ?? 0;
   const demoEv = (name) => (data.demoEvents || []).find(e => e.event === name) || {};
   heading('Conversion-Funnel');
+  // Jede Stufe nennt ihre Bezugsgröße. Vorher wurde stur durch die Vorstufe
+  // geteilt — "Demo besucht" zählte aber ALLE Demo-Besucher (auch Pinterest,
+  // Direktlinks) und ergab so Quoten wie 233 % auf "Demo geklickt".
+  const demoFromSite = data.demoVisitsFromSite;
   const funnelSteps = [
-    ['Besucher', o.activeUsers ?? 0],
-    ['Demo geklickt', ev('demoClicks')],
-    ['Demo besucht (siwedding.de)', demoEv('page_view').users || 0],
-    ['Demo-CTA geklickt', demoEv('demo_overlay_cta').count || 0],
-    ['Formular gestartet', ev('formStart')],
-    ['Anfrage gesendet', ev('generateLead')],
+    { label: 'Besucher', val: o.activeUsers ?? 0, base: null },
+    { label: 'Demo geklickt', val: ev('demoClicks'), base: 0 },
+    demoFromSite != null
+      ? { label: 'Demo besucht (von sarahiver.com)', val: demoFromSite, base: 1 }
+      : { label: 'Demo besucht (alle Quellen)', val: demoEv('page_view').users || 0, base: null },
+    { label: 'Demo-CTA geklickt (alle Demo-Besucher)', val: demoEv('demo_overlay_cta').count || 0, base: null },
+    { label: 'Formular gestartet', val: ev('formStart'), base: 0 },
+    { label: 'Anfrage gesendet', val: ev('generateLead'), base: 4 },
   ];
-  const funnelRows = funnelSteps.map(([label, val], i) => {
-    if (i === 0) return [label, val, ''];
-    const prevVal = funnelSteps[i - 1][1];
-    const rate = prevVal > 0 ? `${Math.round((val / prevVal) * 100)}% v. Vorstufe` : '–';
+  const funnelRows = funnelSteps.map(({ label, val, base }) => {
+    if (base == null) return [label, val, ''];
+    const ref = funnelSteps[base];
+    if (!ref.val) return [label, val, '–'];
+    const pct = Math.round((val / ref.val) * 100);
+    // Über 100 % heißt: Mehrfachklicks oder andere Population — keine Quote
+    const rate = pct > 100 ? `${val}/${ref.val} (Mehrfach)` : `${pct}% v. ${ref.label}`;
     return [label, val, rate];
   });
   // Gesamt-Conversion als letzte Zeile
-  const visitors = funnelSteps[0][1];
-  const leads = funnelSteps[5][1];
+  const visitors = funnelSteps[0].val;
+  const leads = funnelSteps[5].val;
   funnelRows.push([
     'Gesamt: Besucher → Anfrage',
     '',
     visitors > 0 ? `${Math.round((leads / visitors) * 1000) / 10}%` : '–',
   ]);
-  table(['Schritt', 'Wert', 'Rate'], funnelRows, [100, 32, 42]);
+  table(['Schritt', 'Wert', 'Rate'], funnelRows, [80, 24, 70]);
 
   // ── Demo-Klicks nach Einstieg ──
   if ((data.demoSources || []).length) {

@@ -14,6 +14,9 @@ export const THEMES = {
   video: { id: 'video', name: 'Video', description: 'Horizontal Scroll, Cinematic' },
   classic: { id: 'classic', name: 'Classic', description: 'Warm, Elegant, Zeitlos' },
   parallax: { id: 'parallax', name: 'Parallax', description: '3D Scroll, Bold Typography, Immersiv' },
+  summer: { id: 'summer', name: 'Summer', description: 'Warm, Sommerlich, Collage-Hero' },
+  // cinematic: erst eintragen, wenn das Theme in si-wedding-themes registriert ist
+  // (App.js + ThemeRenderer). Sonst bekommt das Paar eine kaputte Seite.
 };
 
 // ============================================

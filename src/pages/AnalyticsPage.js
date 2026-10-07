@@ -157,8 +157,15 @@ export default function AnalyticsPage() {
               </FunnelStep>
               <FunnelArr>→</FunnelArr>
               <FunnelStep>
-                <FunnelNum>{demoEv('page_view').users || 0}</FunnelNum><FunnelLbl>Demo besucht</FunnelLbl>
-                <FunnelPct>{ev('demoClicks') ? (((demoEv('page_view').users || 0) / ev('demoClicks')) * 100).toFixed(0) + '%' : '—'}</FunnelPct>
+                {/* Nur Besucher, die von sarahiver.com kamen — alle Demo-Besucher
+                    (Pinterest, Direktlinks) ergaben Quoten über 100 %. */}
+                {data.demoVisitsFromSite != null ? (<>
+                  <FunnelNum>{data.demoVisitsFromSite}</FunnelNum><FunnelLbl>Demo besucht (von Website)</FunnelLbl>
+                  <FunnelPct>{ev('demoClicks') && data.demoVisitsFromSite <= ev('demoClicks') ? ((data.demoVisitsFromSite / ev('demoClicks')) * 100).toFixed(0) + '%' : '—'}</FunnelPct>
+                </>) : (<>
+                  <FunnelNum>{demoEv('page_view').users || 0}</FunnelNum><FunnelLbl>Demo besucht (alle Quellen)</FunnelLbl>
+                  <FunnelPct>—</FunnelPct>
+                </>)}
               </FunnelStep>
               <FunnelArr>→</FunnelArr>
               <FunnelStep>
@@ -195,7 +202,7 @@ export default function AnalyticsPage() {
                       const mx = Math.max(...data.demoSources.map(x => x.clicks));
                       return <BarItem key={i}><BarLbl>{t.source}</BarLbl><BarTrack><BarFill $w={(t.clicks/mx)*100} $c={colors.blue} /></BarTrack><BarVal>{t.clicks}</BarVal></BarItem>;
                     })}</BarList>
-                  ) : <NoData>Noch keine Demo-Klicks (source-Dimension seit Jul 2026)</NoData>}
+                  ) : <NoData>Noch keine Demo-Klicks mit Einstieg (Custom Dimension cta_placement in GA4 anlegen)</NoData>}
                 </Panel>
                 <Panel>
                   <PanelTitle>Paket-Interesse</PanelTitle>

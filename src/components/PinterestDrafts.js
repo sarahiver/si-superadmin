@@ -153,10 +153,10 @@ const Empty = styled.p`
  *                   Vorschau erst beim Übernehmen, nicht beim Erzeugen
  * @param {Function} onPromoted   Rückmeldung, damit die Queue neu lädt
  */
-// 'list' ist vorerst draußen: Das Layout rendert noch nicht korrekt.
-// Der Code dafür liegt unverändert in lib/postCanvas.js — zum Wiederaktivieren
-// genügt es, 'list' hier zu ergänzen.
-const LAYOUTS = ['statement', 'split', 'dark', 'fullbleed'];
+// 'list' wieder aktiv: Layout in lib/postCanvas.js korrigiert (Überbreite,
+// fehlender Footer, doppeltes accentWord). Listenpunkte kommen aus meta.body,
+// eine Zeile pro Punkt, optional "Titel | Beschreibung".
+const LAYOUTS = ['statement', 'split', 'list', 'dark', 'fullbleed'];
 const THEMES = Object.keys(PIN_THEMES);
 
 export default function PinterestDrafts({ renderImage, onPromoted }) {
@@ -224,9 +224,12 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
   // jeder Tastendruck eine Anfrage auslösen.
   const patch = (id, field, value) => {
     setDrafts(cur => cur.map(d => (d.id === id ? { ...d, [field]: value } : d)));
-    clearTimeout(patch._t?.[id]);
+    // Timer pro Feld: Vorher pro Entwurf — bei der Board-Wahl hat das
+    // direkt folgende board_name-Update das Speichern von board_id verworfen.
+    const key = `${id}:${field}`;
     patch._t = patch._t || {};
-    patch._t[id] = setTimeout(() => {
+    clearTimeout(patch._t[key]);
+    patch._t[key] = setTimeout(() => {
       adminFetch('/api/pinterest?action=draft_update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -473,6 +476,18 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
                 />
               </div>
             </Grid2>
+
+            {d.meta?.layout === 'list' && (
+              <div>
+                <Label>Listenpunkte — eine Zeile pro Punkt, optional „Titel | Beschreibung", max. 5</Label>
+                <Area
+                  value={d.meta?.body || ''}
+                  placeholder={'Gästeliste früh starten | spart später Stress\nLocation besichtigen\nBudget festlegen'}
+                  onChange={e => patch(d.id, 'meta', { ...(d.meta || {}), body: e.target.value })}
+                  onBlur={() => { setPreviews(p => ({ ...p, [d.id]: null })); makePreview(d); }}
+                />
+              </div>
+            )}
 
             <div>
               <Label>Zielseite</Label>

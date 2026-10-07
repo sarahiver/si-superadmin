@@ -68,6 +68,7 @@ export default async function handler(req, res) {
       demoSources, packageDetail, demoDetail,
       // Demo-Site Queries (siwedding.de)
       demoPages, demoEvents,
+      demoSourcesLegacy, demoVisitsFromSite,
     ] = await Promise.all([
       // 1) Overview (current)
       runReport(accessToken, GA4_PROPERTY_ID, {
@@ -206,10 +207,12 @@ export default async function handler(req, res) {
         orderBys: [{ dimension: { dimensionName: 'hour' } }],
       }) : Promise.resolve(null),
       // 16-18) Custom dim queries (safe)
-      // Demo-Klicks nach Einstiegspunkt (source: hero / sticky_bar / filmstrip / filmstrip_mobile)
+      // Demo-Klicks nach Einstiegspunkt. Parameter heißt seit der Umstellung
+      // cta_placement — 'source' kollidierte mit GA4s Sitzungsquelle.
+      // Ältere Daten mit 'source' kommen über demoSourcesLegacy (unten) dazu.
       safeReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
-        dimensions: [{ name: 'customEvent:source' }],
+        dimensions: [{ name: 'customEvent:cta_placement' }],
         metrics: [{ name: 'eventCount' }],
         dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'demo_click' } } },
         orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
@@ -246,7 +249,46 @@ export default async function handler(req, res) {
         orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
         limit: 20,
       }),
+      // Legacy: demo_click mit Parameter 'source' (vor der Umstellung)
+      safeReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'customEvent:source' }],
+        metrics: [{ name: 'eventCount' }],
+        dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'demo_click' } } },
+      }),
+      // Demo-Besucher, die von sarahiver.com kamen. Nur diese Zahl gehört in
+      // den Funnel nach "Demo geklickt" — alle Demo-Besucher (Pinterest,
+      // Direktlinks, Paare mit Link) ergaben Quoten über 100 %.
+      safeReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        metrics: [{ name: 'totalUsers' }],
+        dimensionFilter: { andGroup: { expressions: [
+          DEMO_HOST,
+          { filter: { fieldName: 'eventName', stringFilter: { value: 'page_view' } } },
+          { filter: { fieldName: 'pageReferrer', stringFilter: { matchType: 'CONTAINS', value: 'sarahiver.com' } } },
+        ] } },
+      }),
     ]);
+
+    // Einstiegspunkte zusammenführen: cta_placement + Altwerte aus 'source'
+    const mergeSources = (...reports) => {
+      const map = new Map();
+      reports.filter(Boolean).forEach(r => {
+        parseRows(r, ['source'], ['clicks']).forEach(row => {
+          if (!row.source || row.source === '(not set)' || row.source === 'none') return;
+          map.set(row.source, (map.get(row.source) || 0) + (Number(row.clicks) || 0));
+        });
+      });
+      return [...map.entries()]
+        .map(([source, clicks]) => ({ source, clicks }))
+        .sort((a, b) => b.clicks - a.clicks);
+    };
+    const mergedDemoSources = (demoSources || demoSourcesLegacy)
+      ? mergeSources(demoSources, demoSourcesLegacy)
+      : null;
+    const demoVisitsFromSiteCount = demoVisitsFromSite
+      ? Number(demoVisitsFromSite.rows?.[0]?.metricValues?.[0]?.value || 0)
+      : null;
 
     // Build event summary from allEvents
     const eventsData = parseRows(allEvents, ['event'], ['count', 'users']);
@@ -337,7 +379,8 @@ export default async function handler(req, res) {
       blogArticles: parseRows(blogArticles, ['pagePath'], ['views', 'users', 'avgDuration']),
       dailyVisitors: parseRows(dailyVisitors, ['date'], ['users', 'sessions', 'pageViews', 'newUsers']),
       hourlyVisitors: hourlyVisitors ? parseRows(hourlyVisitors, ['hour'], ['users', 'sessions']) : null,
-      demoSources: demoSources ? parseRows(demoSources, ['source'], ['clicks']) : null,
+      demoSources: mergedDemoSources,
+      demoVisitsFromSite: demoVisitsFromSiteCount,
       packageDetail: packageDetail ? parseRows(packageDetail, ['package'], ['clicks']) : null,
       demoDetail: demoDetail ? parseRows(demoDetail, ['url'], ['clicks']) : null,
       hasCustomDims: demoDetail !== null,

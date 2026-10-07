@@ -34,6 +34,7 @@ const THEME_ACCENT_COLORS = {
   video: '#E50914',
   classic: '#8B6914',
   parallax: '#000000',
+  summer: '#C1392B',
 };
 
 // Verfügbare Varianten pro Komponente

@@ -17,6 +17,28 @@ import { THEMES } from './reelThemes';
 // zuverlässig um — im Browser sah es richtig aus, im Export war es verzerrt.
 
 /**
+ * Listenpunkte aus dem Body-Text.
+ * Format: eine Zeile pro Punkt, optional "Titel | Beschreibung".
+ * Kommt nur ein Satz (Standard der KI-Copy), wird er an Satzzeichen geteilt,
+ * damit das Layout nicht mit einem einzigen Riesenpunkt dasteht.
+ * Maximal 5 Punkte — mehr passt nicht lesbar auf einen Pin.
+ */
+export function listItems(bodyText = '') {
+  let lines = String(bodyText).split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) {
+    lines = String(bodyText)
+      .split(/(?<=[.!?;])\s+|\s+[–—·•]\s+/)
+      .map(l => l.replace(/[.;]$/, '').trim())
+      .filter(Boolean);
+  }
+  return lines.slice(0, 5).map(line => {
+    const [title, ...rest] = line.split('|');
+    const t = title.trim();
+    return { title: t.charAt(0).toUpperCase() + t.slice(1), desc: rest.join('|').trim() };
+  });
+}
+
+/**
  * @param {object} p
  * @param {string} p.theme      classic | editorial | ... (siehe reelThemes)
  * @param {string} p.layout     statement | split | list | dark | fullbleed
@@ -89,18 +111,29 @@ export default function PostCanvas({
             <div style={{ ...ey, marginTop: 30 }}>{eyebrow}</div><div style={{ ...hl, fontSize: '1.5rem' }}>{renderHeadline()}</div><div style={al} /><div style={bd}>{bodyText}</div>
           </div>{footer}</div>);
       case 'list': {
-        const items = bodyText.split('\n').filter(Boolean);
-        return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden', padding: 24, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ ...logo, position: 'relative', top: 0, left: 0, marginBottom: 14, alignSelf: 'flex-start' }}>S&I.</div>
-          <div style={ey}>{eyebrow}</div><div style={{ ...hl, fontSize: '1.5rem' }}>{renderHeadline()}</div>
-          {t.scriptFont && <div style={{ fontFamily: t.scriptFont, fontSize: '1rem', color: t.accent, marginBottom: 12 }}>{accentWord || ''}</div>}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            {items.map((item, i) => { const [title, desc] = item.split('|'); return (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` }}>
-                <div style={{ width: 14, height: 2, background: t.accent, marginTop: 7, flexShrink: 0, boxShadow: t.glow ? `0 0 6px ${t.accent}` : 'none' }} />
-                <div><div style={{ fontFamily: t.bodyFont, fontSize: '0.55rem', fontWeight: 600, color: textColor }}>{title}</div>
-                  {desc && <div style={{ fontFamily: t.bodyFont, fontSize: '0.42rem', fontWeight: 300, color: t.muted }}>{desc}</div>}</div>
-              </div>); })}</div>{footer}</div>); }
+        // Vorher: padding auf einem Container mit fester Breite/Höhe ohne
+        // border-box → 48 px breiter und höher als die Fläche. html2canvas hat
+        // rechts abgeschnitten, der Footer lag außerhalb, das accentWord stand
+        // doppelt da, und die Liste klebte oben an der Headline.
+        const items = listItems(bodyText);
+        return (<div style={{ background: t.gradient || bg, width: W, height: H, boxSizing: 'border-box', position: 'relative', overflow: 'hidden' }}>
+          <div style={logo}>S&I.</div>
+          {t.glow && <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 30% 30%, ${t.accent}12, transparent 55%)`, pointerEvents: 'none' }} />}
+          <div style={{ position: 'absolute', inset: 0, boxSizing: 'border-box', padding: '64px 24px 48px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2 }}>
+            <div style={al} />
+            <div style={ey}>{eyebrow}</div>
+            <div style={{ ...hl, fontSize: '1.45rem', marginBottom: 18, overflowWrap: 'break-word' }}>{renderHeadline()}</div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {items.map((item, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 0', borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'}` }}>
+                  <div style={{ fontFamily: t.uiFont, fontSize: '0.5rem', fontWeight: 700, color: t.accent, minWidth: 16, lineHeight: '1.5', textShadow: t.glow ? `0 0 6px ${t.accent}` : 'none' }}>{String(i + 1).padStart(2, '0')}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: t.bodyFont, fontSize: '0.72rem', fontWeight: 600, lineHeight: 1.35, color: textColor }}>{item.title}</div>
+                    {item.desc && <div style={{ fontFamily: t.bodyFont, fontSize: '0.56rem', fontWeight: 400, lineHeight: 1.45, color: isDark ? 'rgba(255,255,255,0.55)' : t.muted, marginTop: 2 }}>{item.desc}</div>}
+                  </div>
+                </div>))}
+            </div>
+          </div>{footer}</div>); }
       case 'dark':
         return (<div style={{ background: t.bgDark || t.bg, width: W, height: H, position: 'relative', overflow: 'hidden' }}>
           <div style={{ ...logo, ...(t.logoDarkStyle) }}>S&I.</div>{corner}
