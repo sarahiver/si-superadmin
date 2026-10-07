@@ -153,7 +153,10 @@ const Empty = styled.p`
  *                   Vorschau erst beim Übernehmen, nicht beim Erzeugen
  * @param {Function} onPromoted   Rückmeldung, damit die Queue neu lädt
  */
-const LAYOUTS = ['statement', 'split', 'liste', 'dark', 'fullbleed'];
+// 'list' ist vorerst draußen: Das Layout rendert noch nicht korrekt.
+// Der Code dafür liegt unverändert in lib/postCanvas.js — zum Wiederaktivieren
+// genügt es, 'list' hier zu ergänzen.
+const LAYOUTS = ['statement', 'split', 'dark', 'fullbleed'];
 const THEMES = Object.keys(PIN_THEMES);
 
 export default function PinterestDrafts({ renderImage, onPromoted }) {
