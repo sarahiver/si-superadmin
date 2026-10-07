@@ -611,6 +611,28 @@ ${schema}`;
     try {
       // Create a full-size (1080×1350) offscreen clone for sharp rendering
       const clone = el.cloneNode(true);
+
+      // html2canvas 1.4.1 verrechnet sich beim Vermessen von Textknoten, die
+      // Zeichen außerhalb der Standardebene enthalten — Emojis belegen intern
+      // zwei Einheiten, die Bibliothek zählt aber eine. Ergebnis:
+      //   IndexSizeError: offset 56 is larger than the node's length (55)
+      // Deshalb werden solche Zeichen im KLON entfernt. Das Original im
+      // Editor bleibt unberührt, der Nutzer sieht seinen Text weiterhin.
+      const stripAstral = (node) => {
+        if (node.nodeType === 3) {
+          // Nur Zeichen ab U+10000 (die als Surrogatpaar gespeichert werden)
+          // plus Variantenselektoren und Zero-Width-Joiner. Symbole aus der
+          // Standardebene wie ✓ · — lösen den Fehler nicht aus und bleiben.
+          const cleaned = node.nodeValue
+            .replace(/[\u{10000}-\u{10FFFF}\u{FE00}-\u{FE0F}\u{200D}]/gu, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+          if (cleaned !== node.nodeValue) node.nodeValue = cleaned;
+          return;
+        }
+        Array.from(node.childNodes || []).forEach(stripAstral);
+      };
+      stripAstral(clone);
       clone.style.width = (ASPECT.W * 3) + 'px';
       clone.style.height = (ASPECT.H * 3) + 'px';
       clone.style.transform = 'scale(1)';
