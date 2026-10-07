@@ -8,6 +8,7 @@
 // Rot-Akzent #C41E3A, S&I.-Logo + sarahiver.com-Footer fix. Zwei Layout-Varianten
 // (Fullbleed mit Artikelbild / Statement ohne Foto) rotieren automatisch.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { THEMES } from '../lib/reelThemes';
 import styled from 'styled-components';
 import { adminFetch } from '../lib/apiClient';
 import { withUtm } from './PinterestPublish';
@@ -20,46 +21,12 @@ const H = 1620; // 2:3
 // ── Brand-Preset (fix — bewusst KEINE Auswahl im UI) ──
 // Themes für Pins: Jede Designwelt bringt eigene Farben und Schriften mit,
 // damit ein Pin zum beworbenen Theme passt. Fehlt eine Angabe, gilt classic.
-export const PIN_THEMES = {
-  // Farben und Schriften aus si-wedding-themes/src/themes/<name>/GlobalStyles.js.
-  // Vorher standen hier geschätzte Werte — die Pins sahen dadurch anders aus
-  // als die beworbenen Designs.
-  classic: {
-    accent: '#999999', bgLight: '#FDFCFA', text: '#1A1A1A',
-    headlineFont: "'Cormorant Garamond', Georgia, serif",
-    uiFont: "'Josefin Sans', sans-serif",
-  },
-  editorial: {
-    accent: '#C41E3A', bgLight: '#FAFAFA', text: '#0A0A0A',
-    headlineFont: "'Oswald', 'Arial Narrow', sans-serif",
-    uiFont: "'Inter', -apple-system, sans-serif",
-  },
-  botanical: {
-    accent: '#4CAF50', bgLight: '#F4F6F2', text: '#081208',
-    headlineFont: "'Cormorant Garamond', Georgia, serif",
-    uiFont: "'Montserrat', -apple-system, sans-serif",
-  },
-  contemporary: {
-    accent: '#FF6B6B', bgLight: '#FAFAFA', text: '#0D0D0D',
-    headlineFont: "'Space Grotesk', -apple-system, sans-serif",
-    uiFont: "'Space Grotesk', -apple-system, sans-serif",
-  },
-  luxe: {
-    accent: '#D4AF37', bgLight: '#FFFEF9', text: '#1A1A1A',
-    headlineFont: "'Cormorant', 'Didot', Georgia, serif",
-    uiFont: "'Outfit', 'Montserrat', sans-serif",
-  },
-  neon: {
-    accent: '#ff00ff', bgLight: '#1a1a2e', text: '#ffffff',
-    headlineFont: "'Space Grotesk', sans-serif",
-    uiFont: "'Space Grotesk', sans-serif",
-  },
-  video: {
-    accent: '#6B8CAE', bgLight: '#101014', text: '#FFFFFF',
-    headlineFont: "'Manrope', sans-serif",
-    uiFont: "'Inter', -apple-system, sans-serif",
-  },
-};
+// Die Pin-Themes kommen aus derselben Quelle wie die Instagram-Posts:
+// lib/reelThemes.js. Eine eigene Palette hier zu pflegen hat sich als Fehler
+// erwiesen — die Werte liefen sofort auseinander und die Pins sahen anders
+// aus als die Posts, obwohl beide dasselbe Theme meinten.
+export { THEMES as PIN_THEMES } from '../lib/reelThemes';
+
 
 const BRAND = {
   bgLight: '#FAFAFA',
@@ -224,16 +191,30 @@ const headlineHtml = (headline, accentWord, color) => {
 };
 
 function buildPinNode({ layout, eyebrow, headline, accentWord, body, imageUrl, theme }) {
-  // Theme überschreibt einzelne Markenwerte; alles Übrige bleibt gleich.
-  const T = { ...BRAND, ...(PIN_THEMES[theme] || PIN_THEMES.classic) };
+  // Tokens aus reelThemes; BRAND liefert nur noch Logo- und Footertext.
+  const th = THEMES[theme] || THEMES.classic;
+  const T = {
+    ...BRAND,
+    accent: th.accent,
+    bgLight: th.bg,
+    bgDark: th.bgDark,
+    text: th.text,
+    textDark: th.textDark,
+    headlineFont: th.headlineFont,
+    uiFont: th.uiFont || th.bodyFont,
+    headlineWeight: th.headlineWeight ?? 700,
+    headlineTransform: th.headlineTransform || 'none',
+    scriptFont: th.scriptFont,
+    bodyFont: th.bodyFont,
+    bodyColor: th.body,
+  };
   const node = document.createElement('div');
   node.style.cssText = `position:fixed;left:-99999px;top:0;width:${W}px;height:${H}px;overflow:hidden;`;
 
-  // Neon und Video sind von Haus aus dunkel — dort gilt die helle Schrift
-  // auch in Layouts, die sonst hell wären.
-  const darkTheme = ['neon', 'video'].includes(theme);
-  const dark = layout === 'fullbleed' || darkTheme;
-  const text = dark ? (T.text && darkTheme ? T.text : T.textDark) : T.text;
+  // reelThemes liefert pro Theme ein Hell- und ein Dunkelpaar. Fullbleed
+  // nutzt die dunkle Variante, alle anderen Layouts die helle.
+  const dark = layout === 'fullbleed';
+  const text = dark ? T.textDark : T.text;
 
   // Hintergrundbild als background-image, NICHT als <img> mit object-fit:
   // html2canvas 1.4.1 ignoriert object-fit und zieht das Bild auf die volle
@@ -251,7 +232,7 @@ function buildPinNode({ layout, eyebrow, headline, accentWord, body, imageUrl, t
       ${bgLayer}
       <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:88px 84px;">
         <div style="font-family:${T.uiFont};font-size:26px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${dark ? 'rgba(250,250,250,0.85)' : T.accent};margin-bottom:28px;">${escapeHtml(eyebrow)}</div>
-        <div style="font-family:${T.headlineFont};font-weight:700;text-transform:uppercase;font-size:104px;line-height:1.06;color:${text};">${headlineHtml(headline, accentWord, text)}</div>
+        <div style="font-family:${T.headlineFont};font-weight:${T.headlineWeight};text-transform:${T.headlineTransform};font-size:104px;line-height:1.06;color:${text};">${headlineHtml(headline, accentWord, text)}</div>
         ${rule}
         <div style="font-family:${T.serifFont};font-style:italic;font-size:38px;line-height:1.45;color:${dark ? 'rgba(250,250,250,0.85)' : '#444444'};max-width:820px;">${escapeHtml(body)}</div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:72px;">

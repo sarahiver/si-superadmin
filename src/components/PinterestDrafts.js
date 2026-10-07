@@ -269,6 +269,7 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
         body: JSON.stringify({ action: 'draft_delete', id: draft.id }),
       }).catch(() => {});
       setDrafts(cur => cur.filter(x => x.id !== draft.id));
+      window.dispatchEvent(new CustomEvent('pinQueueChanged'));
       setStatus({ msg: 'Pin veröffentlicht.', err: false });
       onPromoted?.();
     } catch (err) {
@@ -315,6 +316,9 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Übernahme fehlgeschlagen');
       setDrafts(cur => cur.filter(d => d.id !== draft.id));
+      // Ohne dieses Ereignis zeigte die Queue den neuen Eintrag erst nach
+      // einem Neuladen der Seite.
+      window.dispatchEvent(new CustomEvent('pinQueueChanged'));
       onPromoted?.();
     } catch (err) {
       setStatus({ msg: String(err.message || err), err: true });
