@@ -454,7 +454,10 @@ async function route(req, res) {
   const auth = verifySessionToken(req);
   if (!auth.valid) return res.status(401).json({ error: auth.error });
 
-  const action = req.method === 'GET' ? req.query.action : req.body?.action;
+  // Beide Quellen akzeptieren: Das Frontend hängt die Aktion teils an die
+  // URL (?action=disconnect) und schickt dabei einen leeren POST-Body.
+  // Vorher wurde bei POST nur der Body gelesen — daraus wurde "undefined".
+  const action = req.query?.action || req.body?.action;
 
   try {
     // ── Selbsttest: sagt konkret, was fehlt (Env-Variablen, Tabellen) ──
@@ -519,7 +522,22 @@ async function route(req, res) {
 
     // ── Boards laden ──
     if (action === 'boards') {
-      const data = await pinterestFetch('/boards?page_size=100');
+      // Ein abgelaufenes Token ist kein Serverfehler. Als 401 kann die
+      // Oberfläche gezielt zur Neuverbindung auffordern, statt eine
+      // unverständliche 500 zu zeigen.
+      let data;
+      try {
+        data = await pinterestFetch('/boards?page_size=100');
+      } catch (err) {
+        const msg = String(err?.message || err);
+        if (/no longer valid|invalid.*token|unauthorized/i.test(msg)) {
+          return res.status(401).json({
+            error: 'Pinterest-Verbindung abgelaufen — bitte neu verbinden.',
+            reconnect: true,
+          });
+        }
+        throw err;
+      }
       return res.status(200).json({
         boards: (data.items || []).map(b => ({ id: b.id, name: b.name })),
       });

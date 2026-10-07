@@ -131,6 +131,8 @@ export default function PinterestPublish({ getImageBase64, title, description, o
         if (d.boards?.length) {
           setBoards(d.boards);
           setBoardId(prev => prev || d.boards[0].id);
+        } else if (d.reconnect) {
+          setStatus({ msg: 'Pinterest-Verbindung abgelaufen — bitte oben neu verbinden.', err: true });
         } else if (d.error) {
           setStatus({ msg: `Boards: ${d.error}`, err: true });
         } else {
@@ -394,7 +396,11 @@ export function PinterestConnect() {
   const disconnect = async () => {
     if (!window.confirm('Verbindung trennen? Queue und Cron pausieren, bis neu verbunden wird.')) return;
     setBusy(true);
-    await adminFetch('/api/pinterest?action=disconnect', { method: 'POST' }).catch(() => {});
+    await adminFetch('/api/pinterest?action=disconnect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'disconnect' }),
+    }).catch(() => {});
     setBusy(false);
     load();
   };
