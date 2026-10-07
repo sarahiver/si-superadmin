@@ -152,8 +152,12 @@ const Empty = styled.p`
  *                   Vorschau erst beim Übernehmen, nicht beim Erzeugen
  * @param {Function} onPromoted   Rückmeldung, damit die Queue neu lädt
  */
-export default function PinterestDrafts({ boards = [], targets = [], renderImage, onPromoted }) {
+export default function PinterestDrafts({ renderImage, onPromoted }) {
   const [drafts, setDrafts] = useState([]);
+  // Boards und Zielseiten selbst laden: Die Seite müsste sie sonst nur
+  // durchreichen, obwohl sie beides nicht braucht.
+  const [boards, setBoards] = useState([]);
+  const [targets, setTargets] = useState([]);
   const [busyId, setBusyId] = useState(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [status, setStatus] = useState(null);
@@ -166,6 +170,34 @@ export default function PinterestDrafts({ boards = [], targets = [], renderImage
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    adminFetch('/api/pinterest?action=boards')
+      .then(r => r.json())
+      .then(d => setBoards(d.boards || []))
+      .catch(() => {});
+
+    adminFetch('/api/pinterest?action=blog_list')
+      .then(r => r.json())
+      .then(d => {
+        const SITE = 'https://www.sarahiver.com';
+        const commercial = (d.commercial || []).map(c => ({
+          slug: c.slug, title: c.title, intent: 'high',
+          url: c.slug.startsWith('demo-')
+            ? `https://siwedding.de/${c.slug}`
+            : (c.slug === 'start' ? `${SITE}/` : `${SITE}/blog/hochzeitswebsite-vergleich-2026`),
+        }));
+        const tools = (d.tools || []).map(t => ({
+          slug: t.slug, title: t.title, intent: 'normal', url: `${SITE}/${t.slug}`,
+        }));
+        const posts = (d.slugs || []).map(sl => ({
+          slug: sl, title: sl.replace(/-/g, ' '), intent: 'normal',
+          url: `${SITE}/blog/${sl}`,
+        }));
+        setTargets([...commercial, ...tools, ...posts]);
+      })
+      .catch(() => {});
+  }, []);
 
   // Änderungen sofort speichern, aber gedrosselt: Beim Tippen soll nicht
   // jeder Tastendruck eine Anfrage auslösen.

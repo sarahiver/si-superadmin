@@ -223,7 +223,9 @@ async function loadHtml2Canvas() {
   return window.html2canvas;
 }
 
-async function renderPinBase64(pinProps) {
+// Export, damit die Entwurfsliste beim Übernehmen dasselbe Rendering nutzt.
+// Zwei getrennte Implementierungen würden früher oder später auseinanderlaufen.
+export async function renderPinBase64(pinProps) {
   const html2canvas = await loadHtml2Canvas();
   const node = buildPinNode(pinProps);
   document.body.appendChild(node);
@@ -371,32 +373,39 @@ export default function PinBatchGenerator() {
           copy = fallbackCopy(meta);
         }
 
-        setStatus('Pin rendern …', 'run');
+        // Kein Rendern an dieser Stelle mehr: Entwürfe kommen ohne Bild aus,
+        // das entsteht erst beim Übernehmen in die Queue. Damit ist die
+        // Massenerzeugung deutlich schneller, und ein Rendering-Fehler bei
+        // einem einzelnen Pin bricht nicht den ganzen Lauf ab.
         const layout = meta.image ? (i % 3 === 2 ? 'statement' : 'fullbleed') : 'statement';
-        const image_base64 = await renderPinBase64({
-          layout,
-          eyebrow: copy.eyebrow,
-          headline: copy.headline,
-          accentWord: copy.accentWord,
-          body: copy.body,
-          imageUrl: meta.image,
-        });
 
-        setStatus('In Queue …', 'run');
+        setStatus('Entwurf anlegen …', 'run');
         const scheduled = new Date(new Date(startDate).getTime() + i * 24 * 3600 * 1000)
           .toISOString().slice(0, 10);
         const res = await adminFetch('/api/pinterest', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            action: 'queue_add',
-            board_id: boardId,
-            board_name: board?.name || null,
-            title: copy.pinTitle || copy.headline,
-            description: copy.pinDescription || meta.description,
-            link: withUtm(meta.url),
-            image_base64,
-            scheduled_date: scheduled,
+            action: 'draft_add',
+            drafts: [{
+              board_id: boardId,
+              board_name: board?.name || null,
+              title: copy.pinTitle || copy.headline,
+              description: copy.pinDescription || meta.description,
+              link: withUtm(meta.url),
+              scheduled_date: scheduled,
+              // Alles, was zum Rendern des Bildes gebraucht wird — so lässt
+              // sich der Entwurf später ohne erneuten KI-Aufruf aufbauen.
+              meta: {
+                layout,
+                eyebrow: copy.eyebrow,
+                headline: copy.headline,
+                accentWord: copy.accentWord,
+                body: copy.body,
+                imageUrl: meta.image || null,
+                sourceSlug: meta.slug || null,
+              },
+            }],
           }),
         });
         if (res.status === 409) {
@@ -405,7 +414,7 @@ export default function PinBatchGenerator() {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || `HTTP ${res.status}`);
         } else {
-          setStatus(`geplant für ${scheduled} (${layout})`, 'ok');
+          setStatus(`Entwurf angelegt für ${scheduled} (${layout})`, 'ok');
           // Queue-Anzeige unten aktualisieren — ohne dieses Event blieb sie
           // auf "0 geplant" stehen, obwohl die Einträge gespeichert waren.
           window.dispatchEvent(new CustomEvent('pinQueueChanged'));
