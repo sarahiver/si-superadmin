@@ -8,7 +8,8 @@
 // Rot-Akzent #C41E3A, S&I.-Logo + sarahiver.com-Footer fix. Zwei Layout-Varianten
 // (Fullbleed mit Artikelbild / Statement ohne Foto) rotieren automatisch.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { THEMES } from '../lib/reelThemes';
+import { createRoot } from 'react-dom/client';
+import PostCanvas from '../lib/postCanvas';
 import styled from 'styled-components';
 import { adminFetch } from '../lib/apiClient';
 import { withUtm } from './PinterestPublish';
@@ -28,18 +29,6 @@ const H = 1620; // 2:3
 export { THEMES as PIN_THEMES } from '../lib/reelThemes';
 
 
-const BRAND = {
-  bgLight: '#FAFAFA',
-  bgDark: '#0A0A0A',
-  text: '#0A0A0A',
-  textDark: '#FAFAFA',
-  accent: '#C41E3A',
-  headlineFont: "'Oswald', sans-serif",
-  serifFont: "'Source Serif 4', Georgia, serif",
-  uiFont: "'Inter', sans-serif",
-  logoText: 'S&I.',
-  footerText: 'sarahiver.com',
-};
 
 // ============================================
 // STYLED COMPONENTS (Panel-UI)
@@ -177,73 +166,10 @@ const Progress = styled.div`
 `;
 
 // ============================================
-// PIN-RENDERER (Brand-Preset, 1080×1620)
-// ============================================
-const escapeHtml = (str) =>
-  String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// PIN-RENDERER (1080×1620, gemeinsame Komponente)
 
-// Headline mit rot markiertem accentWord
-const headlineHtml = (headline, accentWord, color) => {
-  const safe = escapeHtml(headline);
-  if (!accentWord) return safe;
-  const safeAccent = escapeHtml(accentWord);
-  return safe.replace(safeAccent, `<span style="color:${BRAND.accent}">${safeAccent}</span>`) || safe;
-};
-
-function buildPinNode({ layout, eyebrow, headline, accentWord, body, imageUrl, theme }) {
-  // Tokens aus reelThemes; BRAND liefert nur noch Logo- und Footertext.
-  const th = THEMES[theme] || THEMES.classic;
-  const T = {
-    ...BRAND,
-    accent: th.accent,
-    bgLight: th.bg,
-    bgDark: th.bgDark,
-    text: th.text,
-    textDark: th.textDark,
-    headlineFont: th.headlineFont,
-    uiFont: th.uiFont || th.bodyFont,
-    headlineWeight: th.headlineWeight ?? 700,
-    headlineTransform: th.headlineTransform || 'none',
-    scriptFont: th.scriptFont,
-    bodyFont: th.bodyFont,
-    bodyColor: th.body,
-  };
-  const node = document.createElement('div');
-  node.style.cssText = `position:fixed;left:-99999px;top:0;width:${W}px;height:${H}px;overflow:hidden;`;
-
-  // reelThemes liefert pro Theme ein Hell- und ein Dunkelpaar. Fullbleed
-  // nutzt die dunkle Variante, alle anderen Layouts die helle.
-  const dark = layout === 'fullbleed';
-  const text = dark ? T.textDark : T.text;
-
-  // Hintergrundbild als background-image, NICHT als <img> mit object-fit:
-  // html2canvas 1.4.1 ignoriert object-fit und zieht das Bild auf die volle
-  // Elementgröße — im Browser sah es richtig aus, im gerenderten PNG war es
-  // verzerrt. background-size: cover wird dagegen korrekt umgesetzt.
-  const bgLayer = dark && imageUrl
-    ? `<div style="position:absolute;inset:0;background-image:url('${escapeHtml(imageUrl)}');background-size:cover;background-position:center;background-repeat:no-repeat;"></div>
-       <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,10,0.25) 0%,rgba(10,10,10,0.35) 45%,rgba(10,10,10,0.88) 100%);"></div>`
-    : '';
-
-  const rule = `<div style="width:120px;height:6px;background:${T.accent};margin:36px 0;"></div>`;
-
-  node.innerHTML = `
-    <div style="position:relative;width:100%;height:100%;background:${dark ? T.bgDark : T.bgLight};font-family:${T.uiFont};">
-      ${bgLayer}
-      <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:88px 84px;">
-        <div style="font-family:${T.uiFont};font-size:26px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${dark ? 'rgba(250,250,250,0.85)' : T.accent};margin-bottom:28px;">${escapeHtml(eyebrow)}</div>
-        <div style="font-family:${T.headlineFont};font-weight:${T.headlineWeight};text-transform:${T.headlineTransform};font-size:104px;line-height:1.06;color:${text};">${headlineHtml(headline, accentWord, text)}</div>
-        ${rule}
-        <div style="font-family:${T.serifFont};font-style:italic;font-size:38px;line-height:1.45;color:${dark ? 'rgba(250,250,250,0.85)' : '#444444'};max-width:820px;">${escapeHtml(body)}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:72px;">
-          <div style="background:${dark ? T.accent : T.bgDark};color:#fff;font-family:${T.uiFont};font-weight:700;font-size:34px;padding:12px 26px;">${T.logoText}</div>
-          <div style="font-family:${T.uiFont};font-size:26px;letter-spacing:0.22em;text-transform:uppercase;color:${dark ? 'rgba(250,250,250,0.7)' : colors.gray};">${T.footerText}</div>
-        </div>
-      </div>
-    </div>`;
-  return node;
-}
-
+// html2canvas wird bei Bedarf nachgeladen — es ist groß und wird nur beim
+// Rendern gebraucht.
 async function loadHtml2Canvas() {
   if (window.html2canvas) return window.html2canvas;
   await new Promise((resolve, reject) => {
@@ -256,21 +182,47 @@ async function loadHtml2Canvas() {
   return window.html2canvas;
 }
 
-// Export, damit die Entwurfsliste beim Übernehmen dasselbe Rendering nutzt.
-// Zwei getrennte Implementierungen würden früher oder später auseinanderlaufen.
-export async function renderPinBase64(pinProps) {
+// ============================================
+
+// Headline mit rot markiertem accentWord
+
+// Pin-Rendering über dieselbe Komponente wie die Instagram-Posts.
+// Der frühere HTML-String-Renderer kannte nur Farben und Schriften — die
+// gestalterischen Merkmale der Themes (Glasrahmen, Brutal-Kasten, Glow,
+// Gradient, Split-Spalte) fehlten, und deshalb sahen Pins anders aus als
+// Posts. Jetzt gibt es genau einen Renderer.
+export async function renderPinBase64({ layout, eyebrow, headline, accentWord, body, imageUrl, theme }) {
   const html2canvas = await loadHtml2Canvas();
-  const node = buildPinNode(pinProps);
-  document.body.appendChild(node);
+
+  // Außerhalb des sichtbaren Bereichs montieren, in Zielgröße rendern
+  const host = document.createElement('div');
+  host.style.cssText = `position:fixed;left:-99999px;top:0;width:${W}px;height:${H}px;`;
+  document.body.appendChild(host);
+  const root = createRoot(host);
+
   try {
-    // Bilder vorladen. Seit der Hintergrund als background-image gesetzt wird
-    // (object-fit wird von html2canvas nicht unterstützt), gibt es kein
-    // <img>-Element mehr, dessen Ladezustand man abfragen könnte — deshalb
-    // wird die URL hier separat geladen. Ohne das rendert html2canvas eine
-    // leere Fläche, weil das Bild noch unterwegs ist.
+    await new Promise(resolve => {
+      root.render(
+        <PostCanvas
+          theme={theme || 'classic'}
+          layout={layout || 'statement'}
+          W={W}
+          H={H}
+          eyebrow={eyebrow}
+          headline={headline}
+          accentWord={accentWord}
+          bodyText={body}
+          image={imageUrl || null}
+        />
+      );
+      // Ein Frame warten, damit React fertig gemountet hat
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+
+    // Bilder vorladen — html2canvas wartet nicht darauf
     const urls = [
-      ...[...node.querySelectorAll('img')].map(i => i.src),
-      ...[...node.querySelectorAll('[style*="background-image"]')]
+      ...[...host.querySelectorAll('img')].map(i => i.src),
+      ...[...host.querySelectorAll('[style*="background-image"]')]
         .map(el => (el.style.backgroundImage.match(/url\(['"]?([^'")]+)/) || [])[1])
         .filter(Boolean),
     ];
@@ -280,15 +232,17 @@ export async function renderPinBase64(pinProps) {
       img.onload = res;
       img.onerror = res;
       img.src = src;
-      // Notausgang, damit ein hängendes Bild den Lauf nicht blockiert
       setTimeout(res, 6000);
     })));
-    const canvas = await html2canvas(node.firstElementChild, {
-      width: W, height: H, scale: 1, useCORS: true, backgroundColor: null, logging: false,
+
+    const canvas = await html2canvas(host.firstElementChild, {
+      width: W, height: H, scale: 1, useCORS: true,
+      backgroundColor: null, logging: false,
     });
     return canvas.toDataURL('image/png').split(',')[1];
   } finally {
-    node.remove();
+    root.unmount();
+    host.remove();
   }
 }
 
