@@ -18,6 +18,19 @@ const W = 1080;
 const H = 1620; // 2:3
 
 // ── Brand-Preset (fix — bewusst KEINE Auswahl im UI) ──
+// Themes für Pins: Jede Designwelt bringt eigene Farben und Schriften mit,
+// damit ein Pin zum beworbenen Theme passt. Fehlt eine Angabe, gilt classic.
+export const PIN_THEMES = {
+  classic:      { accent: '#C41E3A', bgLight: '#FAFAFA', headlineFont: "'Oswald', sans-serif" },
+  editorial:    { accent: '#C41E3A', bgLight: '#FFFFFF', headlineFont: "'Oswald', sans-serif" },
+  botanical:    { accent: '#5F6650', bgLight: '#F4F2EC', headlineFont: "'Source Serif 4', Georgia, serif" },
+  contemporary: { accent: '#0D0D0D', bgLight: '#F7F7F5', headlineFont: "'Inter', sans-serif" },
+  luxe:         { accent: '#B08D57', bgLight: '#F6F3EE', headlineFont: "'Source Serif 4', Georgia, serif" },
+  neon:         { accent: '#FF2E9A', bgLight: '#0A0A0A', headlineFont: "'Inter', sans-serif" },
+  modern:       { accent: '#2B2B2B', bgLight: '#FFFFFF', headlineFont: "'Inter', sans-serif" },
+  video:        { accent: '#8A1C2B', bgLight: '#101012', headlineFont: "'Oswald', sans-serif" },
+};
+
 const BRAND = {
   bgLight: '#FAFAFA',
   bgDark: '#0A0A0A',
@@ -180,31 +193,33 @@ const headlineHtml = (headline, accentWord, color) => {
   return safe.replace(safeAccent, `<span style="color:${BRAND.accent}">${safeAccent}</span>`) || safe;
 };
 
-function buildPinNode({ layout, eyebrow, headline, accentWord, body, imageUrl }) {
+function buildPinNode({ layout, eyebrow, headline, accentWord, body, imageUrl, theme }) {
+  // Theme überschreibt einzelne Markenwerte; alles Übrige bleibt gleich.
+  const T = { ...BRAND, ...(PIN_THEMES[theme] || PIN_THEMES.classic) };
   const node = document.createElement('div');
   node.style.cssText = `position:fixed;left:-99999px;top:0;width:${W}px;height:${H}px;overflow:hidden;`;
 
   const dark = layout === 'fullbleed';
-  const text = dark ? BRAND.textDark : BRAND.text;
+  const text = dark ? T.textDark : T.text;
 
   const bgLayer = dark
     ? `<img src="${escapeHtml(imageUrl)}" crossorigin="anonymous" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" />
        <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,10,0.25) 0%,rgba(10,10,10,0.35) 45%,rgba(10,10,10,0.88) 100%);"></div>`
     : '';
 
-  const rule = `<div style="width:120px;height:6px;background:${BRAND.accent};margin:36px 0;"></div>`;
+  const rule = `<div style="width:120px;height:6px;background:${T.accent};margin:36px 0;"></div>`;
 
   node.innerHTML = `
-    <div style="position:relative;width:100%;height:100%;background:${dark ? BRAND.bgDark : BRAND.bgLight};font-family:${BRAND.uiFont};">
+    <div style="position:relative;width:100%;height:100%;background:${dark ? T.bgDark : T.bgLight};font-family:${T.uiFont};">
       ${bgLayer}
       <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:88px 84px;">
-        <div style="font-family:${BRAND.uiFont};font-size:26px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${dark ? 'rgba(250,250,250,0.85)' : BRAND.accent};margin-bottom:28px;">${escapeHtml(eyebrow)}</div>
-        <div style="font-family:${BRAND.headlineFont};font-weight:700;text-transform:uppercase;font-size:104px;line-height:1.06;color:${text};">${headlineHtml(headline, accentWord, text)}</div>
+        <div style="font-family:${T.uiFont};font-size:26px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:${dark ? 'rgba(250,250,250,0.85)' : T.accent};margin-bottom:28px;">${escapeHtml(eyebrow)}</div>
+        <div style="font-family:${T.headlineFont};font-weight:700;text-transform:uppercase;font-size:104px;line-height:1.06;color:${text};">${headlineHtml(headline, accentWord, text)}</div>
         ${rule}
-        <div style="font-family:${BRAND.serifFont};font-style:italic;font-size:38px;line-height:1.45;color:${dark ? 'rgba(250,250,250,0.85)' : '#444444'};max-width:820px;">${escapeHtml(body)}</div>
+        <div style="font-family:${T.serifFont};font-style:italic;font-size:38px;line-height:1.45;color:${dark ? 'rgba(250,250,250,0.85)' : '#444444'};max-width:820px;">${escapeHtml(body)}</div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:72px;">
-          <div style="background:${dark ? BRAND.accent : BRAND.bgDark};color:#fff;font-family:${BRAND.uiFont};font-weight:700;font-size:34px;padding:12px 26px;">${BRAND.logoText}</div>
-          <div style="font-family:${BRAND.uiFont};font-size:26px;letter-spacing:0.22em;text-transform:uppercase;color:${dark ? 'rgba(250,250,250,0.7)' : colors.gray};">${BRAND.footerText}</div>
+          <div style="background:${dark ? T.accent : T.bgDark};color:#fff;font-family:${T.uiFont};font-weight:700;font-size:34px;padding:12px 26px;">${T.logoText}</div>
+          <div style="font-family:${T.uiFont};font-size:26px;letter-spacing:0.22em;text-transform:uppercase;color:${dark ? 'rgba(250,250,250,0.7)' : colors.gray};">${T.footerText}</div>
         </div>
       </div>
     </div>`;

@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { adminFetch } from '../lib/apiClient';
+import { PIN_THEMES } from './PinBatchGenerator';
 
 const Panel = styled.div`
   background: #fff;
@@ -153,6 +154,7 @@ const Empty = styled.p`
  * @param {Function} onPromoted   Rückmeldung, damit die Queue neu lädt
  */
 const LAYOUTS = ['statement', 'split', 'liste', 'dark', 'fullbleed'];
+const THEMES = Object.keys(PIN_THEMES);
 
 export default function PinterestDrafts({ renderImage, onPromoted }) {
   const [drafts, setDrafts] = useState([]);
@@ -230,17 +232,14 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
     }, 600);
   };
 
-  const makePreview = async (draft) => {
-    setBusyId(draft.id);
+  const makePreview = useCallback(async (draft) => {
     try {
       const b64 = await renderImage(draft);
       setPreviews(p => ({ ...p, [draft.id]: `data:image/png;base64,${b64}` }));
     } catch (err) {
-      setStatus({ msg: `Vorschau: ${err.message || err}`, err: true });
-    } finally {
-      setBusyId(null);
+      setPreviews(p => ({ ...p, [draft.id]: 'error' }));
     }
-  };
+  }, [renderImage]);
 
   // Direkt veröffentlichen, ohne Umweg über die Queue
   const pinNow = async (draft) => {
@@ -278,6 +277,24 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
       setBusyId(null);
     }
   };
+
+  // Vorschauen automatisch erzeugen, aber nacheinander: Zehn Renderings
+  // gleichzeitig würden die Seite für Sekunden blockieren.
+  useEffect(() => {
+    let abgebrochen = false;
+    (async () => {
+      for (const d of drafts) {
+        if (abgebrochen) return;
+        if (previews[d.id]) continue;
+        // eslint-disable-next-line no-await-in-loop
+        await makePreview(d);
+      }
+    })();
+    return () => { abgebrochen = true; };
+    // previews bewusst nicht in den Abhängigkeiten: sonst liefe die
+    // Schleife nach jedem einzelnen Bild erneut an.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drafts, makePreview]);
 
   const promote = async (draft) => {
     setBusyId(draft.id);
@@ -362,16 +379,16 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
       {drafts.map(d => (
         <Card key={d.id} $busy={busyId === d.id}>
           <div>
-            <Thumb $src={previews[d.id] || null}>
-              {!previews[d.id] && 'Noch keine Vorschau'}
+            <Thumb $src={previews[d.id] && previews[d.id] !== 'error' ? previews[d.id] : null}>
+              {!previews[d.id] && 'Vorschau entsteht…'}
+              {previews[d.id] === 'error' && 'Vorschau fehlgeschlagen'}
             </Thumb>
             <Btn
               type="button"
               style={{ width: '100%', marginTop: '0.5rem' }}
-              disabled={busyId === d.id}
-              onClick={() => makePreview(d)}
+              onClick={() => { setPreviews(p => ({ ...p, [d.id]: null })); makePreview(d); }}
             >
-              {busyId === d.id ? 'Rendere…' : 'Vorschau'}
+              Neu rendern
             </Btn>
           </div>
 
@@ -393,6 +410,21 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
             </div>
 
             <Grid2>
+              <div>
+                <Label>Theme</Label>
+                <Select
+                  value={d.meta?.theme || 'classic'}
+                  onChange={e => {
+                    patch(d.id, 'meta', { ...(d.meta || {}), theme: e.target.value });
+                    setPreviews(p => ({ ...p, [d.id]: null }));
+                  }}
+                >
+                  {THEMES.map(t => (
+                    <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                  ))}
+                </Select>
+              </div>
+
               <div>
                 <Label>Layout</Label>
                 <Select

@@ -1,10 +1,8 @@
 // src/pages/PinterestPage.js
-// Pinterest-Pin-Generator — nutzt dieselbe Engine wie InstagramPage über die platform-Prop.
-// 2:3-Canvas (1080×1620), Pinterest-getunte KI (SEO-Titel/Beschreibung/Keywords).
-// Darunter: Pin-Queue mit Status (geplant / live / Fehler) — Publishing läuft
-// über die Pinterest-API (api/pinterest.js) + täglichen Cron.
+// Pinterest-Pins: Generator erzeugt Entwürfe, die Entwurfsliste prüft und
+// übernimmt sie, die Queue veröffentlicht per täglichem Cron.
+// Rendering und KI-Copy liegen in PinBatchGenerator.
 import React from 'react';
-import InstagramPage from './InstagramPage';
 import { PinQueue, PinterestConnect } from '../components/PinterestPublish';
 import PinBatchGenerator, { renderPinBase64 } from '../components/PinBatchGenerator';
 import PinterestDrafts from '../components/PinterestDrafts';
@@ -27,10 +25,12 @@ export default function PinterestPage() {
           accentWord: draft.meta?.accentWord,
           body: draft.meta?.body || draft.description,
           imageUrl: draft.meta?.imageUrl || null,
+          theme: draft.meta?.theme || 'classic',
         })}
       />
 
-      <InstagramPage platform="pinterest" />
+      {/* Der Einzel-Editor ist entfallen: Pins entstehen jetzt ausschließlich
+          über Generator und Entwurfsliste. */}
       <PinQueue />
     </>
   );
