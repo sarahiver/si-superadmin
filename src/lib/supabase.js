@@ -1,520 +1,433 @@
 // src/lib/supabase.js
-// API-Proxy Version: Alle DB-Operationen laufen über /api/db (service_role serverseitig)
-// Kein Supabase-Client mehr im Frontend — kein anon Key nötig!
+// All database operations go through the server-side API proxy (/api/db).
+// No Supabase client or anon key in the frontend.
 
-import { adminFetch } from './apiClient';
+import { notifyRSVP, notifyGuestbook, notifyMusicWish, notifyGiftReserved } from './notifications';
 
-// ─── Zentraler DB-Call ───
-async function db(body) {
-  const res = await adminFetch('/api/db', {
+// ============================================
+// API HELPER
+// ============================================
+
+// Zwei getrennte Tokens: Das Gäste-Token (Passwortseite) darf das
+// Admin-Token des Paars nicht überschreiben. Vorher teilten sich beide
+// `auth_token` — wer im selben Browser die eigene Hochzeitsseite mit dem
+// Gäste-Passwort öffnete, verlor die Schreibrechte im Dashboard.
+const GUEST_KEY = 'auth_token';
+const ADMIN_KEY = 'admin_token';
+const TOKEN_MAX_AGE = 24 * 60 * 60 * 1000; // muss zu api/lib/auth.js passen
+
+export const AUTH_EXPIRED_EVENT = 'si:auth-expired';
+
+function readStored(key) {
+  try {
+    return sessionStorage.getItem(key) || localStorage.getItem(key) || '';
+  } catch {
+    return '';
+  }
+}
+
+function writeStored(key, value) {
+  try {
+    sessionStorage.setItem(key, value);
+    localStorage.setItem(key, value);
+  } catch { /* Storage gesperrt */ }
+}
+
+function removeStored(key) {
+  try {
+    sessionStorage.removeItem(key);
+    localStorage.removeItem(key);
+  } catch { /* Storage gesperrt */ }
+}
+
+/** Liest den Payload eines Tokens (ohne Signaturprüfung — nur für UI-Zwecke). */
+export function decodeToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  const [b64] = token.split('.');
+  if (!b64) return null;
+  try {
+    const norm = b64.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = norm + '='.repeat((4 - (norm.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
+function isExpired(payload) {
+  return !payload || !payload.iat || Date.now() - payload.iat > TOKEN_MAX_AGE;
+}
+
+/**
+ * Gültige Admin-Sitzung für diesen Slug?
+ * Gibt den Payload zurück oder null.
+ */
+export function getAdminSession(slug) {
+  // Migration: Admin-Tokens aus der Zeit vor der Trennung liegen noch in auth_token
+  if (!readStored(ADMIN_KEY)) {
+    const legacy = readStored(GUEST_KEY);
+    const lp = decodeToken(legacy);
+    if (lp && lp.email === `admin@${lp.slug}`) {
+      writeStored(ADMIN_KEY, legacy);
+      removeStored(GUEST_KEY);
+    }
+  }
+  const payload = decodeToken(readStored(ADMIN_KEY));
+  if (!payload || isExpired(payload)) return null;
+  if (slug && payload.slug !== slug) return null;
+  return payload;
+}
+
+function getToken() {
+  const admin = readStored(ADMIN_KEY);
+  const adminPayload = decodeToken(admin);
+  if (admin && adminPayload && !isExpired(adminPayload)) return admin;
+  return readStored(GUEST_KEY);
+}
+
+export function setToken(token) {
+  const payload = decodeToken(token);
+  const isAdmin = payload && payload.email === `admin@${payload.slug}`;
+  writeStored(isAdmin ? ADMIN_KEY : GUEST_KEY, token);
+}
+
+export function clearToken() {
+  removeStored(ADMIN_KEY);
+  removeStored(GUEST_KEY);
+}
+
+export function clearAdminToken() {
+  removeStored(ADMIN_KEY);
+}
+
+// Kein Reload mehr: Der Reload hat ungespeicherte Eingaben im Dashboard
+// verworfen. Stattdessen meldet das AdminContext das Paar ab und zeigt
+// den Login — die Inhalte im Editor bleiben erhalten.
+function handleUnauthorized() {
+  clearAdminToken();
+  try {
+    window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+  } catch { /* SSR / alter Browser */ }
+}
+
+/** Fehler immer als Objekt mit message — Aufrufer nutzen error.message. */
+function normalizeError(err, httpStatus) {
+  if (!err) return null;
+  const obj = typeof err === 'string'
+    ? { message: err, status: httpStatus }
+    : { message: err.message || 'Unbekannter Fehler', status: err.status || httpStatus, code: err.code || null };
+  obj.toString = function toString() { return this.message; };
+  return obj;
+}
+
+/**
+ * Authenticated fetch — adds Bearer token to any API call.
+ * Use for direct API route calls (e.g. /api/delete-photos, /api/reminder).
+ */
+export async function authFetch(url, options = {}) {
+  const token = getToken();
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    handleUnauthorized();
+  }
+
+  return response;
+}
+
+async function dbCall(action, params = {}) {
+  const token = getToken();
+  const response = await fetch('/api/db', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ action, params }),
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    handleUnauthorized();
+    return {
+      data: null,
+      error: normalizeError(
+        response.status === 401 ? 'Sitzung abgelaufen — bitte neu anmelden' : 'Keine Berechtigung für dieses Projekt',
+        response.status
+      ),
+    };
+  }
+
+  const body = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    return {
+      ...(body && typeof body === 'object' ? body : {}),
+      data: body?.data ?? null,
+      error: normalizeError(body?.error || response.statusText || 'Request failed', response.status),
+    };
+  }
+
+  if (body && body.error && typeof body.error === 'object') {
+    body.error = normalizeError(body.error, response.status);
+  }
+  return body || { data: null, error: normalizeError('Leere Antwort', response.status) };
+}
+
+// ============================================
+// AUTH (Password verification + token)
+// ============================================
+
+export async function verifyAndGetToken(slug, password, type = 'guest') {
+  const response = await fetch('/api/auth/verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ slug, password, type }),
   });
-  const json = await res.json();
-  if (!res.ok) {
-    return { data: null, error: { message: json.error || 'API Error' } };
+
+  const result = await response.json();
+  if (result.success && result.token) {
+    setToken(result.token);
   }
-  return { data: json.data, error: null };
-}
-
-// ─── Supabase-kompatibles Proxy-Objekt ───
-// Für Pages die `supabase.from('table')...` direkt nutzen
-function createQueryBuilder(table) {
-  let _select = '*';
-  let _filters = [];
-  let _order = null;
-  let _limit = null;
-  let _single = false;
-  let _maybeSingle = false;
-  let _data = undefined;
-  let _action = 'select';
-  let _upsertOpts = null;
-
-  const builder = {
-    select(columns = '*') { _select = columns; return builder; },
-    eq(col, val)    { _filters.push({ op: 'eq', column: col, value: val }); return builder; },
-    neq(col, val)   { _filters.push({ op: 'neq', column: col, value: val }); return builder; },
-    gt(col, val)    { _filters.push({ op: 'gt', column: col, value: val }); return builder; },
-    gte(col, val)   { _filters.push({ op: 'gte', column: col, value: val }); return builder; },
-    lt(col, val)    { _filters.push({ op: 'lt', column: col, value: val }); return builder; },
-    lte(col, val)   { _filters.push({ op: 'lte', column: col, value: val }); return builder; },
-    like(col, val)  { _filters.push({ op: 'like', column: col, value: val }); return builder; },
-    ilike(col, val) { _filters.push({ op: 'ilike', column: col, value: val }); return builder; },
-    is(col, val)    { _filters.push({ op: 'is', column: col, value: val }); return builder; },
-    in(col, val)    { _filters.push({ op: 'in', column: col, value: val }); return builder; },
-    not(col, op2, val) { _filters.push({ op: 'not', column: col, op2, value: val }); return builder; },
-    order(col, opts = {}) { _order = { column: col, ascending: opts.ascending ?? false }; return builder; },
-    limit(n)        { _limit = n; return builder; },
-
-    single() {
-      _single = true;
-      return builder;
-    },
-
-    maybeSingle() {
-      _maybeSingle = true;
-      return builder;
-    },
-
-    insert(rows) {
-      _data = rows;
-      _action = 'insert';
-      return builder;
-    },
-
-    update(data) {
-      _data = data;
-      _action = 'update';
-      return builder;
-    },
-
-    upsert(data, opts) {
-      _data = data;
-      _action = 'upsert';
-      _upsertOpts = opts;
-      return builder;
-    },
-
-    delete() {
-      _action = 'delete';
-      return builder;
-    },
-
-    // Thenable — damit await supabase.from('x').select() funktioniert
-    then(resolve, reject) {
-      return builder._execute().then(resolve, reject);
-    },
-
-    async _execute() {
-      const body = {
-        action: _action,
-        table,
-        filters: _filters.length ? _filters : undefined,
-        options: {},
-      };
-
-      if (_select !== '*') body.options.select = _select;
-      if (_order) body.options.order = _order;
-      if (_limit) body.options.limit = _limit;
-      if (_single) body.options.single = true;
-      if (_maybeSingle) body.options.maybeSingle = true;
-      if (_upsertOpts?.onConflict) body.options.onConflict = _upsertOpts.onConflict;
-
-      if (_data !== undefined) {
-        body.data = _data;
-      }
-
-      return db(body);
-    },
-  };
-
-  return builder;
-}
-
-// Proxy-Objekt das sich wie der Supabase-Client verhält
-export const supabase = {
-  from(table) {
-    return createQueryBuilder(table);
-  },
-  async rpc(fn, args) {
-    return db({ action: 'rpc', fn, args });
-  },
-};
-
-// ============================================
-// DASHBOARD STATS
-// ============================================
-
-export async function getDashboardStats() {
-  try {
-    const [projectsRes, requestsRes] = await Promise.all([
-      db({ action: 'select', table: 'projects', options: { select: '*' } }),
-      db({ action: 'select', table: 'contact_requests', options: { select: '*' } }),
-    ]);
-
-    const projectList = projectsRes.data || [];
-    const requestList = requestsRes.data || [];
-
-    return {
-      data: {
-        totalProjects: projectList.length,
-        liveProjects: projectList.filter(p => p.status === 'live').length,
-        inProgressProjects: projectList.filter(p => ['inquiry', 'in_progress', 'std'].includes(p.status)).length,
-        totalRevenue: projectList.reduce((sum, p) => sum + (p.total_price || 0), 0),
-        pendingRequests: requestList.filter(r => r.status === 'new' || r.status === 'pending').length,
-        recentProjects: projectList.slice(0, 5),
-        recentRequests: requestList.slice(0, 5),
-      },
-      error: null,
-    };
-  } catch (error) {
-    return { data: null, error };
-  }
+  return result;
 }
 
 // ============================================
-// PROJECTS
+// PROJECT
 // ============================================
 
-export async function getProjects() {
-  return db({
-    action: 'select', table: 'projects',
-    options: { select: '*', order: { column: 'created_at', ascending: false } },
-  });
+export async function getProjectBySlugOrDomain(slugOrDomain) {
+  return dbCall('getProjectBySlugOrDomain', { slugOrDomain });
 }
 
-export async function getProjectById(id) {
-  return db({
-    action: 'select', table: 'projects',
-    filters: [{ op: 'eq', column: 'id', value: id }],
-    options: { select: '*', single: true },
-  });
+export async function getProjectContent(projectId) {
+  return dbCall('getProjectContent', { projectId });
 }
 
-export async function getProjectBySlug(slug) {
-  return db({
-    action: 'select', table: 'projects',
-    filters: [{ op: 'eq', column: 'slug', value: slug }],
-    options: { select: '*', single: true },
-  });
+export async function updateProjectStatus(projectId, status) {
+  return dbCall('updateProjectStatus', { projectId, status });
 }
 
-export async function createProject(projectData) {
-  return db({ action: 'insert', table: 'projects', data: [projectData], options: { single: true } });
+export async function updateProject(projectId, updates) {
+  return dbCall('updateProject', { projectId, updates });
 }
 
-export async function updateProject(id, updates) {
-  return db({
-    action: 'update', table: 'projects', data: updates,
-    filters: [{ op: 'eq', column: 'id', value: id }],
-    options: { single: true },
-  });
-}
-
-export async function deleteProject(id) {
-  return db({ action: 'delete', table: 'projects', filters: [{ op: 'eq', column: 'id', value: id }] });
-}
-
-// ============================================
-// CONTACT REQUESTS
-// ============================================
-
-export async function getContactRequests() {
-  return db({
-    action: 'select', table: 'contact_requests',
-    options: { select: '*', order: { column: 'created_at', ascending: false } },
-  });
-}
-
-export async function getContactRequestById(id) {
-  return db({
-    action: 'select', table: 'contact_requests',
-    filters: [{ op: 'eq', column: 'id', value: id }],
-    options: { select: '*', single: true },
-  });
-}
-
-export async function createContactRequest(requestData) {
-  return db({ action: 'insert', table: 'contact_requests', data: [requestData], options: { single: true } });
-}
-
-export async function updateContactRequest(id, updates) {
-  return db({
-    action: 'update', table: 'contact_requests', data: updates,
-    filters: [{ op: 'eq', column: 'id', value: id }],
-    options: { single: true },
-  });
-}
-
-export async function deleteContactRequest(id) {
-  return db({ action: 'delete', table: 'contact_requests', filters: [{ op: 'eq', column: 'id', value: id }] });
-}
-
-// ============================================
-// SUPERADMINS
-// ============================================
-
-export async function getSuperadmins() {
-  return db({ action: 'select', table: 'superadmins', options: { select: '*' } });
-}
-
-export async function getSuperadminByEmail(email) {
-  return db({
-    action: 'select', table: 'superadmins',
-    filters: [{ op: 'eq', column: 'email', value: email }],
-    options: { select: '*', single: true },
-  });
+export async function updateProjectContent(projectId, component, contentData) {
+  return dbCall('updateProjectContent', { projectId, component, contentData });
 }
 
 // ============================================
 // RSVP
 // ============================================
 
-export async function getRsvps() {
-  return db({
-    action: 'select', table: 'rsvp_responses',
-    options: { select: '*', order: { column: 'created_at', ascending: false } },
-  });
-}
+export async function submitRSVP(projectId, rsvpData) {
+  const result = await dbCall('submitRSVP', { projectId, rsvpData });
 
-export async function getRsvpsByProject(projectId) {
-  return db({
-    action: 'select', table: 'rsvp_responses',
-    filters: [{ op: 'eq', column: 'project_id', value: projectId }],
-    options: { select: '*', order: { column: 'created_at', ascending: false } },
-  });
-}
-
-export async function createRsvp(rsvpData) {
-  return db({ action: 'insert', table: 'rsvp_responses', data: [rsvpData], options: { single: true } });
-}
-
-export async function updateRsvp(id, updates) {
-  return db({
-    action: 'update', table: 'rsvp_responses', data: updates,
-    filters: [{ op: 'eq', column: 'id', value: id }],
-    options: { single: true },
-  });
-}
-
-export async function deleteRsvp(id) {
-  return db({ action: 'delete', table: 'rsvp_responses', filters: [{ op: 'eq', column: 'id', value: id }] });
-}
-
-// ============================================
-// CONTENT
-// ============================================
-
-export async function getContentByProject(projectId) {
-  return db({
-    action: 'select', table: 'project_content',
-    filters: [{ op: 'eq', column: 'project_id', value: projectId }],
-    options: { select: '*', single: true },
-  });
-}
-
-export async function updateContent(projectId, updates) {
-  return db({
-    action: 'upsert', table: 'project_content',
-    data: { project_id: projectId, ...updates },
-    options: { single: true },
-  });
-}
-
-// ============================================
-// PHOTOS
-// ============================================
-
-export async function getPhotosByProject(projectId) {
-  return db({
-    action: 'select', table: 'photo_uploads',
-    filters: [{ op: 'eq', column: 'project_id', value: projectId }],
-    options: { select: '*', order: { column: 'created_at', ascending: false } },
-  });
-}
-
-export async function deletePhoto(id) {
-  return db({ action: 'delete', table: 'photo_uploads', filters: [{ op: 'eq', column: 'id', value: id }] });
-}
-
-// ============================================
-// EMAIL LOGS
-// ============================================
-
-export async function getEmailLogs(projectId = null) {
-  const body = {
-    action: 'select', table: 'email_logs',
-    options: { select: '*', order: { column: 'created_at', ascending: false } },
-  };
-  if (projectId) body.filters = [{ op: 'eq', column: 'project_id', value: projectId }];
-  return db(body);
-}
-
-export async function getEmailLogById(id) {
-  return db({
-    action: 'select', table: 'email_logs',
-    filters: [{ op: 'eq', column: 'id', value: id }],
-    options: { select: '*', single: true },
-  });
-}
-
-export async function createEmailLog(logData) {
-  return db({ action: 'insert', table: 'email_logs', data: [logData], options: { single: true } });
-}
-
-// ============================================
-// PASSWORD RESET
-// ============================================
-
-export async function createPasswordResetToken(projectId, email, token, expiresAt) {
-  return db({
-    action: 'insert', table: 'password_reset_tokens',
-    data: [{ project_id: projectId, email, token, expires_at: expiresAt }],
-    options: { single: true },
-  });
-}
-
-export async function getPasswordResetToken(token) {
-  return db({
-    action: 'select', table: 'password_reset_tokens',
-    filters: [
-      { op: 'eq', column: 'token', value: token },
-      { op: 'is', column: 'used_at', value: null },
-      { op: 'gt', column: 'expires_at', value: new Date().toISOString() },
-    ],
-    options: { select: '*', single: true },
-  });
-}
-
-export async function markTokenAsUsed(tokenId) {
-  return db({
-    action: 'update', table: 'password_reset_tokens',
-    data: { used_at: new Date().toISOString() },
-    filters: [{ op: 'eq', column: 'id', value: tokenId }],
-  });
-}
-
-// ============================================
-// AUTOMATIC STATUS SYNC
-// ============================================
-
-export async function syncAllProjectStatuses() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const results = { checked: 0, updated: 0, errors: [], changes: [] };
-
-  try {
-    const { data: projects, error: projectsError } = await db({
-      action: 'select', table: 'projects',
-      options: { select: 'id, slug, status, wedding_date, partner1_name, partner2_name, std_date, archive_date' },
+  // Fire-and-forget notification
+  if (result.data && !result.error) {
+    notifyRSVP(projectId, {
+      name: rsvpData.name,
+      attending: rsvpData.attending,
+      persons: rsvpData.persons || 1,
+      dietary: rsvpData.dietary,
+      message: rsvpData.message,
     });
-    if (projectsError) throw projectsError;
-
-    for (const project of projects || []) {
-      results.checked++;
-      const stdDate = project.std_date ? new Date(project.std_date) : null;
-      const archiveDate = project.archive_date ? new Date(project.archive_date) : null;
-      let newStatus = project.status;
-      let reason = '';
-
-      if (archiveDate && today >= archiveDate) {
-        if (project.status !== 'archive') { newStatus = 'archive'; reason = `Archiv-Datum erreicht (${project.archive_date})`; }
-      } else if (stdDate && today >= stdDate) {
-        if (project.status === 'std') { newStatus = 'live'; reason = `STD-Ende erreicht (${project.std_date})`; }
-      }
-
-      if (newStatus !== project.status) {
-        const { error: updateError } = await db({
-          action: 'update', table: 'projects', data: { status: newStatus },
-          filters: [{ op: 'eq', column: 'id', value: project.id }],
-        });
-        if (updateError) {
-          results.errors.push({ project: project.slug, error: updateError.message });
-        } else {
-          results.updated++;
-          results.changes.push({
-            project: project.slug,
-            names: `${project.partner1_name} & ${project.partner2_name}`,
-            from: project.status, to: newStatus, reason,
-          });
-        }
-      }
-    }
-    return { success: true, results };
-  } catch (error) {
-    return { success: false, error: error.message, results };
-  }
-}
-
-export async function checkProjectStatus(projectId) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const { data: project } = await db({
-    action: 'select', table: 'projects',
-    filters: [{ op: 'eq', column: 'id', value: projectId }],
-    options: { select: 'status, wedding_date, std_date, archive_date', single: true },
-  });
-
-  const stdDate = project?.std_date ? new Date(project.std_date) : null;
-  const archiveDate = project?.archive_date ? new Date(project.archive_date) : null;
-  let recommendedStatus = project?.status || 'std';
-  let reason = 'Keine automatische Änderung';
-
-  if (archiveDate && today >= archiveDate) {
-    recommendedStatus = 'archive'; reason = `Archiv-Datum (${project.archive_date}) erreicht`;
-  } else if (stdDate && today >= stdDate) {
-    recommendedStatus = 'live'; reason = `STD-Ende (${project.std_date}) erreicht`;
   }
 
-  return {
-    currentStatus: project?.status, recommendedStatus,
-    shouldUpdate: project?.status !== recommendedStatus, reason,
-    dates: { stdDate: project?.std_date, archiveDate: project?.archive_date, weddingDate: project?.wedding_date },
-  };
+  return result;
 }
 
-// ─── PARTNER CODES (Referral/Tracking System) ───
-
-export async function getPartnerCodes() {
-  return db({ action: 'select', table: 'partner_codes', options: { select: '*', order: { column: 'created_at', ascending: false } } });
+export async function getRSVPResponses(projectId) {
+  return dbCall('getRSVPResponses', { projectId });
 }
 
-export async function getPartnerCodeById(id) {
-  return db({ action: 'select', table: 'partner_codes', filters: [{ op: 'eq', column: 'id', value: id }], options: { single: true } });
+export async function checkDuplicateRSVP(projectId, email) {
+  return dbCall('checkDuplicateRSVP', { projectId, email });
 }
 
-export async function createPartnerCode(data) {
-  return db({ action: 'insert', table: 'partner_codes', data: [data], options: { single: true } });
+export async function updateRSVPResponse(id, updates) {
+  return dbCall('updateRSVPResponse', { id, updates });
 }
 
-export async function updatePartnerCode(id, updates) {
-  return db({ action: 'update', table: 'partner_codes', data: updates, filters: [{ op: 'eq', column: 'id', value: id }], options: { single: true } });
+export async function deleteRSVPResponse(id) {
+  return dbCall('deleteRSVPResponse', { id });
 }
 
-export async function deletePartnerCode(id) {
-  return db({ action: 'delete', table: 'partner_codes', filters: [{ op: 'eq', column: 'id', value: id }] });
+// ============================================
+// GUESTBOOK
+// ============================================
+
+export async function submitGuestbookEntry(projectId, entryData) {
+  const result = await dbCall('submitGuestbookEntry', { projectId, entryData });
+
+  // Fire-and-forget notification
+  if (result.data && !result.error) {
+    notifyGuestbook(projectId, {
+      name: entryData.name,
+      message: entryData.message,
+    });
+  }
+
+  return result;
 }
 
-export async function getPartnerVisits(partnerCodeId) {
-  return db({ action: 'select', table: 'partner_visits', filters: partnerCodeId ? [{ op: 'eq', column: 'partner_code_id', value: partnerCodeId }] : [], options: { order: { column: 'visited_at', ascending: false }, limit: 500 } });
+export async function getGuestbookEntries(projectId, approvedOnly = true) {
+  return dbCall('getGuestbookEntries', { projectId, approvedOnly });
 }
 
-export async function getPartnerLeads() {
-  // contact_requests with a partner_code_id set
-  return db({ action: 'select', table: 'contact_requests', filters: [{ op: 'not', column: 'partner_code_id', op2: 'is', value: null }], options: { select: '*, partner_codes:partner_code_id(partner_name, ref_slug, code)', order: { column: 'created_at', ascending: false } } });
+export async function approveGuestbookEntry(entryId, approved = true) {
+  return dbCall('approveGuestbookEntry', { entryId, approved });
 }
 
-// ── Partner Payouts ──
-export async function getPartnerPayouts(filters = {}) {
-  const f = [];
-  if (filters.status) f.push({ op: 'eq', column: 'status', value: filters.status });
-  if (filters.partner_code_id) f.push({ op: 'eq', column: 'partner_code_id', value: filters.partner_code_id });
-  return db({ action: 'select', table: 'partner_payouts', filters: f, options: { select: '*', order: { column: 'created_at', ascending: false } } });
+export async function deleteGuestbookEntry(entryId) {
+  return dbCall('deleteGuestbookEntry', { entryId });
 }
 
-export async function getPartnerPayoutByProject(projectId) {
-  return db({ action: 'select', table: 'partner_payouts', filters: [{ op: 'eq', column: 'project_id', value: projectId }], options: { maybeSingle: true } });
+// ============================================
+// MUSIC WISHES
+// ============================================
+
+export async function submitMusicWish(projectId, wishData) {
+  const result = await dbCall('submitMusicWish', { projectId, wishData });
+
+  // Fire-and-forget notification
+  if (result.data && !result.error) {
+    notifyMusicWish(projectId, {
+      name: wishData.name,
+      artist: wishData.artist,
+      songTitle: wishData.song_title || wishData.songTitle,
+    });
+  }
+
+  return result;
 }
 
-export async function createPartnerPayout(data) {
-  return db({ action: 'insert', table: 'partner_payouts', data: [data], options: { single: true } });
+export async function getMusicWishes(projectId) {
+  return dbCall('getMusicWishes', { projectId });
 }
 
-export async function updatePartnerPayout(id, updates) {
-  return db({ action: 'update', table: 'partner_payouts', data: updates, filters: [{ op: 'eq', column: 'id', value: id }], options: { single: true } });
+export async function deleteMusicWish(wishId) {
+  return dbCall('deleteMusicWish', { wishId });
 }
 
-export async function getNextPayoutInvoiceNumber() {
-  // Get highest existing number to calculate next
-  const { data } = await db({ action: 'select', table: 'partner_payouts', options: { select: 'invoice_number', order: { column: 'created_at', ascending: false }, limit: 1 } });
-  const year = new Date().getFullYear();
-  if (!data || data.length === 0) return `SI-PROV-${year}-001`;
-  const last = data[0].invoice_number;
-  const match = last.match(/SI-PROV-\d{4}-(\d{3})/);
-  const next = match ? String(Number(match[1]) + 1).padStart(3, '0') : '001';
-  return `SI-PROV-${year}-${next}`;
+// ============================================
+// PHOTO UPLOADS
+// ============================================
+
+export async function submitPhotoUpload(projectId, photoData) {
+  return dbCall('submitPhotoUpload', { projectId, photoData });
 }
 
-export default supabase;
+export async function getPhotoUploads(projectId, approvedOnly = true) {
+  return dbCall('getPhotoUploads', { projectId, approvedOnly });
+}
+
+export async function approvePhotoUpload(photoId, approved = true) {
+  return dbCall('approvePhotoUpload', { photoId, approved });
+}
+
+export async function deletePhotoUpload(photoId) {
+  return dbCall('deletePhotoUpload', { photoId });
+}
+
+// ============================================
+// GIFT RESERVATIONS
+// ============================================
+
+export async function reserveGift(projectId, itemId, reservedBy, reserverEmail = null, giftName = null) {
+  const result = await dbCall('reserveGift', { projectId, itemId, reservedBy, reserverEmail });
+
+  // Fire-and-forget notification
+  if (result.data && !result.error) {
+    notifyGiftReserved(projectId, {
+      name: reservedBy,
+      giftName: giftName || itemId,
+    });
+  }
+
+  return result;
+}
+
+export async function getGiftReservations(projectId) {
+  return dbCall('getGiftReservations', { projectId });
+}
+
+export async function deleteGiftReservation(reservationId) {
+  return dbCall('deleteGiftReservation', { reservationId });
+}
+
+export async function unreserveGiftByItemId(projectId, itemId) {
+  return dbCall('unreserveGiftByItemId', { projectId, itemId });
+}
+
+// ============================================
+// CONTACT REQUESTS (Marketing)
+// ============================================
+
+export async function submitContactRequest(requestData) {
+  return dbCall('submitContactRequest', { requestData });
+}
+
+// ============================================
+// PASSWORD PROTECTION
+// ============================================
+
+export async function checkPasswordRequired(slug) {
+  return dbCall('checkPasswordRequired', { slug });
+}
+
+export async function verifyProjectPassword(slug, password) {
+  const result = await dbCall('verifyProjectPassword', { slug, password });
+  if (result.success && result.token) setToken(result.token);
+  return result;
+}
+
+export async function verifyPreviewPassword(slug, password) {
+  const result = await dbCall('verifyPreviewPassword', { slug, password });
+  if (result.success && result.token) setToken(result.token);
+  return result;
+}
+
+export async function verifyAdminPassword(slug, password) {
+  const result = await dbCall('verifyAdminPassword', { slug, password });
+  if (result.success && result.token) setToken(result.token);
+  return result;
+}
+
+// ============================================
+// DATA READY NOTIFICATION (Kunde -> Admin)
+// ============================================
+
+export async function submitDataReady(projectId) {
+  return dbCall('submitDataReady', { projectId });
+}
+
+// ============================================
+// GUEST LIST (für RSVP-Erinnerungen)
+// ============================================
+
+export async function getGuestList(projectId) {
+  return dbCall('getGuestList', { projectId });
+}
+
+export async function uploadGuestList(projectId, guests) {
+  return dbCall('uploadGuestList', { projectId, guests });
+}
+
+export async function deleteGuestListEntry(id) {
+  return dbCall('deleteGuestListEntry', { id });
+}
+
+export async function clearGuestList(projectId) {
+  return dbCall('clearGuestList', { projectId });
+}
+
+export async function markReminderSent(guestId) {
+  return dbCall('markReminderSent', { guestId });
+}

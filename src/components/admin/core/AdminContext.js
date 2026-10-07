@@ -7,6 +7,7 @@ import {
   updateProjectStatus, approveGuestbookEntry, deleteGuestbookEntry,
   deleteMusicWish, updateProjectContent, approvePhotoUpload, deletePhotoUpload,
   submitDataReady, authFetch,
+  getAdminSession, clearAdminToken, AUTH_EXPIRED_EVENT,
 } from '../../../lib/supabase';
 import { hasFeature, getProcessSteps, getPackage } from '../../../lib/pricing';
 
@@ -20,12 +21,12 @@ export function AdminProvider({ children }) {
   const wedding = useWedding();
   const { project, projectId, coupleNames, content, slug, isComponentActive, refetch } = wedding || {};
   
-  // Auth - persist in sessionStorage
+  // Auth — eingeloggt heißt: gültiges Admin-Token für DIESEN Slug.
+  // Vorher reichte das sessionStorage-Flag. Nach Ablauf des Tokens (24 h)
+  // blieb das Dashboard offen, aber jeder Speichervorgang lief ins Leere.
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem(`admin_logged_in_${slug}`) === 'true';
-    }
-    return false;
+    if (typeof window === 'undefined' || !slug) return false;
+    return sessionStorage.getItem(`admin_logged_in_${slug}`) === 'true' && !!getAdminSession(slug);
   });
   const [loginError, setLoginError] = useState('');
   
@@ -113,6 +114,15 @@ export function AdminProvider({ children }) {
     if (project) setCurrentStatus(project.status);
   }, [project]);
 
+  // Slug kommt asynchron — Sitzung nachziehen, sobald er da ist
+  useEffect(() => {
+    if (!slug || typeof window === 'undefined') return;
+    const flagged = sessionStorage.getItem(`admin_logged_in_${slug}`) === 'true';
+    const valid = !!getAdminSession(slug);
+    setIsLoggedIn(flagged && valid);
+    if (flagged && !valid) sessionStorage.removeItem(`admin_logged_in_${slug}`);
+  }, [slug]);
+
   // Load data when logged in
   useEffect(() => {
     if (isLoggedIn && projectId) loadData();
@@ -156,6 +166,17 @@ export function AdminProvider({ children }) {
     setFeedback(f => ({ ...f, show: false }));
   }, []);
 
+  // Token abgelaufen oder ungültig → Login zeigen, Editor-Inhalte behalten
+  useEffect(() => {
+    const onExpired = () => {
+      setIsLoggedIn(false);
+      if (slug) sessionStorage.removeItem(`admin_logged_in_${slug}`);
+      setLoginError('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an — deine Eingaben bleiben erhalten.');
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, [slug]);
+
   // AUTH – Kunden-Login: prüft admin_password (aus SuperAdmin)
   // NICHT das Vorschau-Passwort!
   const login = useCallback(async (password) => {
@@ -181,6 +202,7 @@ export function AdminProvider({ children }) {
 
   const logout = useCallback(() => {
     setIsLoggedIn(false);
+    clearAdminToken();
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem(`admin_logged_in_${slug}`);
     }
@@ -322,11 +344,16 @@ export function AdminProvider({ children }) {
     
     setIsSaving(true);
     try {
-      const { error } = await updateProjectContent(projectId, section, contentStates[section]);
+      const { data, error } = await updateProjectContent(projectId, section, contentStates[section]);
       
       if (error) {
         console.error('Save error:', error);
         showFeedback('error', 'Fehler beim Speichern: ' + error.message);
+      } else if (!data) {
+        // Server hat 200 geliefert, aber keine Zeile zurückgegeben —
+        // dann ist nichts gespeichert. Nicht als Erfolg melden.
+        console.error('Save error: keine Zeile zurückgegeben', { projectId, section });
+        showFeedback('error', 'Speichern nicht bestätigt. Bitte erneut versuchen.');
       } else {
         showFeedback('success', 'Gespeichert!');
         // Note: refetch removed - it caused a full re-mount which reset activeTab
