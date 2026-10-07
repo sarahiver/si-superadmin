@@ -417,14 +417,14 @@ export default function PinBatchGenerator() {
           setStatus(`Entwurf angelegt für ${scheduled} (${layout})`, 'ok');
           // Queue-Anzeige unten aktualisieren — ohne dieses Event blieb sie
           // auf "0 geplant" stehen, obwohl die Einträge gespeichert waren.
-          window.dispatchEvent(new CustomEvent('pinQueueChanged'));
+          window.dispatchEvent(new CustomEvent('pinDraftsChanged'));
         }
       } catch (err) {
         setStatus(`Fehler: ${String(err.message || err)}`, 'err');
       }
     }
     setBusy(false);
-    window.dispatchEvent(new CustomEvent('pinQueueChanged'));
+    window.dispatchEvent(new CustomEvent('pinDraftsChanged'));
   }, [selected, boardId, boards, startDate]);
 
   return (

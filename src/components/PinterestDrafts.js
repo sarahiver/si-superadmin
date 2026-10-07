@@ -152,6 +152,8 @@ const Empty = styled.p`
  *                   Vorschau erst beim Übernehmen, nicht beim Erzeugen
  * @param {Function} onPromoted   Rückmeldung, damit die Queue neu lädt
  */
+const LAYOUTS = ['statement', 'split', 'liste', 'dark', 'fullbleed'];
+
 export default function PinterestDrafts({ renderImage, onPromoted }) {
   const [drafts, setDrafts] = useState([]);
   // Boards und Zielseiten selbst laden: Die Seite müsste sie sonst nur
@@ -159,6 +161,9 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
   const [boards, setBoards] = useState([]);
   const [targets, setTargets] = useState([]);
   const [busyId, setBusyId] = useState(null);
+  // Vorschaubilder je Entwurf, erst auf Klick gerendert: Ein Rendering
+  // kostet spürbar Zeit, zehn gleichzeitig würden die Seite blockieren.
+  const [previews, setPreviews] = useState({});
   const [bulkBusy, setBulkBusy] = useState(false);
   const [status, setStatus] = useState(null);
 
@@ -169,7 +174,18 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
       .catch(() => setStatus({ msg: 'Entwürfe konnten nicht geladen werden', err: true }));
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    // Der Generator meldet sich, wenn er fertig ist — ohne das bliebe die
+    // Liste leer, weil sie vor dem Lauf gerendert wurde.
+    const refresh = () => load();
+    window.addEventListener('pinQueueChanged', refresh);
+    window.addEventListener('pinDraftsChanged', refresh);
+    return () => {
+      window.removeEventListener('pinQueueChanged', refresh);
+      window.removeEventListener('pinDraftsChanged', refresh);
+    };
+  }, [load]);
 
   useEffect(() => {
     adminFetch('/api/pinterest?action=boards')
@@ -212,6 +228,55 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
         body: JSON.stringify({ action: 'draft_update', id, patch: { [field]: value } }),
       }).catch(() => {});
     }, 600);
+  };
+
+  const makePreview = async (draft) => {
+    setBusyId(draft.id);
+    try {
+      const b64 = await renderImage(draft);
+      setPreviews(p => ({ ...p, [draft.id]: `data:image/png;base64,${b64}` }));
+    } catch (err) {
+      setStatus({ msg: `Vorschau: ${err.message || err}`, err: true });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // Direkt veröffentlichen, ohne Umweg über die Queue
+  const pinNow = async (draft) => {
+    setBusyId(draft.id);
+    setStatus(null);
+    try {
+      if (!draft.board_id) throw new Error('Bitte zuerst ein Board wählen');
+      const image = await renderImage(draft);
+      const res = await adminFetch('/api/pinterest?action=publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'publish',
+          board_id: draft.board_id,
+          board_name: draft.board_name,
+          title: draft.title,
+          description: draft.description,
+          link: draft.link,
+          image_base64: image,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Veröffentlichen fehlgeschlagen');
+      await adminFetch('/api/pinterest?action=draft_delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'draft_delete', id: draft.id }),
+      }).catch(() => {});
+      setDrafts(cur => cur.filter(x => x.id !== draft.id));
+      setStatus({ msg: 'Pin veröffentlicht.', err: false });
+      onPromoted?.();
+    } catch (err) {
+      setStatus({ msg: String(err.message || err), err: true });
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const promote = async (draft) => {
@@ -296,9 +361,19 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
 
       {drafts.map(d => (
         <Card key={d.id} $busy={busyId === d.id}>
-          <Thumb $src={d.meta?.preview || null}>
-            {!d.meta?.preview && 'Vorschau entsteht beim Übernehmen'}
-          </Thumb>
+          <div>
+            <Thumb $src={previews[d.id] || null}>
+              {!previews[d.id] && 'Noch keine Vorschau'}
+            </Thumb>
+            <Btn
+              type="button"
+              style={{ width: '100%', marginTop: '0.5rem' }}
+              disabled={busyId === d.id}
+              onClick={() => makePreview(d)}
+            >
+              {busyId === d.id ? 'Rendere…' : 'Vorschau'}
+            </Btn>
+          </div>
 
           <Fields>
             <div>
@@ -318,6 +393,23 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
             </div>
 
             <Grid2>
+              <div>
+                <Label>Layout</Label>
+                <Select
+                  value={d.meta?.layout || 'statement'}
+                  onChange={e => {
+                    const meta = { ...(d.meta || {}), layout: e.target.value };
+                    patch(d.id, 'meta', meta);
+                    // Vorschau ist mit dem alten Layout entstanden
+                    setPreviews(p => ({ ...p, [d.id]: null }));
+                  }}
+                >
+                  {LAYOUTS.map(l => (
+                    <option key={l} value={l}>{l.charAt(0).toUpperCase() + l.slice(1)}</option>
+                  ))}
+                </Select>
+              </div>
+
               <div>
                 <Label>Board</Label>
                 <Select
@@ -368,6 +460,9 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
             <Actions>
               <Btn type="button" $primary disabled={busyId === d.id} onClick={() => promote(d)}>
                 {busyId === d.id ? 'Übernehme…' : 'In Queue'}
+              </Btn>
+              <Btn type="button" disabled={busyId === d.id} onClick={() => pinNow(d)}>
+                Direkt pinnen
               </Btn>
               <Btn type="button" $danger disabled={busyId === d.id} onClick={() => discard(d.id)}>
                 Verwerfen
