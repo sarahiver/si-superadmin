@@ -317,7 +317,10 @@ async function isDuplicate({ title, link }) {
     .select('id')
     .eq('title', title)
     .eq('link', link)
-    .neq('status', 'failed')
+    // 'draft' ausgenommen: Sonst würde ein Entwurf bei der Übernahme sich
+    // selbst als Duplikat erkennen. 'failed' ebenfalls, damit ein
+    // fehlgeschlagener Pin erneut versucht werden kann.
+    .not('status', 'in', '("failed","draft")')
     .gte('created_at', since)
     .limit(1);
   return (data || []).length > 0;
@@ -327,6 +330,29 @@ async function isDuplicate({ title, link }) {
 const SITE = 'https://www.sarahiver.com';
 
 // Kostenlose Tools — die stärksten Pin-Ziele (feste Metadaten)
+// Ziele mit Kaufabsicht. Bewusst getrennt von TOOLS und Blog: Diese Seiten
+// führen direkt zum Produkt, nicht zu Ratgeberinhalten. Beim Erzeugen von
+// Entwürfen werden sie bevorzugt, weil Pins auf Spiele- und Trendartikel
+// zwar Reichweite bringen, aber kaum Kaufinteresse.
+const DEMO_BASE = 'https://siwedding.de';
+const COMMERCIAL = [
+  { slug: 'start', url: `${SITE}/`, intent: 'high',
+    title: 'Individuelle Hochzeitswebsite — persönlich gestaltet',
+    description: 'Eure Hochzeitswebsite, abgestimmt auf euren Stil: Design, Einrichtung und Betreuung aus einer Hand. Acht Designwelten ab 990 €.' },
+  { slug: 'vergleich', url: `${SITE}/blog/hochzeitswebsite-vergleich-2026`, intent: 'high',
+    title: 'Hochzeitswebsite: Baukasten, App oder individuell?',
+    description: 'Was die vier Wege kosten, wie viel Arbeit bei euch bleibt und für wen sich welcher eignet.' },
+  ...['classic', 'botanical', 'contemporary', 'editorial', 'luxe', 'modern', 'neon', 'video']
+    .map(t => ({
+      slug: `demo-${t}`,
+      url: `${DEMO_BASE}/demo-${t}`,
+      intent: 'high',
+      title: `Hochzeitswebsite im Design ${t.charAt(0).toUpperCase() + t.slice(1)}`,
+      description: 'Eine von acht Designwelten von S&I. — als vollständige Live-Demo mit RSVP, Tagesablauf und Galerie.',
+      image: null,
+    })),
+];
+
 const TOOLS = [
   {
     slug: 'hochzeitsbudget-rechner',
@@ -594,8 +620,98 @@ async function route(req, res) {
       return res.status(200).json({ ok: true, id: data.id });
     }
 
+
+    // ── Entwürfe ──────────────────────────────────────────────────────
+    // Zwischenstufe zwischen KI-Erzeugung und Queue. Entwürfe liegen in
+    // derselben Tabelle mit status 'draft'; der Cron-Job greift nur auf
+    // 'queued' zu und kann sie deshalb nie versehentlich veröffentlichen.
+    // Ein Entwurf braucht noch kein Bild — das wird erst beim Übernehmen
+    // gerendert, was die Massenerzeugung deutlich schneller macht.
+    if (action === 'draft_add') {
+      const { drafts } = req.body;
+      if (!Array.isArray(drafts) || !drafts.length) {
+        return res.status(400).json({ error: 'drafts (Array) ist Pflicht' });
+      }
+      const rows = drafts.slice(0, 20).map(d => ({
+        board_id: d.board_id || null,
+        board_name: d.board_name || null,
+        title: d.title || '',
+        description: d.description || null,
+        link: d.link || '',
+        image_data: null,
+        scheduled_date: d.scheduled_date || null,
+        status: 'draft',
+        meta: d.meta || null,
+      }));
+      const { data, error } = await supabase
+        .from('pinterest_queue').insert(rows).select('id');
+      if (error) throw error;
+      return res.status(200).json({ ok: true, ids: (data || []).map(r => r.id) });
+    }
+
+    if (action === 'draft_list') {
+      const { data, error } = await supabase
+        .from('pinterest_queue')
+        .select('*')
+        .eq('status', 'draft')
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return res.status(200).json({ drafts: data || [] });
+    }
+
+    if (action === 'draft_update') {
+      const { id, patch } = req.body;
+      if (!id || !patch) return res.status(400).json({ error: 'id und patch sind Pflicht' });
+      // Nur freigegebene Felder: status wird hier bewusst nicht geändert,
+      // dafür gibt es draft_promote.
+      const allowed = ['board_id', 'board_name', 'title', 'description', 'link', 'scheduled_date', 'meta'];
+      const clean = {};
+      allowed.forEach(k => { if (k in patch) clean[k] = patch[k]; });
+      const { error } = await supabase
+        .from('pinterest_queue').update(clean).eq('id', id).eq('status', 'draft');
+      if (error) throw error;
+      return res.status(200).json({ ok: true });
+    }
+
+    // Entwurf wird zum Queue-Eintrag. Erst hier ist das Bild Pflicht, und
+    // erst hier greift die Duplikatprüfung — beim Entwurf wäre sie störend.
+    if (action === 'draft_promote') {
+      const { id, image_base64, scheduled_date } = req.body;
+      if (!id || !image_base64) {
+        return res.status(400).json({ error: 'id und image_base64 sind Pflicht' });
+      }
+      const { data: row, error: readErr } = await supabase
+        .from('pinterest_queue').select('*').eq('id', id).eq('status', 'draft').single();
+      if (readErr || !row) return res.status(404).json({ error: 'Entwurf nicht gefunden' });
+      if (!row.board_id || !row.title || !row.link) {
+        return res.status(400).json({ error: 'Board, Titel und Link müssen gesetzt sein' });
+      }
+      if (await isDuplicate({ title: row.title, link: row.link })) {
+        return res.status(409).json({ error: 'Duplikat: gleicher Titel + Link ist bereits in der Queue oder wurde kürzlich gepinnt.' });
+      }
+      const { error } = await supabase
+        .from('pinterest_queue')
+        .update({
+          image_data: image_base64,
+          scheduled_date: scheduled_date || row.scheduled_date || null,
+          status: 'queued',
+        })
+        .eq('id', id);
+      if (error) throw error;
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === 'draft_delete') {
+      const { id, all } = req.body;
+      const q = supabase.from('pinterest_queue').delete().eq('status', 'draft');
+      const { error } = all ? await q : await q.eq('id', id);
+      if (error) throw error;
+      return res.status(200).json({ ok: true });
+    }
+
     // ── Queue anzeigen ──
     if (action === 'queue_list') {
+      // Entwürfe erscheinen in ihrer eigenen Liste, nicht in der Queue
       const { data, error } = await supabase
         .from('pinterest_queue')
         .select('id, created_at, scheduled_date, status, title, link, board_name, pin_id, error, published_at')
@@ -633,13 +749,20 @@ async function route(req, res) {
     // ── Blog-Rohstoff ──
     if (action === 'blog_list') {
       const slugs = await getBlogSlugs();
-      return res.status(200).json({ slugs, tools: TOOLS.map(({ slug, title }) => ({ slug, title })) });
+      return res.status(200).json({
+        slugs,
+        tools: TOOLS.map(({ slug, title }) => ({ slug, title })),
+        // Getrennt ausgewiesen, damit die Oberfläche sie oben anzeigen kann
+        commercial: COMMERCIAL.map(({ slug, title, intent }) => ({ slug, title, intent })),
+      });
     }
     if (action === 'blog_meta') {
       const { slug } = req.query;
       if (!slug || !/^[a-z0-9-]+$/.test(slug)) {
         return res.status(400).json({ error: 'Ungültiger slug' });
       }
+      const commercial = COMMERCIAL.find(c => c.slug === slug);
+      if (commercial) return res.status(200).json(commercial);
       const tool = toolMeta(slug);
       if (tool) return res.status(200).json(tool);
       return res.status(200).json(await getBlogMeta(slug));
