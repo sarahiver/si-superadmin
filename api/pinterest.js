@@ -441,6 +441,135 @@ async function runCron() {
   return { published: results.filter(r => r.ok).length, results };
 }
 
+// ── Pin-Statistiken (Rückkanal) ──────────────────────────────────
+// Pinterest liefert Tageswerte pro Pin, aber nur für die letzten 90 Tage.
+// Deshalb werden sie täglich in pinterest_pin_metrics gesichert — ältere
+// Pins behalten so ihren vollständigen Verlauf.
+const METRIC_TYPES = ['IMPRESSION', 'SAVE', 'PIN_CLICK', 'OUTBOUND_CLICK'];
+const METRICS_WINDOW_DAYS = 89; // API-Grenze: max. 90 Tage zurück
+const isoDay = (d) => d.toISOString().slice(0, 10);
+
+async function syncPinMetrics(row, today) {
+  const earliest = new Date(today.getTime() - METRICS_WINDOW_DAYS * 86400000);
+  const published = row.published_at ? new Date(row.published_at) : earliest;
+  const start = published > earliest ? published : earliest;
+
+  const params = new URLSearchParams({
+    start_date: isoDay(start),
+    end_date: isoDay(today),
+    metric_types: METRIC_TYPES.join(','),
+  });
+  const data = await pinterestFetch(`/pins/${encodeURIComponent(row.pin_id)}/analytics?${params}`);
+
+  // Antwort ist nach Split-Gruppe geschlüsselt; ohne Split heißt sie "all"
+  const block = data.all || Object.values(data)[0] || {};
+  const rows = (block.daily_metrics || [])
+    .filter(d => d.date && d.metrics && Object.keys(d.metrics).length > 0)
+    .map(d => ({
+      pin_id: row.pin_id,
+      queue_id: String(row.id),
+      date: d.date,
+      impressions: Math.round(d.metrics.IMPRESSION || 0),
+      saves: Math.round(d.metrics.SAVE || 0),
+      pin_clicks: Math.round(d.metrics.PIN_CLICK || 0),
+      outbound_clicks: Math.round(d.metrics.OUTBOUND_CLICK || 0),
+      data_status: d.data_status || null,
+      fetched_at: new Date().toISOString(),
+    }));
+
+  if (rows.length) {
+    const { error } = await supabase
+      .from('pinterest_pin_metrics')
+      .upsert(rows, { onConflict: 'pin_id,date' });
+    if (error) throw error;
+  }
+  return rows.length;
+}
+
+/**
+ * Aktualisiert die Statistiken der Pins, die am längsten nicht abgefragt
+ * wurden. Mit Zeitbudget: Was nicht fertig wird, kommt beim nächsten Lauf
+ * dran — die Reihenfolge sorgt dafür, dass kein Pin dauerhaft hinten bleibt.
+ */
+async function syncMetrics({ budgetMs = 8000, limit = 40 } = {}) {
+  const startedAt = Date.now();
+  const today = new Date();
+  const cutoff = new Date(today.getTime() - (METRICS_WINDOW_DAYS + 1) * 86400000).toISOString();
+
+  const { data: pins, error } = await supabase
+    .from('pinterest_queue')
+    .select('id, pin_id, published_at, metrics_synced_at')
+    .eq('status', 'published')
+    .not('pin_id', 'is', null)
+    .gte('published_at', cutoff)
+    .order('metrics_synced_at', { ascending: true, nullsFirst: true })
+    .limit(limit);
+  if (error) throw error;
+
+  let synced = 0;
+  let failed = 0;
+  const errors = [];
+  for (const row of pins || []) {
+    if (Date.now() - startedAt > budgetMs) break;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await syncPinMetrics(row, today);
+      // eslint-disable-next-line no-await-in-loop
+      await supabase.from('pinterest_queue')
+        .update({ metrics_synced_at: new Date().toISOString(), metrics_error: null })
+        .eq('id', row.id);
+      synced++;
+    } catch (err) {
+      failed++;
+      const message = String(err.message || err).slice(0, 300);
+      errors.push({ id: row.id, error: message });
+      // eslint-disable-next-line no-await-in-loop
+      await supabase.from('pinterest_queue')
+        .update({ metrics_synced_at: new Date().toISOString(), metrics_error: message })
+        .eq('id', row.id);
+    }
+  }
+
+  // Wie viele Pins heute noch nicht dran waren
+  const dayStart = isoDay(today) + 'T00:00:00Z';
+  const { count } = await supabase
+    .from('pinterest_queue')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'published')
+    .not('pin_id', 'is', null)
+    .gte('published_at', cutoff)
+    .or(`metrics_synced_at.is.null,metrics_synced_at.lt.${dayStart}`);
+
+  return { synced, failed, remaining: count || 0, errors };
+}
+
+// Tageswerte zu Summen pro Pin: gesamt, erste 7 und erste 30 Tage nach
+// Veröffentlichung. Fair vergleichen lassen sich Pins nur im gleichen
+// Zeitfenster — ein drei Monate alter Pin hat sonst immer mehr.
+function summarize(pin, days) {
+  const pub = pin.published_at ? new Date(pin.published_at) : null;
+  const ageDays = pub ? Math.floor((Date.now() - pub.getTime()) / 86400000) : null;
+  const empty = () => ({ impressions: 0, saves: 0, pin_clicks: 0, outbound_clicks: 0 });
+  const windows = { total: empty(), d7: empty(), d30: empty() };
+  let provisional = false;
+
+  for (const d of days) {
+    const offset = pub ? Math.floor((new Date(d.date + 'T00:00:00Z') - new Date(isoDay(pub) + 'T00:00:00Z')) / 86400000) : 0;
+    const targets = [windows.total];
+    if (offset < 7) targets.push(windows.d7);
+    if (offset < 30) targets.push(windows.d30);
+    for (const w of targets) {
+      w.impressions += d.impressions || 0;
+      w.saves += d.saves || 0;
+      w.pin_clicks += d.pin_clicks || 0;
+      w.outbound_clicks += d.outbound_clicks || 0;
+    }
+    if (d.data_status && d.data_status !== 'READY') provisional = true;
+  }
+
+  return { ...windows, age_days: ageDays, days_with_data: days.length, provisional };
+}
+
 export default async function handler(req, res) {
   try {
     return await route(req, res);
@@ -467,6 +596,13 @@ async function route(req, res) {
   if (isCronCall) {
     try {
       const result = await runCron();
+      // Statistiken im selben Lauf: kein zusätzlicher Cron-Eintrag nötig.
+      // Ein Fehler hier darf das Veröffentlichen nicht als gescheitert melden.
+      try {
+        result.metrics = await syncMetrics({ budgetMs: 20000, limit: 60 });
+      } catch (err) {
+        result.metrics = { error: String(err.message || err) };
+      }
       return res.status(200).json(result);
     } catch (err) {
       console.error('Pinterest cron error:', err);
@@ -503,6 +639,12 @@ async function route(req, res) {
       for (const t of ['pinterest_tokens', 'pinterest_queue']) {
         const { error } = await supabase.from(t).select('id').limit(1);
         tables[t] = error ? `FEHLER: ${error.message}` : 'ok';
+      }
+      {
+        const { error } = await supabase.from('pinterest_pin_metrics').select('pin_id').limit(1);
+        tables.pinterest_pin_metrics = error ? `FEHLER: ${error.message}` : 'ok';
+        const { error: colErr } = await supabase.from('pinterest_queue').select('metrics_synced_at').limit(1);
+        tables['pinterest_queue.metrics_synced_at'] = colErr ? `FEHLER: ${colErr.message}` : 'ok';
       }
       return res.status(200).json({ env, tables });
     }
@@ -571,7 +713,7 @@ async function route(req, res) {
 
     // ── Direkt veröffentlichen ──
     if (action === 'publish') {
-      const { board_id, board_name, title, description, link, image_base64 } = req.body;
+      const { board_id, board_name, title, description, link, image_base64, meta, draft_id } = req.body;
       if (!board_id || !title || !link || !image_base64) {
         return res.status(400).json({ error: 'board_id, title, link und image_base64 sind Pflicht' });
       }
@@ -579,8 +721,7 @@ async function route(req, res) {
         return res.status(409).json({ error: 'Duplikat: gleicher Titel + Link wurde in den letzten 14 Tagen bereits gepinnt. Headline, Layout oder Bild variieren.' });
       }
       const pin = await createPin({ board_id, title, description, link, image_base64 });
-      // Historie: auch Direkt-Pins landen in der Tabelle (für Übersicht + Dedupe)
-      await supabase.from('pinterest_queue').insert({
+      const published = {
         board_id,
         board_name: board_name || null,
         title,
@@ -589,13 +730,37 @@ async function route(req, res) {
         status: 'published',
         pin_id: pin.id || null,
         published_at: new Date().toISOString(),
-      });
-      return res.status(200).json({ ok: true, pin_id: pin.id });
+        image_data: null,
+        error: null,
+      };
+
+      // Aus einem Entwurf: dieselbe Zeile wird zum veröffentlichten Pin.
+      // Vorher wurde eine neue Zeile ohne meta angelegt und der Entwurf
+      // gelöscht — Layout, Theme und Texte für die Auswertung waren weg.
+      if (draft_id) {
+        const { data: updated, error } = await supabase
+          .from('pinterest_queue')
+          .update(published)
+          .eq('id', draft_id)
+          .eq('status', 'draft')
+          .select('id');
+        if (!error && updated && updated.length) {
+          return res.status(200).json({ ok: true, pin_id: pin.id, id: draft_id });
+        }
+      }
+
+      // Historie: auch Direkt-Pins landen in der Tabelle (für Übersicht + Dedupe)
+      const { data: inserted } = await supabase
+        .from('pinterest_queue')
+        .insert({ ...published, meta: meta || null })
+        .select('id')
+        .single();
+      return res.status(200).json({ ok: true, pin_id: pin.id, id: inserted?.id || null });
     }
 
     // ── In Queue legen ──
     if (action === 'queue_add') {
-      const { board_id, board_name, title, description, link, image_base64, scheduled_date } = req.body;
+      const { board_id, board_name, title, description, link, image_base64, scheduled_date, meta } = req.body;
       if (!board_id || !title || !link || !image_base64) {
         return res.status(400).json({ error: 'board_id, title, link und image_base64 sind Pflicht' });
       }
@@ -613,6 +778,7 @@ async function route(req, res) {
           image_data: image_base64,
           scheduled_date: scheduled_date || null,
           status: 'queued',
+          meta: meta || null,
         })
         .select('id')
         .single();
@@ -744,6 +910,75 @@ async function route(req, res) {
       if (!row.image_data) return res.status(400).json({ error: 'Bilddaten fehlen (Eintrag neu anlegen)' });
       const result = await publishQueueRow(row);
       return res.status(result.ok ? 200 : 500).json(result);
+    }
+
+    // ── Pin-Statistiken: jetzt aktualisieren ──
+    if (action === 'metrics_sync') {
+      const result = await syncMetrics({ budgetMs: 8000, limit: 25 });
+      return res.status(200).json(result);
+    }
+
+    // ── Pin-Statistiken: Auswertung ──
+    // Liefert pro Pin Summen (gesamt / erste 7 / erste 30 Tage). Gruppiert
+    // wird im Frontend — so lässt sich ohne neuen Request umschalten.
+    if (action === 'metrics_report') {
+      const { data: pins, error } = await supabase
+        .from('pinterest_queue')
+        .select('id, title, link, board_name, meta, published_at, pin_id, metrics_synced_at, metrics_error')
+        .eq('status', 'published')
+        .not('pin_id', 'is', null)
+        .order('published_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+
+      const pinIds = (pins || []).map(p => p.pin_id);
+      const byPin = {};
+      // In Blöcken lesen: Supabase begrenzt Antworten auf 1000 Zeilen
+      for (let i = 0; i < pinIds.length; i += 25) {
+        // eslint-disable-next-line no-await-in-loop
+        const { data: days, error: mErr } = await supabase
+          .from('pinterest_pin_metrics')
+          .select('pin_id, date, impressions, saves, pin_clicks, outbound_clicks, data_status')
+          .in('pin_id', pinIds.slice(i, i + 25))
+          .order('date', { ascending: true })
+          .limit(5000);
+        if (mErr) throw mErr;
+        (days || []).forEach(d => { (byPin[d.pin_id] = byPin[d.pin_id] || []).push(d); });
+      }
+
+      return res.status(200).json({
+        pins: (pins || []).map(p => ({
+          id: p.id,
+          pin_id: p.pin_id,
+          title: p.title,
+          link: p.link,
+          board_name: p.board_name,
+          layout: p.meta?.layout || null,
+          theme: p.meta?.theme || null,
+          source_slug: p.meta?.sourceSlug || null,
+          published_at: p.published_at,
+          metrics_synced_at: p.metrics_synced_at,
+          metrics_error: p.metrics_error,
+          ...summarize(p, byPin[p.pin_id] || []),
+        })),
+      });
+    }
+
+    // ── Layout/Theme bei veröffentlichten Pins nachtragen ──
+    // Für Pins, die vor dieser Version direkt gepinnt wurden und deshalb
+    // ohne meta in der Tabelle stehen.
+    if (action === 'meta_update') {
+      const { id, layout, theme } = req.body;
+      if (!id) return res.status(400).json({ error: 'id fehlt' });
+      const { data: row, error: rErr } = await supabase
+        .from('pinterest_queue').select('meta').eq('id', id).single();
+      if (rErr || !row) return res.status(404).json({ error: 'Pin nicht gefunden' });
+      const meta = { ...(row.meta || {}) };
+      if (layout !== undefined) meta.layout = layout || null;
+      if (theme !== undefined) meta.theme = theme || null;
+      const { error } = await supabase.from('pinterest_queue').update({ meta }).eq('id', id);
+      if (error) throw error;
+      return res.status(200).json({ ok: true });
     }
 
     // ── Blog-Rohstoff ──

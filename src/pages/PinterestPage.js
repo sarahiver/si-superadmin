@@ -6,11 +6,17 @@ import React from 'react';
 import { PinQueue, PinterestConnect } from '../components/PinterestPublish';
 import PinBatchGenerator, { renderPinBase64 } from '../components/PinBatchGenerator';
 import PinterestDrafts from '../components/PinterestDrafts';
+import PinterestStats from '../components/PinterestStats';
 
 export default function PinterestPage() {
   return (
     <>
       <PinterestConnect />
+
+      {/* Rückkanal zuerst: Was bisher funktioniert hat, steuert die
+          nächsten Entwürfe (Layout, Theme, Board, Wochentag). */}
+      <PinterestStats />
+
       <PinBatchGenerator />
 
       {/* Entwürfe liegen zwischen Erzeugung und Queue: Hier wird jeder Pin
@@ -25,6 +31,7 @@ export default function PinterestPage() {
           accentWord: draft.meta?.accentWord,
           body: draft.meta?.body || draft.description,
           imageUrl: draft.meta?.imageUrl || null,
+          imageTone: draft.meta?.imageTone || 'muted',
           theme: draft.meta?.theme || 'classic',
         })}
       />

@@ -113,7 +113,7 @@ const SeedRow = styled.div`
 const prettifySlug = (slug) =>
   slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-export default function PinterestPublish({ getImageBase64, title, description, onSeedArticle }) {
+export default function PinterestPublish({ getImageBase64, title, description, onSeedArticle, meta }) {
   const [boards, setBoards] = useState([]);
   const [boardId, setBoardId] = useState('');
   const [link, setLink] = useState('https://www.sarahiver.com/');
@@ -189,6 +189,8 @@ export default function PinterestPublish({ getImageBase64, title, description, o
         description,
         link: withUtm(link),
         image_base64,
+        // Layout/Theme für die Auswertung (Pin-Performance)
+        meta: meta || null,
         ...(mode === 'queue' && scheduledDate ? { scheduled_date: scheduledDate } : {}),
       };
       const res = await adminFetch('/api/pinterest', {
@@ -209,7 +211,7 @@ export default function PinterestPublish({ getImageBase64, title, description, o
       setStatus({ msg: String(err.message || err), err: true });
     }
     setBusy(false);
-  }, [boardId, link, title, description, scheduledDate, boards, getImageBase64]);
+  }, [boardId, link, title, description, scheduledDate, boards, getImageBase64, meta]);
 
   return (
     <Panel>

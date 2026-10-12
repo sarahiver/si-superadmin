@@ -883,6 +883,7 @@ ${schema}`;
               title={headline}
               description={caption}
               onSeedArticle={seedFromArticle}
+              meta={{ theme, layout, headline, accentWord, eyebrow, source: 'editor' }}
             />
           )}
 

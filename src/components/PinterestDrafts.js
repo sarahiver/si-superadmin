@@ -159,6 +159,42 @@ const Empty = styled.p`
 const LAYOUTS = ['statement', 'split', 'list', 'dark', 'fullbleed'];
 const THEMES = Object.keys(PIN_THEMES);
 
+// Nur diese Layouts zeigen ein Foto
+const PHOTO_LAYOUTS = ['split', 'fullbleed'];
+
+// Bildsuche (Pexels) arbeitet auf Englisch. Aus dem deutschen Pin-Thema
+// werden passende Motive abgeleitet; die Suche hängt selbst "wedding" an.
+const TOPIC_KEYWORDS = [
+  [/website|online|digital|app|qr/i, ['invitation', 'flatlay', 'phone']],
+  [/gäste|gast|rsvp|zusage/i, ['guests', 'celebration']],
+  [/location|venue|ort|scheune|schloss/i, ['venue', 'decoration']],
+  [/deko|tisch|tafel/i, ['table setting', 'decoration']],
+  [/kleid|braut/i, ['bride', 'dress']],
+  [/anzug|bräutigam/i, ['groom', 'suit']],
+  [/torte|kuchen|essen|menü/i, ['cake', 'dessert']],
+  [/ring|antrag|verlob/i, ['rings', 'engagement']],
+  [/budget|kosten|preis|plan|checkliste|liste/i, ['planning', 'notebook']],
+  [/einladung|karte|save the date|papeterie/i, ['stationery', 'invitation card']],
+  [/blume|strauß|floral/i, ['bouquet', 'flowers']],
+  [/foto|fotograf/i, ['photography', 'couple']],
+  [/musik|band|dj|tanz/i, ['dance', 'party']],
+  [/frühling|sommer|garten|outdoor/i, ['garden', 'outdoor']],
+];
+const FALLBACK_KEYWORDS = [['flowers', 'details'], ['couple', 'light'], ['table setting'], ['bouquet']];
+
+function deriveKeywords(draft) {
+  const text = [draft.title, draft.meta?.headline, draft.meta?.eyebrow].filter(Boolean).join(' ');
+  for (const [re, kw] of TOPIC_KEYWORDS) if (re.test(text)) return kw;
+  return FALLBACK_KEYWORDS[Math.floor(Math.random() * FALLBACK_KEYWORDS.length)];
+}
+
+const parseKeywords = (v) => String(v || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 4);
+
+// Unter diesen Werten (0–255, aus Pexels' Durchschnittsfarbe) gilt ein
+// Foto als zu dunkel. "Helleres Foto" ist deutlich strenger.
+const MIN_BRIGHTNESS = 95;
+const MIN_BRIGHTNESS_BRIGHT = 150;
+
 export default function PinterestDrafts({ renderImage, onPromoted }) {
   const [drafts, setDrafts] = useState([]);
   // Boards und Zielseiten selbst laden: Die Seite müsste sie sonst nur
@@ -171,6 +207,7 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
   const [previews, setPreviews] = useState({});
   const [bulkBusy, setBulkBusy] = useState(false);
   const [status, setStatus] = useState(null);
+  const [photoBusyId, setPhotoBusyId] = useState(null);
 
   const load = useCallback(() => {
     adminFetch('/api/pinterest?action=draft_list')
@@ -247,6 +284,72 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
     }
   }, [renderImage]);
 
+  // Neues Foto aus der Bildsuche. Blättert durch die Treffer, damit jeder
+  // Klick ein anderes Bild bringt, und sortiert zu dunkle Fotos aus.
+  // "brighter" sucht strenger und schaltet auf den hellen Bildton um.
+  const newPhoto = async (draft, { brighter = false } = {}) => {
+    setPhotoBusyId(draft.id);
+    setStatus(null);
+    try {
+      const meta = draft.meta || {};
+      const keywords = meta.visualKeywords?.length ? meta.visualKeywords : deriveKeywords(draft);
+      const used = new Set([...(meta.usedPhotos || []), meta.imageUrl].filter(Boolean));
+      let page = (meta.photoPage || 0) + 1;
+      let pick = null;
+
+      for (let tries = 0; tries < 4 && !pick; tries++, page++) {
+        // eslint-disable-next-line no-await-in-loop
+        const res = await adminFetch('/api/stock-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            keywords,
+            format: 'post',
+            max: 15,
+            page,
+            minBrightness: brighter ? MIN_BRIGHTNESS_BRIGHT : MIN_BRIGHTNESS,
+          }),
+        });
+        // eslint-disable-next-line no-await-in-loop
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'Bildsuche fehlgeschlagen');
+        const fresh = (data.assets || []).filter(a => a.secure_url && !used.has(a.secure_url));
+        if (fresh.length) {
+          pick = brighter
+            ? [...fresh].sort((a, b) => (b.brightness || 0) - (a.brightness || 0))[0]
+            : fresh[0];
+        }
+        if (!data.has_more && !pick) {
+          page = 0; // von vorn, beim nächsten Klick
+          break;
+        }
+      }
+
+      if (!pick) {
+        throw new Error('Kein passendes Foto gefunden. Andere Bild-Stichworte versuchen.');
+      }
+
+      const next = {
+        ...meta,
+        imageUrl: pick.secure_url,
+        photoCredit: pick.photographer ? `${pick.photographer} / Pexels` : 'Pexels',
+        photoPage: page,
+        usedPhotos: [...used, pick.secure_url].slice(-40),
+        visualKeywords: keywords,
+        // Ohne Foto-Layout wäre das neue Bild unsichtbar
+        layout: PHOTO_LAYOUTS.includes(meta.layout) ? meta.layout : 'fullbleed',
+        ...(brighter ? { imageTone: 'bright' } : {}),
+      };
+      patch(draft.id, 'meta', next);
+      setPreviews(p => ({ ...p, [draft.id]: null }));
+      await makePreview({ ...draft, meta: next });
+    } catch (err) {
+      setStatus({ msg: String(err.message || err), err: true });
+    } finally {
+      setPhotoBusyId(null);
+    }
+  };
+
   // Direkt veröffentlichen, ohne Umweg über die Queue
   const pinNow = async (draft) => {
     setBusyId(draft.id);
@@ -265,15 +368,15 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
           description: draft.description,
           link: draft.link,
           image_base64: image,
+          // Der Entwurf selbst wird zum veröffentlichten Pin — Layout, Theme
+          // und Texte bleiben für die Auswertung erhalten. Vorher wurde er
+          // gelöscht und eine Zeile ohne diese Angaben neu angelegt.
+          draft_id: draft.id,
+          meta: draft.meta || null,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Veröffentlichen fehlgeschlagen');
-      await adminFetch('/api/pinterest?action=draft_delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'draft_delete', id: draft.id }),
-      }).catch(() => {});
       setDrafts(cur => cur.filter(x => x.id !== draft.id));
       window.dispatchEvent(new CustomEvent('pinQueueChanged'));
       setStatus({ msg: 'Pin veröffentlicht.', err: false });
@@ -400,6 +503,60 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
             >
               Neu rendern
             </Btn>
+
+            {/* Foto tauschen: wenn das Bild zu dunkel ist oder nicht passt */}
+            <Btn
+              type="button"
+              style={{ width: '100%', marginTop: '0.4rem' }}
+              disabled={photoBusyId === d.id}
+              onClick={() => newPhoto(d)}
+            >
+              {photoBusyId === d.id ? 'Suche Foto…' : '🔄 Neues Foto'}
+            </Btn>
+            <Btn
+              type="button"
+              style={{ width: '100%', marginTop: '0.4rem' }}
+              disabled={photoBusyId === d.id}
+              onClick={() => newPhoto(d, { brighter: true })}
+            >
+              ☀ Helleres Foto
+            </Btn>
+
+            {PHOTO_LAYOUTS.includes(d.meta?.layout) && d.meta?.imageUrl && (
+              <div style={{ marginTop: '0.6rem' }}>
+                <Label>Bildton</Label>
+                <Select
+                  value={d.meta?.imageTone || 'muted'}
+                  onChange={e => {
+                    const meta = { ...(d.meta || {}), imageTone: e.target.value };
+                    patch(d.id, 'meta', meta);
+                    setPreviews(p => ({ ...p, [d.id]: null }));
+                    makePreview({ ...d, meta });
+                  }}
+                >
+                  <option value="muted">Gedämpft (dunkel)</option>
+                  <option value="bright">Hell</option>
+                </Select>
+              </div>
+            )}
+
+            <div style={{ marginTop: '0.6rem' }}>
+              <Label>Bild-Stichworte (englisch)</Label>
+              <Input
+                defaultValue={(d.meta?.visualKeywords || []).join(', ')}
+                placeholder={deriveKeywords(d).join(', ')}
+                onBlur={e => {
+                  const kw = parseKeywords(e.target.value);
+                  // Neue Stichworte → wieder bei Seite 1 der Treffer anfangen
+                  patch(d.id, 'meta', { ...(d.meta || {}), visualKeywords: kw, photoPage: 0 });
+                }}
+                style={{ fontSize: '0.78rem' }}
+              />
+            </div>
+
+            {d.meta?.photoCredit && (
+              <Note style={{ fontSize: '0.66rem' }}>Foto: {d.meta.photoCredit}</Note>
+            )}
           </div>
 
           <Fields>

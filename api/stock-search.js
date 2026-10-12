@@ -17,6 +17,14 @@ function buildQuery(keywords) {
   return (`wedding ${kw}`).trim();
 }
 
+// Wahrgenommene Helligkeit (0–255) aus Pexels' Durchschnittsfarbe
+function brightnessOf(hex) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
+  if (!m) return null;
+  const [r, g, b] = m.slice(1).map((x) => parseInt(x, 16));
+  return Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
+}
+
 function pickVideoFile(files) {
   if (!files || !files.length) return null;
   // Bevorzuge Hochformat; Zielauflösung ~1080x1920 (Canvas-Größe).
@@ -39,13 +47,18 @@ export default async function handler(req, res) {
   if (!PEXELS_KEY) return res.status(500).json({ error: 'PEXELS_API_KEY not set' });
 
   try {
-    const { keywords = [], format = 'post', max = 6, orientation = 'portrait' } = req.body || {};
+    const {
+      keywords = [], format = 'post', max = 6, orientation = 'portrait',
+      page = 1,            // zum Blättern: "Neues Foto" will andere Treffer
+      minBrightness = 0,   // nur Fotos: dunkle Bilder aussortieren (0–255)
+    } = req.body || {};
     const perPage = Math.min(Math.max(parseInt(max) || 6, 1), 15);
+    const pageNum = Math.min(Math.max(parseInt(page) || 1, 1), 50);
     const query = buildQuery(keywords);
     const isReel = format === 'reel';
 
     const base = isReel ? 'https://api.pexels.com/videos/search' : 'https://api.pexels.com/v1/search';
-    const url = `${base}?query=${encodeURIComponent(query)}&orientation=${orientation}&per_page=${perPage}`;
+    const url = `${base}?query=${encodeURIComponent(query)}&orientation=${orientation}&per_page=${perPage}&page=${pageNum}`;
 
     const r = await fetch(url, { headers: { Authorization: PEXELS_KEY } });
     if (!r.ok) {
@@ -83,10 +96,17 @@ export default async function handler(req, res) {
         photographer: p.photographer,
         photographer_url: p.photographer_url,
         pexels_url: p.url,
+        avg_color: p.avg_color || null,
+        brightness: brightnessOf(p.avg_color),
       }));
+      const minB = parseInt(minBrightness) || 0;
+      if (minB > 0) assets = assets.filter((a) => a.brightness == null || a.brightness >= minB);
     }
 
-    return res.status(200).json({ assets, query, source: 'pexels' });
+    return res.status(200).json({
+      assets, query, source: 'pexels', page: pageNum,
+      has_more: Boolean(data.next_page),
+    });
   } catch (error) {
     console.error('stock-search error:', error);
     return res.status(500).json({ error: error.message });

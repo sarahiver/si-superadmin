@@ -49,6 +49,12 @@ export default function PostCanvas({
   W = 1080, H = 1620,
   eyebrow = '', headline = '', accentWord = '', bodyText = '',
   image = null, pageNum = '',
+  // 'muted' = bisheriger Look (Foto stark abgedunkelt), 'bright' = Foto
+  // sichtbar, Lesbarkeit nur über den Verlauf hinter dem Text.
+  // Hinweis: html2canvas ignoriert CSS-filter — grayscale wirkt nur in der
+  // Live-Vorschau, nicht im exportierten Bild. Abgedunkelt hat bisher allein
+  // die opacity 0.5 auf dunklem Grund.
+  imageTone = 'muted',
 }) {
   const t = THEMES[theme] || THEMES.classic;
   const isDark = layout === 'dark' || layout === 'fullbleed' || t.alwaysDark;
@@ -103,7 +109,7 @@ export default function PostCanvas({
       case 'split':
         return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden', display: 'grid', gridTemplateColumns: '42% 1fr' }}>
           <div style={{ background: t.alwaysDark ? bg : '#1A1A1A', position: 'relative', overflow: 'hidden' }}>
-            {image ? <div style={{ width: '100%', height: '100%', backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', filter: 'grayscale(100%)', opacity: 0.8 }} />
+            {image ? <div style={{ width: '100%', height: '100%', backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', ...(imageTone === 'bright' ? { opacity: 1 } : { filter: 'grayscale(100%)', opacity: 0.8 }) }} />
               : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #111, #333)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontFamily: t.uiFont, fontSize: '0.45rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Bild</span></div>}
           </div>
           <div style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -146,9 +152,11 @@ export default function PostCanvas({
       case 'fullbleed':
         return (<div style={{ background: '#1A1A1A', width: W, height: H, position: 'relative', overflow: 'hidden' }}>
           <div style={{ ...logo, ...(t.logoDarkStyle) }}>S&I.</div>
-          {image ? <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', filter: 'grayscale(100%)', opacity: 0.5 }} />
+          {image ? <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', ...(imageTone === 'bright' ? { opacity: 0.95 } : { filter: 'grayscale(100%)', opacity: 0.5 }) }} />
             : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #1a1a1a, #333)' }} />}
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 30%, rgba(26,26,26,0.85) 100%)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: imageTone === 'bright'
+            ? 'linear-gradient(180deg, rgba(26,26,26,0) 38%, rgba(26,26,26,0.55) 62%, rgba(26,26,26,0.9) 100%)'
+            : 'linear-gradient(180deg, transparent 30%, rgba(26,26,26,0.85) 100%)' }} />
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 24, zIndex: 5 }}>
             <div style={al} /><div style={{ ...hl, fontSize: '1.6rem', color: '#FDFCFA' }}>{renderHeadline()}</div>
             <div style={{ ...bd, color: 'rgba(253,252,250,0.6)', marginBottom: 10 }}>{bodyText}</div>

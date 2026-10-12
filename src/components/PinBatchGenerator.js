@@ -191,7 +191,7 @@ async function loadHtml2Canvas() {
 // gestalterischen Merkmale der Themes (Glasrahmen, Brutal-Kasten, Glow,
 // Gradient, Split-Spalte) fehlten, und deshalb sahen Pins anders aus als
 // Posts. Jetzt gibt es genau einen Renderer.
-export async function renderPinBase64({ layout, eyebrow, headline, accentWord, body, imageUrl, theme }) {
+export async function renderPinBase64({ layout, eyebrow, headline, accentWord, body, imageUrl, theme, imageTone }) {
   const html2canvas = await loadHtml2Canvas();
 
   // Wichtig: in der VORSCHAUGRÖSSE montieren (360×540) und erst html2canvas
@@ -218,6 +218,7 @@ export async function renderPinBase64({ layout, eyebrow, headline, accentWord, b
           accentWord={accentWord}
           bodyText={body}
           image={imageUrl || null}
+          imageTone={imageTone || 'muted'}
         />
       );
       // Ein Frame warten, damit React fertig gemountet hat
