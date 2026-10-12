@@ -44,6 +44,120 @@ export function listItems(bodyText = '') {
  * @param {string} p.layout     statement | split | list | dark | fullbleed
  * @param {number} p.W,p.H      Zielmaße in Pixeln (Pin: 1080×1620)
  */
+// ── Headline passend machen ──────────────────────────────────────
+// Deutsche Komposita („HOCHZEITSWEBSITE", „VERSCHWEIGEN") sind in Versalien
+// breiter als die Textspalte. Der Browser bricht sie nicht um, also lief der
+// Text rechts aus dem Bild — besonders im schmalen Split-Layout.
+// Lösung: Jedes Wort mit der echten Schrift ausmessen und die Schriftgröße so
+// weit verkleinern, dass das längste Wort passt und die Headline nicht mehr
+// als maxLines Zeilen braucht. html2canvas kann keine Silbentrennung, deshalb
+// geht es nur über die Größe.
+let measureCtx = null;
+function textWidth(text, { family, weight = 400, style = 'normal', px }) {
+  if (typeof document === 'undefined') return text.length * px * 0.6;
+  if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
+  measureCtx.font = `${style} ${weight} ${px}px ${family}`;
+  return measureCtx.measureText(text).width;
+}
+
+function remPx() {
+  if (typeof document === 'undefined') return 16;
+  return parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+}
+
+const toPx = (size) => {
+  const v = parseFloat(size);
+  if (!Number.isFinite(v)) return 2.2 * remPx();
+  return /rem$/.test(String(size)) ? v * remPx() : v;
+};
+
+export function fitHeadlinePx({ headline, accentWord, t, basePx, maxWidth, maxLines }) {
+  if (!headline || maxWidth <= 0) return basePx;
+  const upper = (t.headlineTransform || 'none') === 'uppercase';
+  const words = String(headline).split(/\s+/).filter(Boolean);
+  const accentSet = new Set(String(accentWord || '').split(/\s+/).filter(Boolean));
+  const minPx = basePx * 0.5;
+
+  for (let px = basePx; px >= minPx; px *= 0.94) {
+    const widthOf = (w) => (accentSet.has(w) && t.scriptFont
+      ? textWidth(w, { family: t.scriptFont, style: t.scriptStyle || 'normal', weight: 400, px })
+      : textWidth(upper ? w.toUpperCase() : w, {
+        family: t.headlineFont, weight: t.headlineWeight || 400, style: t.headlineStyle || 'normal', px,
+      }));
+    const space = textWidth(' ', { family: t.headlineFont, px });
+    const widths = words.map(widthOf);
+
+    // 8 % Reserve: Canvas-Messung und html2canvas-Rendering weichen ab
+    // Versalien laufen in html2canvas etwas breiter als gemessen
+    const limit = maxWidth * (upper ? 0.86 : 0.92);
+    if (Math.max(...widths) > limit) continue;
+
+    // Zeilen wie der Browser umbrechen (gierig, an Leerzeichen)
+    let lines = 1;
+    let line = 0;
+    widths.forEach((w) => {
+      if (line === 0) { line = w; return; }
+      if (line + space + w > limit) { lines++; line = w; } else { line += space + w; }
+    });
+    if (lines <= maxLines) return Math.round(px * 10) / 10;
+  }
+  return Math.round(minPx * 10) / 10;
+}
+
+// ── Kontrast fürs Akzentwort ────────────────────────────────────
+// Manche Themes haben eine Akzentfarbe, die auf dunklem Grund verschwindet
+// (Modern: Schwarz auf Schwarz, Contemporary-Kasten: Koralle auf Koralle,
+// Botanical: Dunkelgrün auf Fast-Schwarz). Unter Kontrast 3:1 wird auf eine
+// lesbare Alternative ausgewichen.
+// Hex oder rgb()/rgba(); halbtransparente Farben werden auf den Grund gemischt
+function parseColor(c, onBg) {
+  const str = String(c || '').trim();
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(str);
+  if (hex) {
+    const h = hex[1].length === 3 ? hex[1].split('').map(x => x + x).join('') : hex[1];
+    return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+  }
+  const fn = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i.exec(str);
+  if (!fn) return null;
+  const rgb = fn.slice(1, 4).map(Number);
+  const a = fn[4] == null ? 1 : Number(fn[4]);
+  if (a >= 1 || !onBg) return rgb;
+  const base = parseColor(onBg) || [0, 0, 0];
+  return rgb.map((v, i) => v * a + base[i] * (1 - a));
+}
+function luminance(c, onBg) {
+  const rgb = parseColor(c, onBg);
+  if (!rgb) return null;
+  const [r, g, b] = rgb.map(v => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrast(a, b) {
+  const la = luminance(a, b); const lb = luminance(b);
+  if (la == null || lb == null) return null; // unbekanntes Format: nicht eingreifen
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+function readableAccent(preferred, onBg, alternatives) {
+  const c = contrast(preferred, onBg);
+  if (c == null || c >= 3) return preferred;
+  return alternatives.find(alt => (contrast(alt, onBg) ?? 0) >= 3) || preferred;
+}
+
+// Harter Versatz-Schatten als eigenes Element. html2canvas zeichnet
+// box-shadow ohne Unschärfe über die Fläche statt dahinter — der weiße
+// Brutal-Kasten kam dadurch schwarz im Export an, und die schwarze
+// Headline war darauf unsichtbar.
+function HardShadow({ top, right, bottom, left, offset = 6, color }) {
+  return (
+    <div style={{
+      position: 'absolute',
+      top: top + offset, right: right - offset, bottom: bottom - offset, left: left + offset,
+      background: color, zIndex: 1,
+    }} />
+  );
+}
+
+const shadowColor = (shadow, fallback) => (String(shadow || '').match(/(#[0-9a-f]{3,8}|rgba?\([^)]*\))\s*$/i) || [])[1] || fallback;
+
 export default function PostCanvas({
   theme = 'classic', layout = 'statement',
   W = 1080, H = 1620,
@@ -62,10 +176,15 @@ export default function PostCanvas({
   const textColor = isDark ? (t.textDark || t.text) : t.text;
   const logoSt = isDark ? t.logoDarkStyle : t.logoStyle;
 
-  const renderHeadline = () => {
+  // onBg: Farbe der Fläche direkt hinter der Headline
+  const renderHeadline = (onBg = bg) => {
     if (!accentWord || !headline.includes(accentWord)) return headline;
     const parts = headline.split(accentWord);
-    const accentColor = isDark ? (t.accentDark || t.accent) : t.accent;
+    const accentColor = readableAccent(
+      isDark ? (t.accentDark || t.accent) : t.accent,
+      onBg,
+      [t.accentDark, t.accentSolid, t.secondary, t.tertiary, isDark ? '#FFFFFF' : '#0D0D0D', '#FFFFFF', '#0D0D0D'].filter(Boolean),
+    );
     return (<>{parts[0]}<span style={{ fontFamily: t.scriptFont || t.headlineFont, fontStyle: t.scriptStyle || 'normal', color: accentColor, fontWeight: t.scriptFont ? 400 : t.headlineWeight, textTransform: 'none', textShadow: t.glow ? `0 0 15px ${t.secondary || t.accent}` : 'none', display: 'inline' }}>{accentWord}</span>{parts.slice(1).join(accentWord)}</>);
   };
 
@@ -74,7 +193,24 @@ export default function PostCanvas({
   // ==========================================
   const logo = { position: 'absolute', top: 24, left: 24, zIndex: 5, fontFamily: t.uiFont, fontWeight: 600, fontSize: '0.75rem', letterSpacing: '-0.04em', padding: '4px 10px', lineHeight: 1, ...logoSt };
   const ey = { fontFamily: t.uiFont, fontSize: '0.5rem', fontWeight: t.brutal ? 700 : 600, letterSpacing: t.brutal ? '0.1em' : '0.25em', textTransform: 'uppercase', color: isDark ? t.accent : t.muted, marginBottom: 10, textShadow: t.glow ? `0 0 10px ${t.accent}` : 'none' };
-  const hl = { fontFamily: t.headlineFont, fontSize: layout === 'split' ? '1.5rem' : (t.headlineSize || '2.2rem'), fontWeight: t.headlineWeight, fontStyle: t.headlineStyle || 'normal', textTransform: t.headlineTransform || 'none', lineHeight: 1.15, color: textColor, marginBottom: 12 };
+  // Verfügbare Textbreite je Layout (Innenabstände aus dem Markup unten)
+  const textArea = {
+    statement: t.glass ? W - 40 - 56 : t.brutal ? W - 36 - 48 - 6 : W - 48,
+    split: W * 0.58 - 48,
+    list: W - 48,
+    dark: t.brutal ? W - 40 - 40 - 6 : W - 48,
+    fullbleed: W - 48,
+  };
+  const baseHeadlineSize = { split: '1.5rem', list: '1.45rem', fullbleed: '1.6rem' }[layout] || t.headlineSize || '2.2rem';
+  const headlinePx = fitHeadlinePx({
+    headline, accentWord, t,
+    basePx: toPx(baseHeadlineSize),
+    maxWidth: textArea[layout] ?? W - 48,
+    maxLines: layout === 'split' ? 5 : layout === 'list' ? 3 : 4,
+  });
+
+  // overflowWrap als letztes Netz, falls eine Schrift beim Messen noch nicht geladen war
+  const hl = { fontFamily: t.headlineFont, fontSize: headlinePx, fontWeight: t.headlineWeight, fontStyle: t.headlineStyle || 'normal', textTransform: t.headlineTransform || 'none', lineHeight: 1.15, color: textColor, marginBottom: 12, overflowWrap: 'break-word' };
   const bd = { fontFamily: t.bodyFont, fontSize: t.bodySize || '0.65rem', fontWeight: t.bodyWeight, fontStyle: t.bodyStyle || 'normal', lineHeight: 1.75, color: isDark ? (t.body || 'rgba(255,255,255,0.6)') : (t.body || '#555') };
   const al = { width: 28, height: 2, marginBottom: 14, background: t.accent, boxShadow: t.glow ? `0 0 8px ${t.accent}` : 'none' };
   const ft = { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 24px', display: 'flex', justifyContent: 'space-between', zIndex: 5, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` };
@@ -98,23 +234,24 @@ export default function PostCanvas({
               <div style={al} /><div style={ey}>{eyebrow}</div><div style={hl}>{renderHeadline()}</div><div style={bd}>{bodyText}</div>
             </div>
           ) : t.brutal ? (
-            <div style={{ position: 'absolute', inset: '55px 18px 45px', background: '#fff', border: t.brutalBorder, boxShadow: t.brutalShadow, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px', zIndex: 2 }}>
-              <div style={{ ...al, background: t.accent }} /><div style={{ ...ey, color: t.accent }}>{eyebrow}</div><div style={{ ...hl, color: t.text }}>{renderHeadline()}</div><div style={{ ...bd, color: t.body }}>{bodyText}</div>
-            </div>
+            <><HardShadow top={55} right={18} bottom={45} left={18} color={shadowColor(t.brutalShadow, '#0D0D0D')} />
+            <div style={{ position: 'absolute', inset: '55px 18px 45px', background: '#fff', border: t.brutalBorder, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px', zIndex: 2 }}>
+              <div style={{ ...al, background: t.accent }} /><div style={{ ...ey, color: t.accent }}>{eyebrow}</div><div style={{ ...hl, color: t.text }}>{renderHeadline('#FFFFFF')}</div><div style={{ ...bd, color: t.body }}>{bodyText}</div>
+            </div></>
           ) : (
             <div style={{ position: 'absolute', inset: 0, padding: '70px 24px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2 }}>
               <div style={al} /><div style={ey}>{eyebrow}</div><div style={hl}>{renderHeadline()}</div><div style={bd}>{bodyText}</div>
             </div>
           )}{footer}</div>);
       case 'split':
-        return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden', display: 'grid', gridTemplateColumns: '42% 1fr' }}>
+        return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden', display: 'grid', gridTemplateColumns: '42% minmax(0, 1fr)' }}>
           <div style={{ background: t.alwaysDark ? bg : '#1A1A1A', position: 'relative', overflow: 'hidden' }}>
             {image ? <div style={{ width: '100%', height: '100%', backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', ...(imageTone === 'bright' ? { opacity: 1 } : { filter: 'grayscale(100%)', opacity: 0.8 }) }} />
               : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #111, #333)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontFamily: t.uiFont, fontSize: '0.45rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Bild</span></div>}
           </div>
-          <div style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0, overflowWrap: 'break-word' }}>
             <div style={logo}>S&I.</div>
-            <div style={{ ...ey, marginTop: 30 }}>{eyebrow}</div><div style={{ ...hl, fontSize: '1.5rem' }}>{renderHeadline()}</div><div style={al} /><div style={bd}>{bodyText}</div>
+            <div style={{ ...ey, marginTop: 30 }}>{eyebrow}</div><div style={hl}>{renderHeadline()}</div><div style={al} /><div style={bd}>{bodyText}</div>
           </div>{footer}</div>);
       case 'list': {
         // Vorher: padding auf einem Container mit fester Breite/Höhe ohne
@@ -128,7 +265,7 @@ export default function PostCanvas({
           <div style={{ position: 'absolute', inset: 0, boxSizing: 'border-box', padding: '64px 24px 48px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2 }}>
             <div style={al} />
             <div style={ey}>{eyebrow}</div>
-            <div style={{ ...hl, fontSize: '1.45rem', marginBottom: 18, overflowWrap: 'break-word' }}>{renderHeadline()}</div>
+            <div style={{ ...hl, marginBottom: 18 }}>{renderHeadline()}</div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {items.map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 0', borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'}` }}>
@@ -144,8 +281,9 @@ export default function PostCanvas({
         return (<div style={{ background: t.bgDark || t.bg, width: W, height: H, position: 'relative', overflow: 'hidden' }}>
           <div style={{ ...logo, ...(t.logoDarkStyle) }}>S&I.</div>{corner}
           {t.glow && <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 70% 60%, ${t.secondary || t.accent}0F, transparent 60%)`, pointerEvents: 'none' }} />}
-          {t.brutal ? <div style={{ position: 'absolute', inset: 20, background: t.accent, border: '3px solid #0D0D0D', boxShadow: `6px 6px 0 ${t.tertiary || '#FFE66D'}`, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '50px 20px 20px' }}>
-            <div style={{ ...hl, color: '#fff' }}>{renderHeadline()}</div><div style={{ ...bd, color: 'rgba(255,255,255,0.8)' }}>{bodyText}</div></div>
+          {t.brutal ? <><HardShadow top={20} right={20} bottom={20} left={20} color={t.tertiary || '#FFE66D'} />
+          <div style={{ position: 'absolute', inset: 20, background: t.accent, border: '3px solid #0D0D0D', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '50px 20px 20px', zIndex: 2 }}>
+            <div style={{ ...hl, color: '#fff' }}>{renderHeadline(t.accent)}</div><div style={{ ...bd, color: 'rgba(255,255,255,0.8)' }}>{bodyText}</div></div></>
           : <div style={{ position: 'absolute', inset: 0, padding: '70px 24px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2 }}>
               <div style={{ ...ey, color: t.accent }}>{eyebrow}</div><div style={al} /><div style={{ ...hl, color: t.textDark || '#fff' }}>{renderHeadline()}</div><div style={bd}>{bodyText}</div></div>}
           {footer}</div>);
@@ -155,10 +293,10 @@ export default function PostCanvas({
           {image ? <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', ...(imageTone === 'bright' ? { opacity: 0.95 } : { filter: 'grayscale(100%)', opacity: 0.5 }) }} />
             : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #1a1a1a, #333)' }} />}
           <div style={{ position: 'absolute', inset: 0, background: imageTone === 'bright'
-            ? 'linear-gradient(180deg, rgba(26,26,26,0) 38%, rgba(26,26,26,0.55) 62%, rgba(26,26,26,0.9) 100%)'
+            ? 'linear-gradient(180deg, rgba(26,26,26,0) 28%, rgba(26,26,26,0.7) 52%, rgba(26,26,26,0.92) 100%)'
             : 'linear-gradient(180deg, transparent 30%, rgba(26,26,26,0.85) 100%)' }} />
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 24, zIndex: 5 }}>
-            <div style={al} /><div style={{ ...hl, fontSize: '1.6rem', color: '#FDFCFA' }}>{renderHeadline()}</div>
+            <div style={al} /><div style={{ ...hl, color: '#FDFCFA' }}>{renderHeadline('#1A1A1A')}</div>
             <div style={{ ...bd, color: 'rgba(253,252,250,0.6)', marginBottom: 10 }}>{bodyText}</div>
             <div style={{ fontFamily: t.uiFont, fontSize: '0.42rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: t.accent, opacity: 0.7 }}>sarahiver.com</div>
           </div></div>);

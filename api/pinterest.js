@@ -881,6 +881,9 @@ async function route(req, res) {
       const { data, error } = await supabase
         .from('pinterest_queue')
         .select('id, created_at, scheduled_date, status, title, link, board_name, pin_id, error, published_at')
+        // Ohne diesen Filter standen Entwürfe zusätzlich hier — als "Geplant",
+        // obwohl der Cron sie nie veröffentlicht.
+        .neq('status', 'draft')
         .order('created_at', { ascending: false })
         .limit(60);
       if (error) throw error;
@@ -894,6 +897,22 @@ async function route(req, res) {
       const { error } = await supabase.from('pinterest_queue').delete().eq('id', id);
       if (error) throw error;
       return res.status(200).json({ ok: true });
+    }
+
+    // ── Geplanten Pin zurück in die Entwürfe (zum Bearbeiten) ──
+    // Das Bild wird beim erneuten Übernehmen aus den Metadaten neu gerendert.
+    if (action === 'queue_to_draft') {
+      const { id } = req.body;
+      if (!id) return res.status(400).json({ error: 'id fehlt' });
+      const { data, error } = await supabase
+        .from('pinterest_queue')
+        .update({ status: 'draft', image_data: null, error: null })
+        .eq('id', id)
+        .in('status', ['queued', 'failed'])
+        .select('id');
+      if (error) throw error;
+      if (!data || !data.length) return res.status(409).json({ error: 'Pin ist nicht mehr geplant (bereits veröffentlicht?)' });
+      return res.status(200).json({ ok: true, id });
     }
 
     // ── Queue-Eintrag sofort veröffentlichen ──

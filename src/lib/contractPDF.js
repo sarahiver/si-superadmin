@@ -17,7 +17,7 @@ const COLORS = {
 // Firmendaten
 const COMPANY = {
   name: 'S&I.',
-  fullName: 'Iver Gentz',
+  fullName: 'Iver Bohnes geb. Gentz',
   street: 'Große Freiheit 82',
   city: '22767 Hamburg',
   country: 'Deutschland',
@@ -288,13 +288,16 @@ export function generateContractPDF(project, pricing, options = {}) {
   y += 6;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('Gesamtbetrag (inkl. 19% MwSt.)', m + 5, y);
+  doc.text('Gesamtbetrag', m + 5, y);
   setColor('red');
   doc.text(formatPrice(pricing.total), pw - m - 5, y, { align: 'right' });
   setColor('black');
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  y += 15;
+  y += 7;
+  // Kleinunternehmer: kein Umsatzsteuerausweis (vorher stand hier "inkl. 19% MwSt.")
+  addParagraph('Gemäß § 19 UStG wird keine Umsatzsteuer berechnet (Kleinunternehmerregelung).');
+  y += 4;
 
   addParagraph('Die Zahlung erfolgt in zwei Raten:');
   addBullet(`1. Rate (50%): ${formatPrice(pricing.total / 2)} – fällig bei Vertragsunterzeichnung`);
@@ -303,9 +306,9 @@ export function generateContractPDF(project, pricing, options = {}) {
   addParagraph('Die Rechnungsstellung erfolgt separat per E-Mail. Das Zahlungsziel beträgt 14 Tage.');
   y += 3;
   addParagraph('Bankverbindung:');
-  addBullet('Empfänger: Iver Gentz');
-  addBullet('IBAN: DE06 1001 8000 0625 2723 20');
-  addBullet('BIC: FNOMDEB2 | Bank: Finom Payments');
+  addBullet('Kontoinhaber: Iver Bohnes');
+  addBullet('IBAN: DE76 1001 1001 2623 8509 68');
+  addBullet('BIC: NTSBDEB1XXX | Bank: N26');
 
   addSection('4', 'Zeitplan und Mitwirkungspflichten');
   addParagraph('Der Auftragnehmer verpflichtet sich, die Website innerhalb von 14 Werktagen nach Erhalt aller erforderlichen Inhalte fertigzustellen.');
@@ -382,7 +385,7 @@ export function generateContractPDF(project, pricing, options = {}) {
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(14);
     setColor('black');
-    doc.text('Iver Gentz', m + 5, y + 12);
+    doc.text('Iver Bohnes', m + 5, y + 12);
   }
   y += 22;
 
@@ -401,7 +404,7 @@ export function generateContractPDF(project, pricing, options = {}) {
   // "Digital signiert" Vermerk
   doc.setFontSize(7);
   setColor('gray');
-  doc.text(`Digital signiert von Iver Gentz am ${formatDate(contractDate)}`, m, y);
+  doc.text(`Digital signiert von Iver Bohnes geb. Gentz am ${formatDate(contractDate)}`, m, y);
 
   addFooter();
 

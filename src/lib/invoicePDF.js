@@ -16,18 +16,21 @@ const COLORS = {
 // Firmendaten
 const COMPANY = {
   name: 'S&I.',
-  fullName: 'Iver Gentz',
+  fullName: 'Iver Bohnes geb. Gentz',
   street: 'Große Freiheit 82',
   city: '22767 Hamburg',
   country: 'Deutschland',
   email: 'wedding@sarahiver.de',
   website: 'siwedding.de',
-  // Bankverbindung
-  bank: 'Finom Payments',
-  iban: 'DE06 1001 8000 0625 2723 20',
-  bic: 'FNOMDEB2',
-  // Steuernummer (wenn vorhanden)
-  taxId: '', // TODO: USt-ID eintragen wenn vorhanden
+  // Bankverbindung — Kontoinhaber muss exakt dem Namen bei der Bank
+  // entsprechen (GiroCode-Empfänger), deshalb ohne Geburtsnamen
+  accountHolder: 'Iver Bohnes',
+  bank: 'N26',
+  iban: 'DE76 1001 1001 2623 8509 68',
+  bic: 'NTSBDEB1XXX',
+  // Steuernummer: vom Finanzamt noch nicht vergeben. Pflichtangabe auf
+  // Rechnungen (§ 14 Abs. 4 UStG) — sobald vorhanden hier eintragen.
+  taxId: '',
 };
 
 /**
@@ -428,7 +431,7 @@ export function generateInvoicePDF(project, pricing, options = {}) {
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(80, 80, 80);
-  doc.text(`Empfänger: ${COMPANY.fullName}`, m + 6, y); y += 4.5;
+  doc.text(`Kontoinhaber: ${COMPANY.accountHolder}`, m + 6, y); y += 4.5;
   doc.text(`IBAN: ${COMPANY.iban}`, m + 6, y); y += 4.5;
   doc.text(`BIC: ${COMPANY.bic}`, m + 6, y); y += 4.5;
   doc.text(`Bank: ${COMPANY.bank}`, m + 6, y); y += 4.5;
@@ -439,7 +442,7 @@ export function generateInvoicePDF(project, pricing, options = {}) {
     const epcPayload = buildEPCPayload({
       iban: COMPANY.iban,
       bic: COMPANY.bic,
-      name: COMPANY.fullName,
+      name: COMPANY.accountHolder,
       amount: pricing.total * 0.5, // Immer 50% Rate
       reference: invoiceNumber,
     });

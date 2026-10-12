@@ -73,7 +73,7 @@ export function generateThemedContractPDF(project, pricing) {
   setColor('primary');
   doc.text('Zwischen', m, y); y += 6;
   setColor();
-  doc.text('S&I. wedding – Iver Gentz', m, y); y += 5;
+  doc.text('S&I. wedding – Iver Bohnes geb. Gentz', m, y); y += 5;
   doc.text('E-Mail: wedding@sarahiver.de', m, y); y += 5;
   setColor('gray');
   doc.setFont('helvetica', 'italic');
@@ -203,11 +203,20 @@ export function generateThemedContractPDF(project, pricing) {
   y += 7;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
-  doc.text('GESAMT (inkl. MwSt.)', m + 5, y);
+  doc.text('GESAMT', m + 5, y);
   setColor('accent');
   doc.text(formatPrice(pricing.total), priceX, y, { align: 'right' });
-  
-  y += 25;
+
+  // Kleinunternehmer: kein Umsatzsteuerausweis (vorher "inkl. MwSt.")
+  y += 7;
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(9);
+  setColor('gray');
+  doc.text('Gemäß § 19 UStG wird keine Umsatzsteuer berechnet (Kleinunternehmerregelung).', m + 5, y);
+  doc.setFont('helvetica', 'normal');
+  setColor();
+
+  y += 18;
 
   // === ZAHLUNGSBEDINGUNGEN ===
   newPage(40);
@@ -227,9 +236,9 @@ export function generateThemedContractPDF(project, pricing) {
   
   doc.setFont('helvetica', 'normal');
   doc.text('Bankverbindung:', m, y); y += 5;
-  doc.text('Empfänger: Iver Gentz', m, y); y += 5;
-  doc.text('IBAN: DE06 1001 8000 0625 2723 20', m, y); y += 5;
-  doc.text('BIC: FNOMDEB2 | Bank: Finom Payments', m, y); y += 15;
+  doc.text('Kontoinhaber: Iver Bohnes', m, y); y += 5;
+  doc.text('IBAN: DE76 1001 1001 2623 8509 68', m, y); y += 5;
+  doc.text('BIC: NTSBDEB1XXX | Bank: N26', m, y); y += 15;
 
   // === WEITERE BESTIMMUNGEN ===
   newPage(60);

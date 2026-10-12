@@ -140,6 +140,63 @@ const Note = styled.p`
   margin: 0.6rem 0 0;
 `;
 
+// Kompakte Zeile: Entwürfe sind standardmäßig zugeklappt und werden nur
+// zum Bearbeiten geöffnet. Vorher stand jeder Entwurf als große Karte da.
+const Row = styled.div`
+  display: grid;
+  grid-template-columns: 54px 1fr auto;
+  gap: 0.9rem;
+  align-items: center;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #ececec;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  background: #fff;
+
+  @media (max-width: 640px) { grid-template-columns: 54px 1fr; }
+`;
+
+const MiniThumb = styled.div`
+  width: 54px;
+  aspect-ratio: 2 / 3;
+  border-radius: 4px;
+  background: #f2f2f2 center / cover no-repeat;
+  background-image: ${p => (p.$src ? `url(${p.$src})` : 'none')};
+`;
+
+const RowTitle = styled.div`
+  font-size: 0.86rem;
+  font-weight: 500;
+  line-height: 1.35;
+`;
+
+const RowMeta = styled.div`
+  font-size: 0.7rem;
+  color: #888;
+  margin-top: 0.2rem;
+`;
+
+const Warn = styled.span`
+  color: #B4453F;
+  margin-left: 0.4rem;
+`;
+
+const RowActions = styled.div`
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+
+  @media (max-width: 640px) { grid-column: 1 / -1; justify-content: flex-start; }
+`;
+
+const Hint = styled.p`
+  font-size: 0.74rem;
+  color: #777;
+  margin: -0.6rem 0 1rem;
+  line-height: 1.5;
+`;
+
 const Empty = styled.p`
   font-size: 0.85rem;
   color: #888;
@@ -208,6 +265,14 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [status, setStatus] = useState(null);
   const [photoBusyId, setPhotoBusyId] = useState(null);
+  // Aufgeklappte Entwürfe — alle anderen als kompakte Zeile
+  const [openIds, setOpenIds] = useState(() => new Set());
+  const toggleOpen = useCallback((id, force) => setOpenIds(cur => {
+    const next = new Set(cur);
+    const open = force ?? !next.has(id);
+    if (open) next.add(id); else next.delete(id);
+    return next;
+  }), []);
 
   const load = useCallback(() => {
     adminFetch('/api/pinterest?action=draft_list')
@@ -220,14 +285,19 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
     load();
     // Der Generator meldet sich, wenn er fertig ist — ohne das bliebe die
     // Liste leer, weil sie vor dem Lauf gerendert wurde.
-    const refresh = () => load();
+    // Kommt ein Pin aus der Queue zurück zum Bearbeiten, steht seine id im
+    // Ereignis — er wird dann direkt aufgeklappt.
+    const refresh = (e) => {
+      load();
+      if (e?.detail?.openId) toggleOpen(e.detail.openId, true);
+    };
     window.addEventListener('pinQueueChanged', refresh);
     window.addEventListener('pinDraftsChanged', refresh);
     return () => {
       window.removeEventListener('pinQueueChanged', refresh);
       window.removeEventListener('pinDraftsChanged', refresh);
     };
-  }, [load]);
+  }, [load, toggleOpen]);
 
   useEffect(() => {
     adminFetch('/api/pinterest?action=boards')
@@ -489,7 +559,39 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
         </div>
       </Head>
 
-      {drafts.map(d => (
+      <Hint>
+        Entwürfe bleiben hier, bis du sie in die Queue übernimmst oder verwirfst — es gibt
+        kein automatisches Ablaufdatum. „Geplant für" gilt erst nach „In Queue".
+      </Hint>
+
+      {drafts.map(d => !openIds.has(d.id) ? (
+        <Row key={d.id}>
+          <MiniThumb $src={previews[d.id] && previews[d.id] !== 'error' ? previews[d.id] : null} />
+          <div style={{ minWidth: 0 }}>
+            <RowTitle>{d.title || '(ohne Titel)'}</RowTitle>
+            <RowMeta>
+              {[d.meta?.layout || 'statement', d.meta?.theme || 'classic', d.board_name || 'kein Board']
+                .join(' · ')}
+              {' · '}
+              {d.scheduled_date ? `für ${new Date(d.scheduled_date).toLocaleDateString('de-DE')}` : 'ohne Datum'}
+              {!d.board_id && <Warn>Board fehlt</Warn>}
+              {!d.link && <Warn>Zielseite fehlt</Warn>}
+              {d.scheduled_date && d.scheduled_date.slice(0, 10) < new Date().toISOString().slice(0, 10) && (
+                <Warn>Datum vorbei</Warn>
+              )}
+            </RowMeta>
+          </div>
+          <RowActions>
+            <Btn type="button" onClick={() => toggleOpen(d.id, true)}>Bearbeiten</Btn>
+            <Btn type="button" $primary disabled={busyId === d.id} onClick={() => promote(d)}>
+              {busyId === d.id ? 'Übernehme…' : 'In Queue'}
+            </Btn>
+            <Btn type="button" $danger disabled={busyId === d.id} onClick={() => discard(d.id)}>
+              Verwerfen
+            </Btn>
+          </RowActions>
+        </Row>
+      ) : (
         <Card key={d.id} $busy={busyId === d.id}>
           <div>
             <Thumb $src={previews[d.id] && previews[d.id] !== 'error' ? previews[d.id] : null}>
@@ -677,6 +779,9 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
               </Btn>
               <Btn type="button" $danger disabled={busyId === d.id} onClick={() => discard(d.id)}>
                 Verwerfen
+              </Btn>
+              <Btn type="button" onClick={() => toggleOpen(d.id, false)} style={{ marginLeft: 'auto' }}>
+                Zuklappen
               </Btn>
             </Actions>
           </Fields>

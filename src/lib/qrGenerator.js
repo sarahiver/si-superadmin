@@ -551,9 +551,9 @@ export async function generatePaymentQR(options = {}) {
   const {
     amount,
     reference,
-    iban = 'DE06100180000625272320',
-    bic = 'FNOMDEB2',
-    name = 'Iver Gentz',
+    iban = 'DE76100110012623850968',
+    bic = 'NTSBDEB1XXX',
+    name = 'Iver Bohnes',
     size = 150,
     color = '#000000',
   } = options;
@@ -606,9 +606,9 @@ export function generatePaymentQRSVG(options = {}) {
   const {
     amount,
     reference,
-    iban = 'DE06100180000625272320',
-    bic = 'FNOMDEB2',
-    name = 'Iver Gentz',
+    iban = 'DE76100110012623850968',
+    bic = 'NTSBDEB1XXX',
+    name = 'Iver Bohnes',
     size = 150,
     color = '#000000',
   } = options;

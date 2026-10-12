@@ -502,6 +502,20 @@ export function PinQueue() {
     load();
   };
 
+  // Geplanter Pin → zurück in die Entwürfe, dort aufgeklappt zum Bearbeiten.
+  // Danach wieder "In Queue"; das Bild wird dabei neu gerendert.
+  const edit = async (id) => {
+    const res = await adminFetch('/api/pinterest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'queue_to_draft', id }),
+    });
+    load();
+    if (res.ok) {
+      window.dispatchEvent(new CustomEvent('pinDraftsChanged', { detail: { openId: id } }));
+    }
+  };
+
   if (loading) return null;
 
   return (
@@ -534,6 +548,7 @@ export function PinQueue() {
                 <td style={{ whiteSpace: 'nowrap' }}>
                   {item.status !== 'published' && (
                     <>
+                      <SmallBtn onClick={() => edit(item.id)}>Bearbeiten</SmallBtn>
                       {item.status === 'queued' && (
                         <SmallBtn onClick={() => act('queue_publish_now', item.id)}>Jetzt pinnen</SmallBtn>
                       )}
