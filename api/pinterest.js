@@ -95,6 +95,14 @@ function createState() {
   return `${ts}.${signState(ts)}`;
 }
 
+// Vergleich in konstanter Zeit (für CRON_SECRET)
+function safeEqual(x, y) {
+  const a = Buffer.from(String(x));
+  const b = Buffer.from(String(y));
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
 function verifyState(state) {
   if (!state || !state.includes('.')) return false;
   const [ts, sig] = state.split('.');
@@ -275,17 +283,21 @@ export async function createPin({ board_id, title, description, link, image_base
 }
 
 export async function publishQueueRow(row) {
+  // UTM spätestens hier — deckt auch Pins ab, die vor dem Fix ohne UTM
+  // in die Queue gelegt wurden
+  const link = withUtm(row.link);
   try {
     const pin = await createPin({
       board_id: row.board_id,
       title: row.title,
       description: row.description,
-      link: row.link,
+      link,
       image_base64: row.image_data,
     });
     await supabase
       .from('pinterest_queue')
       .update({
+        link,
         status: 'published',
         pin_id: pin.id || null,
         published_at: new Date().toISOString(),
@@ -408,9 +420,55 @@ async function getBlogMeta(slug) {
   return blogCache.meta[slug];
 }
 
+// Pins pro Cron-Lauf. Ohne Variable 1; 0, leer oder keine Zahl ebenfalls 1.
+const pinsPerDay = () => Math.max(1, parseInt(process.env.PINTEREST_PINS_PER_DAY || '1', 10) || 1);
+
+// UTM serverseitig sicherstellen — auch wenn das Frontend sie vergisst.
+// Vorher: Wählte man im Entwurf die Zielseite aus der Liste, wurde die
+// Adresse ohne UTM gespeichert; die Klicks fehlten dann in GA4 unter
+// "pinterest". Gleiche Regel wie withUtm im Frontend: nur eigene Domains,
+// nur wenn noch kein utm_* da ist.
+function withUtm(url) {
+  if (!url) return url;
+  try {
+    const u = new URL(url);
+    const own = /(^|\.)sarahiver\.com$|(^|\.)siwedding\.de$/.test(u.hostname);
+    if (own && ![...u.searchParams.keys()].some(k => k.startsWith('utm_'))) {
+      u.searchParams.set('utm_source', 'pinterest');
+      u.searchParams.set('utm_medium', 'social');
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+// ── Cron-Protokoll ──
+// Vercel bewahrt Logs im Hobby-Plan nur kurz auf. Jeder Lauf — auch ein
+// abgelehnter — landet deshalb in pinterest_cron_runs und ist im SuperAdmin
+// sichtbar. Ein Fehler beim Protokollieren darf den Lauf nie abbrechen.
+async function logCronRun(entry) {
+  try {
+    const { error } = await supabase.from('pinterest_cron_runs').insert({
+      started_at: entry.started_at,
+      finished_at: new Date().toISOString(),
+      trigger: entry.trigger || 'cron',
+      ok: !!entry.ok,
+      published: entry.published || 0,
+      blocked: !!entry.blocked,
+      metrics: entry.metrics || null,
+      results: entry.results || null,
+      error: entry.error ? String(entry.error).slice(0, 500) : null,
+    });
+    if (error) console.warn('Cron-Protokoll nicht gespeichert:', error.message);
+  } catch (err) {
+    console.warn('Cron-Protokoll nicht gespeichert:', err?.message || err);
+  }
+}
+
 // ── Cron: fällige Pins veröffentlichen (vorher api/pinterest-cron.js) ──
 async function runCron() {
-  const perDay = Math.max(1, parseInt(process.env.PINTEREST_PINS_PER_DAY || '1', 10));
+  const perDay = pinsPerDay();
   const today = new Date().toISOString().slice(0, 10);
   const { data: due, error } = await supabase
     .from('pinterest_queue')
@@ -588,12 +646,18 @@ async function route(req, res) {
     return handleOAuthCallback(req, res);
   }
 
-  // ── Cron-Aufruf: Vercel-Cron-Header oder Bearer CRON_SECRET (keine Admin-Session) ──
+  // ── Cron-Aufruf: nur mit Bearer CRON_SECRET (keine Admin-Session) ──
+  // Vercel schickt CRON_SECRET automatisch als Authorization-Header mit.
+  // Die frühere Prüfung auf einen Header "x-vercel-cron" ist entfallen:
+  // Vercel sendet ihn nicht, und jeder Fremde hätte ihn setzen können.
   const bearer = (req.headers['authorization'] || '').replace('Bearer ', '');
-  const isCronCall =
-    !!req.headers['x-vercel-cron'] ||
-    (process.env.CRON_SECRET && bearer === process.env.CRON_SECRET);
+  const cronSecret = process.env.CRON_SECRET || '';
+  const isCronCall = !!cronSecret && bearer.length > 0 && safeEqual(bearer, cronSecret);
+  const looksLikeVercelCron =
+    /^vercel-cron/i.test(req.headers['user-agent'] || '') || !!req.headers['x-vercel-cron-schedule'];
+
   if (isCronCall) {
+    const started_at = new Date().toISOString();
     try {
       const result = await runCron();
       // Statistiken im selben Lauf: kein zusätzlicher Cron-Eintrag nötig.
@@ -603,11 +667,35 @@ async function route(req, res) {
       } catch (err) {
         result.metrics = { error: String(err.message || err) };
       }
+      await logCronRun({
+        started_at,
+        trigger: looksLikeVercelCron ? 'cron' : 'manuell',
+        ok: true,
+        published: result.published,
+        blocked: result.blocked,
+        metrics: result.metrics ? { synced: result.metrics.synced, failed: result.metrics.failed, error: result.metrics.error } : null,
+        results: (result.results || []).map(x => ({ id: x.id, title: x.title, ok: x.ok, pin_id: x.pin_id || null, error: x.error || null })),
+        error: result.blocked ? result.reason : null,
+      });
       return res.status(200).json(result);
     } catch (err) {
       console.error('Pinterest cron error:', err);
+      await logCronRun({ started_at, ok: false, error: String(err.message || err) });
       return res.status(500).json({ error: String(err.message || err) });
     }
+  }
+
+  // Abgelehnter Cron-Versuch: protokollieren, damit sichtbar wird, warum
+  // nichts veröffentlicht wurde (sonst nur im kurzlebigen Vercel-Log)
+  if (looksLikeVercelCron && req.method === 'GET') {
+    await logCronRun({
+      started_at: new Date().toISOString(),
+      ok: false,
+      error: !cronSecret
+        ? 'Abgelehnt: CRON_SECRET ist in Vercel nicht gesetzt (oder nach dem letzten Deployment angelegt).'
+        : 'Abgelehnt: Authorization passt nicht zu CRON_SECRET — neu deployen, damit Vercel den aktuellen Wert schickt.',
+    });
+    return res.status(401).json({ error: 'Cron nicht autorisiert' });
   }
 
   setCorsHeaders(req, res);
@@ -645,6 +733,8 @@ async function route(req, res) {
         tables.pinterest_pin_metrics = error ? `FEHLER: ${error.message}` : 'ok';
         const { error: colErr } = await supabase.from('pinterest_queue').select('metrics_synced_at').limit(1);
         tables['pinterest_queue.metrics_synced_at'] = colErr ? `FEHLER: ${colErr.message}` : 'ok';
+        const { error: runErr } = await supabase.from('pinterest_cron_runs').select('id').limit(1);
+        tables.pinterest_cron_runs = runErr ? `FEHLER: ${runErr.message}` : 'ok';
       }
       return res.status(200).json({ env, tables });
     }
@@ -656,6 +746,8 @@ async function route(req, res) {
         return res.status(200).json({
           connected: false,
           fallback: !!process.env.PINTEREST_ACCESS_TOKEN,
+          pins_per_day: pinsPerDay(),
+          cron_secret_set: !!process.env.CRON_SECRET,
         });
       }
       let username = null;
@@ -670,6 +762,8 @@ async function route(req, res) {
         expires_at: row.expires_at,
         updated_at: row.updated_at,
         can_write: (row.scope || '').includes('pins:write'),
+        pins_per_day: pinsPerDay(),
+        cron_secret_set: !!process.env.CRON_SECRET,
       });
     }
 
@@ -713,7 +807,8 @@ async function route(req, res) {
 
     // ── Direkt veröffentlichen ──
     if (action === 'publish') {
-      const { board_id, board_name, title, description, link, image_base64, meta, draft_id } = req.body;
+      const { board_id, board_name, title, description, image_base64, meta, draft_id } = req.body;
+      const link = withUtm(req.body.link);
       if (!board_id || !title || !link || !image_base64) {
         return res.status(400).json({ error: 'board_id, title, link und image_base64 sind Pflicht' });
       }
@@ -760,7 +855,8 @@ async function route(req, res) {
 
     // ── In Queue legen ──
     if (action === 'queue_add') {
-      const { board_id, board_name, title, description, link, image_base64, scheduled_date, meta } = req.body;
+      const { board_id, board_name, title, description, image_base64, scheduled_date, meta } = req.body;
+      const link = withUtm(req.body.link);
       if (!board_id || !title || !link || !image_base64) {
         return res.status(400).json({ error: 'board_id, title, link und image_base64 sind Pflicht' });
       }
@@ -803,7 +899,7 @@ async function route(req, res) {
         board_name: d.board_name || null,
         title: d.title || '',
         description: d.description || null,
-        link: d.link || '',
+        link: withUtm(d.link) || '',
         image_data: null,
         scheduled_date: d.scheduled_date || null,
         status: 'draft',
@@ -833,6 +929,7 @@ async function route(req, res) {
       const allowed = ['board_id', 'board_name', 'title', 'description', 'link', 'scheduled_date', 'meta'];
       const clean = {};
       allowed.forEach(k => { if (k in patch) clean[k] = patch[k]; });
+      if (clean.link) clean.link = withUtm(clean.link);
       const { error } = await supabase
         .from('pinterest_queue').update(clean).eq('id', id).eq('status', 'draft');
       if (error) throw error;
@@ -852,12 +949,14 @@ async function route(req, res) {
       if (!row.board_id || !row.title || !row.link) {
         return res.status(400).json({ error: 'Board, Titel und Link müssen gesetzt sein' });
       }
-      if (await isDuplicate({ title: row.title, link: row.link })) {
+      const promotedLink = withUtm(row.link);
+      if (await isDuplicate({ title: row.title, link: promotedLink })) {
         return res.status(409).json({ error: 'Duplikat: gleicher Titel + Link ist bereits in der Queue oder wurde kürzlich gepinnt.' });
       }
       const { error } = await supabase
         .from('pinterest_queue')
         .update({
+          link: promotedLink,
           image_data: image_base64,
           scheduled_date: scheduled_date || row.scheduled_date || null,
           status: 'queued',
@@ -873,6 +972,22 @@ async function route(req, res) {
       const { error } = all ? await q : await q.eq('id', id);
       if (error) throw error;
       return res.status(200).json({ ok: true });
+    }
+
+    // ── Cron-Protokoll anzeigen ──
+    if (action === 'cron_runs') {
+      const { data, error } = await supabase
+        .from('pinterest_cron_runs')
+        .select('*')
+        .order('started_at', { ascending: false })
+        .limit(20);
+      // Tabelle fehlt (SQL noch nicht ausgeführt): kein harter Fehler
+      if (error) return res.status(200).json({ runs: [], missing: true, error: error.message });
+      return res.status(200).json({
+        runs: data || [],
+        pins_per_day: pinsPerDay(),
+        cron_secret_set: !!process.env.CRON_SECRET,
+      });
     }
 
     // ── Queue anzeigen ──

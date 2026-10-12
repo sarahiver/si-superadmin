@@ -9,6 +9,21 @@ import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { adminFetch } from '../lib/apiClient';
 import { PIN_THEMES } from './PinBatchGenerator';
+import { withUtm } from './PinterestPublish';
+
+// Zielseite ohne utm_* — für den Vergleich mit der Auswahlliste. Der
+// gespeicherte Link trägt UTM, die Liste nicht; ohne das stand die Auswahl
+// immer auf "— wählen —", obwohl ein Ziel gesetzt war.
+export function stripUtm(url) {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    [...u.searchParams.keys()].filter(k => k.startsWith('utm_')).forEach(k => u.searchParams.delete(k));
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
 
 const Panel = styled.div`
   background: #fff;
@@ -574,6 +589,11 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
                 .join(' · ')}
               {' · '}
               {d.scheduled_date ? `für ${new Date(d.scheduled_date).toLocaleDateString('de-DE')}` : 'ohne Datum'}
+              {d.link && (
+                <span title={d.link}>
+                  {' · → '}{(() => { try { const u = new URL(d.link); return u.hostname.replace('www.', '') + u.pathname; } catch { return d.link; } })()}
+                </span>
+              )}
               {!d.board_id && <Warn>Board fehlt</Warn>}
               {!d.link && <Warn>Zielseite fehlt</Warn>}
               {d.scheduled_date && d.scheduled_date.slice(0, 10) < new Date().toISOString().slice(0, 10) && (
@@ -751,20 +771,24 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
             <div>
               <Label>Zielseite</Label>
               <Select
-                value={d.link || ''}
-                onChange={e => patch(d.id, 'link', e.target.value)}
+                value={stripUtm(d.link)}
+                // UTM direkt beim Auswählen — der Server ergänzt sie zusätzlich
+                onChange={e => patch(d.id, 'link', e.target.value ? withUtm(e.target.value) : '')}
               >
                 <option value="">— wählen —</option>
+                {d.link && !targets.some(t => stripUtm(t.url) === stripUtm(d.link)) && (
+                  <option value={stripUtm(d.link)}>Aktuell: {stripUtm(d.link)}</option>
+                )}
                 {/* Kaufnahe Ziele zuerst: Demos und Landingpage führen zum
                     Produkt, Ratgeberartikel nur zu Reichweite. */}
                 <optgroup label="Produkt & Demos">
                   {targets.filter(t => t.intent === 'high').map(t => (
-                    <option key={t.slug} value={t.url}>{t.title}</option>
+                    <option key={t.slug} value={stripUtm(t.url)}>{t.title}</option>
                   ))}
                 </optgroup>
                 <optgroup label="Ratgeber">
                   {targets.filter(t => t.intent !== 'high').map(t => (
-                    <option key={t.slug} value={t.url}>{t.title}</option>
+                    <option key={t.slug} value={stripUtm(t.url)}>{t.title}</option>
                   ))}
                 </optgroup>
               </Select>

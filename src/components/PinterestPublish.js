@@ -429,10 +429,13 @@ export function PinterestConnect() {
               Schreib-Scopes freigegeben ist.
             </Status>
           )}
-          <Status style={{ color: colors.gray }}>
-            Hinweis: Mit Trial-Zugriff lehnt Pinterest das Erstellen von Pins in der
-            Produktion ab — unabhängig von den Scopes. Geplante Pins bleiben in der
-            Queue erhalten und gehen raus, sobald Standard-Zugriff freigegeben ist.
+          {/* Früher stand hier ein fester Hinweis auf den Trial-Zugriff — seit der
+              Freigabe des Standardzugriffs veraltet. Jetzt: der tatsächliche
+              Cron-Zustand. */}
+          <Status style={{ color: state.cron_secret_set === false ? colors.red : colors.gray }}>
+            {state.cron_secret_set === false
+              ? 'Automatisches Pinnen inaktiv: CRON_SECRET ist in Vercel nicht gesetzt. Variable anlegen und neu deployen.'
+              : `Automatisches Pinnen: täglich vormittags, ${state.pins_per_day || 1} Pin${(state.pins_per_day || 1) === 1 ? '' : 's'} pro Tag (PINTEREST_PINS_PER_DAY).`}
           </Status>
           <Buttons>
             <Btn type="button" onClick={connect} disabled={busy}>Neu verbinden</Btn>
@@ -474,9 +477,64 @@ export function PinterestConnect() {
   );
 }
 
+// Letzte Cron-Läufe — ersetzt das kurzlebige Vercel-Log im Hobby-Plan
+function CronRuns({ data }) {
+  if (!data) return null;
+  if (data.missing) {
+    return (
+      <p style={{ fontSize: '0.72rem', color: colors.gray, margin: '0 0 1rem' }}>
+        Cron-Protokoll noch nicht aktiv: <code>scripts/pinterest-cron-runs-migration.sql</code> in Supabase ausführen.
+      </p>
+    );
+  }
+  const runs = (data.runs || []).slice(0, 5);
+  return (
+    <div style={{ margin: '0 0 1.2rem' }}>
+      <div style={{ fontSize: '0.62rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: colors.gray, marginBottom: '0.4rem' }}>
+        Letzte automatische Läufe
+      </div>
+      {runs.length === 0 ? (
+        <p style={{ fontSize: '0.74rem', color: colors.gray, margin: 0 }}>
+          Noch kein Lauf protokolliert. Der nächste kommt am Vormittag.
+        </p>
+      ) : (
+        <QueueTable>
+          <tbody>
+            {runs.map(run => {
+              const failed = (run.results || []).filter(x => !x.ok);
+              return (
+                <tr key={run.id}>
+                  <td style={{ whiteSpace: 'nowrap', width: '9.5rem' }}>
+                    {new Date(run.started_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    {run.trigger === 'manuell' && <span style={{ color: colors.gray }}> · manuell</span>}
+                  </td>
+                  <td style={{ width: '6rem' }}>
+                    <StatusBadge $s={!run.ok ? 'failed' : failed.length ? 'failed' : 'published'}>
+                      {!run.ok ? 'Fehler' : `${run.published} veröffentlicht`}
+                    </StatusBadge>
+                  </td>
+                  <td style={{ fontSize: '0.7rem', color: run.ok && !failed.length ? colors.gray : colors.red }}>
+                    {run.error
+                      || (failed.length ? failed.map(f => `${f.title}: ${f.error}`).join(' · ') : null)
+                      || (run.published === 0 ? 'Kein Pin fällig' : (run.results || []).map(x => x.title).join(' · '))}
+                    {run.metrics?.synced != null && (
+                      <span style={{ color: colors.gray }}> · Statistik: {run.metrics.synced} Pins</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </QueueTable>
+      )}
+    </div>
+  );
+}
+
 export function PinQueue() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [runs, setRuns] = useState(null);
 
   const load = useCallback(() => {
     adminFetch('/api/pinterest?action=queue_list')
@@ -484,6 +542,10 @@ export function PinQueue() {
       .then(d => setItems(d.items || []))
       .catch(() => {})
       .finally(() => setLoading(false));
+    adminFetch('/api/pinterest?action=cron_runs')
+      .then(r => r.json())
+      .then(d => setRuns(d))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -521,6 +583,7 @@ export function PinQueue() {
   return (
     <QueueWrap>
       <PanelTitle>🗓 Pin-Queue ({items.filter(i => i.status === 'queued').length} geplant)</PanelTitle>
+      <CronRuns data={runs} />
       {items.length === 0 ? (
         <p style={{ fontSize: '0.8rem', color: colors.gray }}>
           Noch keine Pins in der Queue. Oben generieren und "In Queue legen" — der tägliche Cron übernimmt den Rest.

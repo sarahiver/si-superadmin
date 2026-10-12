@@ -292,6 +292,19 @@ const fallbackCopy = (meta) => ({
   pinDescription: (meta.description || meta.title).slice(0, 480),
 });
 
+/**
+ * Datum für den i-ten Pin eines Laufs. Bei mehreren Pins pro Tag teilen
+ * sich jeweils perDay Pins ein Datum — passend zu PINTEREST_PINS_PER_DAY,
+ * sonst veröffentlicht der Cron trotz höherem Wert nur einen Pin pro Tag.
+ * Rechnet in UTC, damit die Sommerzeit-Umstellung keinen Tag verschluckt.
+ */
+export function scheduleDate(startDate, index, perDay = 1) {
+  const per = Math.max(1, parseInt(perDay, 10) || 1);
+  const [y, m, d] = String(startDate).split('-').map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d + Math.floor(index / per)));
+  return day.toISOString().slice(0, 10);
+}
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
@@ -305,6 +318,8 @@ export default function PinBatchGenerator() {
     const d = new Date(Date.now() + 24 * 3600 * 1000);
     return d.toISOString().slice(0, 10);
   });
+  // Vorgabe aus PINTEREST_PINS_PER_DAY (über action=status), änderbar
+  const [perDay, setPerDay] = useState(1);
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState([]);
   const cancelRef = useRef(false);
@@ -329,6 +344,13 @@ export default function PinBatchGenerator() {
     window.addEventListener('pinterestConnected', onConnected);
     return () => window.removeEventListener('pinterestConnected', onConnected);
   }, [loadBoards]);
+
+  useEffect(() => {
+    adminFetch('/api/pinterest?action=status')
+      .then(r => r.json())
+      .then(d => { if (d && d.pins_per_day) setPerDay(d.pins_per_day); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadBoards();
@@ -388,8 +410,7 @@ export default function PinBatchGenerator() {
         const layout = meta.image ? (i % 3 === 2 ? 'statement' : 'fullbleed') : 'statement';
 
         setStatus('Entwurf anlegen …', 'run');
-        const scheduled = new Date(new Date(startDate).getTime() + i * 24 * 3600 * 1000)
-          .toISOString().slice(0, 10);
+        const scheduled = scheduleDate(startDate, i, perDay);
         const res = await adminFetch('/api/pinterest', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -433,15 +454,14 @@ export default function PinBatchGenerator() {
     }
     setBusy(false);
     window.dispatchEvent(new CustomEvent('pinDraftsChanged'));
-  }, [selected, boardId, boards, startDate]);
+  }, [selected, boardId, boards, startDate, perDay]);
 
   return (
     <Panel>
       <PanelTitle>⚡ Batch-Autopilot</PanelTitle>
       <PanelSub>
-        Ziele auswählen → pro Ziel entstehen automatisch KI-Copy und ein markenkonformes
-        Pin-Bild (Brand-Preset, Artikelbild als Hintergrund) → gestaffelt 1&nbsp;Pin/Tag in die Queue.
-        Der tägliche Cron veröffentlicht.
+        Ziele auswählen → pro Ziel entsteht automatisch ein Entwurf mit KI-Copy, datiert nach
+        „Pins pro Tag". Entwürfe prüfen und „In Queue" — erst dann veröffentlicht der tägliche Cron.
       </PanelSub>
 
       <SmallBtns>
@@ -477,6 +497,15 @@ export default function PinBatchGenerator() {
         <Field>
           <label>Erster Pin am</label>
           <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} disabled={busy} />
+        </Field>
+        <Field>
+          <label>Pins pro Tag</label>
+          <input
+            type="number" min="1" max="10" value={perDay} disabled={busy}
+            onChange={e => setPerDay(Math.min(10, Math.max(1, parseInt(e.target.value, 10) || 1)))}
+            style={{ width: '5rem' }}
+            title="Sollte zu PINTEREST_PINS_PER_DAY in Vercel passen"
+          />
         </Field>
         <Field style={{ justifyContent: 'flex-end' }}>
           <label>&nbsp;</label>
