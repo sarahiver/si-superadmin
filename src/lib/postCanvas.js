@@ -169,12 +169,23 @@ export default function PostCanvas({
   // Live-Vorschau, nicht im exportierten Bild. Abgedunkelt hat bisher allein
   // die opacity 0.5 auf dunklem Grund.
   imageTone = 'muted',
+  // Pinterest-Modus: Pins werden im Feed nur ~170 px breit angezeigt.
+  // Dafür größere, kräftigere Headline, Suchbegriff in Klartext statt
+  // Schreibschrift, helleres Foto, lesbare Unterzeile, Abstand zu den
+  // Pinterest-Icons unten. Instagram-Posts bleiben unverändert.
+  pin = false,
 }) {
   const t = THEMES[theme] || THEMES.classic;
   const isDark = layout === 'dark' || layout === 'fullbleed' || t.alwaysDark;
   const bg = isDark ? (t.bgDark || t.bg) : t.bg;
   const textColor = isDark ? (t.textDark || t.text) : t.text;
-  const logoSt = isDark ? t.logoDarkStyle : t.logoStyle;
+  // Pins: Logo immer als solides schwarzes Badge (auf Fotos sonst kaum sichtbar)
+  const logoSt = pin
+    ? { ...(t.logoStyle || {}), background: '#1A1A1A', color: '#fff', border: 'none', fontSize: '0.85rem' }
+    : (isDark ? t.logoDarkStyle : t.logoStyle);
+  // Dünne Display-Schriften (300) verschwinden im Feed → für Pins mind. 500
+  const pinHeadWeight = Math.max(Number(t.headlineWeight) || 400, 500);
+  const pinBoldWeight = Math.min(Math.max(pinHeadWeight + 100, 600), 700);
 
   // onBg: Farbe der Fläche direkt hinter der Headline
   const renderHeadline = (onBg = bg) => {
@@ -185,6 +196,18 @@ export default function PostCanvas({
       onBg,
       [t.accentDark, t.accentSolid, t.secondary, t.tertiary, isDark ? '#FFFFFF' : '#0D0D0D', '#FFFFFF', '#0D0D0D'].filter(Boolean),
     );
+    if (pin) {
+      // Das Schlüsselwort ist meist der Suchbegriff → muss am besten lesbar
+      // sein: Headline-Schrift, kräftiger, gleiche Farbe wie die Headline.
+      // Farbige Theme-Akzente (z. B. Editorial-Rot) bleiben, wenn sie auf dem
+      // Grund gut lesbar sind; graue Akzente (Classic) würden das Wort nur
+      // abschwächen → dann Headline-Farbe.
+      const acc = isDark ? (t.accentDark || t.accent) : t.accent;
+      const rgb = parseColor(acc, onBg);
+      const colorful = rgb && (Math.max(...rgb) - Math.min(...rgb)) > 60;
+      const keep = colorful && (contrast(acc, onBg) ?? 0) >= 4.5;
+      return (<>{parts[0]}<span style={{ fontWeight: pinBoldWeight, fontStyle: 'normal', textTransform: 'inherit', ...(keep ? { color: acc } : {}) }}>{accentWord}</span>{parts.slice(1).join(accentWord)}</>);
+    }
     return (<>{parts[0]}<span style={{ fontFamily: t.scriptFont || t.headlineFont, fontStyle: t.scriptStyle || 'normal', color: accentColor, fontWeight: t.scriptFont ? 400 : t.headlineWeight, textTransform: 'none', textShadow: t.glow ? `0 0 15px ${t.secondary || t.accent}` : 'none', display: 'inline' }}>{accentWord}</span>{parts.slice(1).join(accentWord)}</>);
   };
 
@@ -192,26 +215,30 @@ export default function PostCanvas({
   // POST RENDERER
   // ==========================================
   const logo = { position: 'absolute', top: 24, left: 24, zIndex: 5, fontFamily: t.uiFont, fontWeight: 600, fontSize: '0.75rem', letterSpacing: '-0.04em', padding: '4px 10px', lineHeight: 1, ...logoSt };
-  const ey = { fontFamily: t.uiFont, fontSize: '0.5rem', fontWeight: t.brutal ? 700 : 600, letterSpacing: t.brutal ? '0.1em' : '0.25em', textTransform: 'uppercase', color: isDark ? t.accent : t.muted, marginBottom: 10, textShadow: t.glow ? `0 0 10px ${t.accent}` : 'none' };
+  const ey = { fontFamily: t.uiFont, fontSize: pin ? '0.6rem' : '0.5rem', fontWeight: t.brutal ? 700 : 600, letterSpacing: t.brutal ? '0.1em' : '0.25em', textTransform: 'uppercase', color: isDark ? t.accent : t.muted, marginBottom: 10, textShadow: t.glow ? `0 0 10px ${t.accent}` : 'none' };
   // Verfügbare Textbreite je Layout (Innenabstände aus dem Markup unten)
   const textArea = {
-    statement: t.glass ? W - 40 - 56 : t.brutal ? W - 36 - 48 - 6 : W - 48,
-    split: W * 0.58 - 48,
+    statement: t.glass ? W - 40 - 56 : t.brutal ? W - 36 - 48 - 6 : W - (pin ? 64 : 48),
+    // Pins: Split wird gestapelt (Foto oben, Text unten) → volle Breite
+    split: pin ? W - 52 : W * 0.58 - 48,
     list: W - 48,
     dark: t.brutal ? W - 40 - 40 - 6 : W - 48,
     fullbleed: W - 48,
   };
   const baseHeadlineSize = { split: '1.5rem', list: '1.45rem', fullbleed: '1.6rem' }[layout] || t.headlineSize || '2.2rem';
+  const pinBase = { fullbleed: '2.3rem', split: '2.1rem', list: '1.6rem' }[layout];
   const headlinePx = fitHeadlinePx({
-    headline, accentWord, t,
-    basePx: toPx(baseHeadlineSize),
+    headline,
+    accentWord: pin ? '' : accentWord,
+    t: pin ? { ...t, headlineWeight: pinBoldWeight } : t,
+    basePx: toPx(pin && pinBase ? pinBase : baseHeadlineSize),
     maxWidth: textArea[layout] ?? W - 48,
-    maxLines: layout === 'split' ? 5 : layout === 'list' ? 3 : 4,
+    maxLines: layout === 'split' ? (pin ? 3 : 5) : layout === 'list' ? 3 : 4,
   });
 
   // overflowWrap als letztes Netz, falls eine Schrift beim Messen noch nicht geladen war
-  const hl = { fontFamily: t.headlineFont, fontSize: headlinePx, fontWeight: t.headlineWeight, fontStyle: t.headlineStyle || 'normal', textTransform: t.headlineTransform || 'none', lineHeight: 1.15, color: textColor, marginBottom: 12, overflowWrap: 'break-word' };
-  const bd = { fontFamily: t.bodyFont, fontSize: t.bodySize || '0.65rem', fontWeight: t.bodyWeight, fontStyle: t.bodyStyle || 'normal', lineHeight: 1.75, color: isDark ? (t.body || 'rgba(255,255,255,0.6)') : (t.body || '#555') };
+  const hl = { fontFamily: t.headlineFont, fontSize: headlinePx, fontWeight: pin ? pinHeadWeight : t.headlineWeight, fontStyle: t.headlineStyle || 'normal', textTransform: t.headlineTransform || 'none', lineHeight: 1.15, color: textColor, marginBottom: 12, overflowWrap: 'break-word' };
+  const bd = { fontFamily: t.bodyFont, fontSize: (pin && toPx(t.bodySize || '0.65rem') < toPx('0.8rem')) ? '0.8rem' : (t.bodySize || '0.65rem'), fontWeight: pin ? Math.max(Number(t.bodyWeight) || 400, 400) : t.bodyWeight, fontStyle: t.bodyStyle || 'normal', lineHeight: 1.75, color: isDark ? (t.body || 'rgba(255,255,255,0.6)') : (t.body || '#555') };
   const al = { width: 28, height: 2, marginBottom: 14, background: t.accent, boxShadow: t.glow ? `0 0 8px ${t.accent}` : 'none' };
   const ft = { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 24px', display: 'flex', justifyContent: 'space-between', zIndex: 5, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` };
   const ftx = { fontFamily: t.uiFont, fontSize: t.footerSize || '0.42rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.25)' : t.muted };
@@ -239,11 +266,26 @@ export default function PostCanvas({
               <div style={{ ...al, background: t.accent }} /><div style={{ ...ey, color: t.accent }}>{eyebrow}</div><div style={{ ...hl, color: t.text }}>{renderHeadline('#FFFFFF')}</div><div style={{ ...bd, color: t.body }}>{bodyText}</div>
             </div></>
           ) : (
-            <div style={{ position: 'absolute', inset: 0, padding: '70px 24px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2 }}>
+            <div style={{ position: 'absolute', inset: 0, padding: pin ? '70px 40px 40px 24px' : '70px 24px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2 }}>
               <div style={al} /><div style={ey}>{eyebrow}</div><div style={hl}>{renderHeadline()}</div><div style={bd}>{bodyText}</div>
             </div>
           )}{footer}</div>);
       case 'split':
+        // Pins: Im Feed (~170 px) wäre die Textspalte nur ~100 px breit →
+        // Foto oben, Text darunter über die volle Breite.
+        if (pin) {
+          return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden', display: 'grid', gridTemplateRows: '50% minmax(0, 1fr)' }}>
+            <div style={{ position: 'relative', overflow: 'hidden', background: '#1A1A1A' }}>
+              {image ? <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', opacity: imageTone === 'bright' ? 1 : 0.92 }} />
+                : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #111, #333)' }} />}
+              <div style={logo}>S&I.</div>
+            </div>
+            <div style={{ padding: '18px 26px 44px', display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0, overflowWrap: 'break-word', position: 'relative' }}>
+              <div style={ey}>{eyebrow}</div><div style={hl}>{renderHeadline()}</div><div style={al} /><div style={bd}>{bodyText}</div>
+            </div>
+            <div style={{ ...ft, borderTop: 'none' }}><span style={{ ...ftx, fontSize: '0.55rem', fontWeight: 600, color: textColor }}>sarahiver.com</span><span style={ftx}>{pageNum}</span></div>
+          </div>);
+        }
         return (<div style={{ background: bg, width: W, height: H, position: 'relative', overflow: 'hidden', display: 'grid', gridTemplateColumns: '42% minmax(0, 1fr)' }}>
           <div style={{ background: t.alwaysDark ? bg : '#1A1A1A', position: 'relative', overflow: 'hidden' }}>
             {image ? <div style={{ width: '100%', height: '100%', backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', ...(imageTone === 'bright' ? { opacity: 1 } : { filter: 'grayscale(100%)', opacity: 0.8 }) }} />
@@ -287,19 +329,29 @@ export default function PostCanvas({
           : <div style={{ position: 'absolute', inset: 0, padding: '70px 24px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2 }}>
               <div style={{ ...ey, color: t.accent }}>{eyebrow}</div><div style={al} /><div style={{ ...hl, color: t.textDark || '#fff' }}>{renderHeadline()}</div><div style={bd}>{bodyText}</div></div>}
           {footer}</div>);
-      case 'fullbleed':
-        return (<div style={{ background: '#1A1A1A', width: W, height: H, position: 'relative', overflow: 'hidden' }}>
-          <div style={{ ...logo, ...(t.logoDarkStyle) }}>S&I.</div>
-          {image ? <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', ...(imageTone === 'bright' ? { opacity: 0.95 } : { filter: 'grayscale(100%)', opacity: 0.5 }) }} />
-            : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #1a1a1a, #333)' }} />}
-          <div style={{ position: 'absolute', inset: 0, background: imageTone === 'bright'
+      case 'fullbleed': {
+        // Pins: Foto in Farbe und hell, Verlauf nur hinter dem Text, Text
+        // mit Abstand zum unteren Rand (dort liegen Pinterest-Icons).
+        const imgStyle = pin
+          ? { opacity: imageTone === 'bright' ? 1 : 0.88 }
+          : (imageTone === 'bright' ? { opacity: 0.95 } : { filter: 'grayscale(100%)', opacity: 0.5 });
+        const shade = pin
+          ? 'linear-gradient(180deg, rgba(20,20,20,0.25) 0%, rgba(20,20,20,0) 18%, rgba(20,20,20,0) 38%, rgba(20,20,20,0.62) 58%, rgba(20,20,20,0.9) 100%)'
+          : imageTone === 'bright'
             ? 'linear-gradient(180deg, rgba(26,26,26,0) 28%, rgba(26,26,26,0.7) 52%, rgba(26,26,26,0.92) 100%)'
-            : 'linear-gradient(180deg, transparent 30%, rgba(26,26,26,0.85) 100%)' }} />
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 24, zIndex: 5 }}>
-            <div style={al} /><div style={{ ...hl, color: '#FDFCFA' }}>{renderHeadline('#1A1A1A')}</div>
-            <div style={{ ...bd, color: 'rgba(253,252,250,0.6)', marginBottom: 10 }}>{bodyText}</div>
-            <div style={{ fontFamily: t.uiFont, fontSize: '0.42rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: t.accent, opacity: 0.7 }}>sarahiver.com</div>
-          </div></div>);
+            : 'linear-gradient(180deg, transparent 30%, rgba(26,26,26,0.85) 100%)';
+        return (<div style={{ background: '#1A1A1A', width: W, height: H, position: 'relative', overflow: 'hidden' }}>
+          <div style={{ ...logo, ...(pin ? {} : t.logoDarkStyle) }}>S&I.</div>
+          {image ? <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', ...imgStyle }} />
+            : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #1a1a1a, #333)' }} />}
+          <div style={{ position: 'absolute', inset: 0, background: shade }} />
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: pin ? '24px 26px 44px' : 24, zIndex: 5 }}>
+            <div style={pin ? { ...al, background: '#FDFCFA', width: 36 } : al} /><div style={{ ...hl, color: '#FDFCFA' }}>{renderHeadline('#1A1A1A')}</div>
+            <div style={{ ...bd, color: pin ? 'rgba(253,252,250,0.88)' : 'rgba(253,252,250,0.6)', marginBottom: pin ? 14 : 10 }}>{bodyText}</div>
+            <div style={pin
+              ? { fontFamily: t.uiFont, fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#FDFCFA' }
+              : { fontFamily: t.uiFont, fontSize: '0.42rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: t.accent, opacity: 0.7 }}>sarahiver.com</div>
+          </div></div>); }
       default: return null;
     }
   };

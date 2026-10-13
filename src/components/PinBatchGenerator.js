@@ -219,6 +219,7 @@ export async function renderPinBase64({ layout, eyebrow, headline, accentWord, b
           bodyText={body}
           image={imageUrl || null}
           imageTone={imageTone || 'muted'}
+          pin
         />
       );
       // Ein Frame warten, damit React fertig gemountet hat
