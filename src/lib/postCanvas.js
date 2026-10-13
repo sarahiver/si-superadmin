@@ -71,16 +71,16 @@ const toPx = (size) => {
   return /rem$/.test(String(size)) ? v * remPx() : v;
 };
 
-export function fitHeadlinePx({ headline, accentWord, t, basePx, maxWidth, maxLines }) {
+export function fitHeadlinePx({ headline, accentWord, t, basePx, maxWidth, maxLines, minFactor = 0.5 }) {
   if (!headline || maxWidth <= 0) return basePx;
   const upper = (t.headlineTransform || 'none') === 'uppercase';
   const words = String(headline).split(/\s+/).filter(Boolean);
   const accentSet = new Set(String(accentWord || '').split(/\s+/).filter(Boolean));
-  const minPx = basePx * 0.5;
+  const minPx = basePx * minFactor;
 
   for (let px = basePx; px >= minPx; px *= 0.94) {
     const widthOf = (w) => (accentSet.has(w) && t.scriptFont
-      ? textWidth(w, { family: t.scriptFont, style: t.scriptStyle || 'normal', weight: 400, px })
+      ? textWidth(w, { family: t.scriptFont, style: t.scriptStyle || 'normal', weight: t.scriptWeight || 400, px })
       : textWidth(upper ? w.toUpperCase() : w, {
         family: t.headlineFont, weight: t.headlineWeight || 400, style: t.headlineStyle || 'normal', px,
       }));
@@ -206,7 +206,7 @@ export default function PostCanvas({
       const rgb = parseColor(acc, onBg);
       const colorful = rgb && (Math.max(...rgb) - Math.min(...rgb)) > 60;
       const keep = colorful && (contrast(acc, onBg) ?? 0) >= 4.5;
-      return (<>{parts[0]}<span style={{ fontWeight: pinBoldWeight, fontStyle: 'normal', textTransform: 'inherit', ...(keep ? { color: acc } : {}) }}>{accentWord}</span>{parts.slice(1).join(accentWord)}</>);
+      return (<>{parts[0]}<span style={{ fontWeight: pinBoldWeight, fontStyle: 'normal', textTransform: 'none', ...(keep ? { color: acc } : {}) }}>{accentWord}</span>{parts.slice(1).join(accentWord)}</>);
     }
     return (<>{parts[0]}<span style={{ fontFamily: t.scriptFont || t.headlineFont, fontStyle: t.scriptStyle || 'normal', color: accentColor, fontWeight: t.scriptFont ? 400 : t.headlineWeight, textTransform: 'none', textShadow: t.glow ? `0 0 15px ${t.secondary || t.accent}` : 'none', display: 'inline' }}>{accentWord}</span>{parts.slice(1).join(accentWord)}</>);
   };
@@ -229,8 +229,11 @@ export default function PostCanvas({
   const pinBase = { fullbleed: '2.3rem', split: '2.1rem', list: '1.6rem' }[layout];
   const headlinePx = fitHeadlinePx({
     headline,
-    accentWord: pin ? '' : accentWord,
-    t: pin ? { ...t, headlineWeight: pinBoldWeight } : t,
+    accentWord,
+    // Pins: Akzentwort wird fett in der Headline-Schrift und NICHT in
+    // Versalien gesetzt (lange Komposita passen sonst nicht) → so messen
+    t: pin ? { ...t, headlineWeight: pinHeadWeight, scriptFont: t.headlineFont, scriptStyle: 'normal', scriptWeight: pinBoldWeight } : t,
+    minFactor: pin ? 0.4 : 0.5,
     basePx: toPx(pin && pinBase ? pinBase : baseHeadlineSize),
     maxWidth: textArea[layout] ?? W - 48,
     maxLines: layout === 'split' ? (pin ? 3 : 5) : layout === 'list' ? 3 : 4,
@@ -238,14 +241,19 @@ export default function PostCanvas({
 
   // overflowWrap als letztes Netz, falls eine Schrift beim Messen noch nicht geladen war
   const hl = { fontFamily: t.headlineFont, fontSize: headlinePx, fontWeight: pin ? pinHeadWeight : t.headlineWeight, fontStyle: t.headlineStyle || 'normal', textTransform: t.headlineTransform || 'none', lineHeight: 1.15, color: textColor, marginBottom: 12, overflowWrap: 'break-word' };
-  const bd = { fontFamily: t.bodyFont, fontSize: (pin && toPx(t.bodySize || '0.65rem') < toPx('0.8rem')) ? '0.8rem' : (t.bodySize || '0.65rem'), fontWeight: pin ? Math.max(Number(t.bodyWeight) || 400, 400) : t.bodyWeight, fontStyle: t.bodyStyle || 'normal', lineHeight: 1.75, color: isDark ? (t.body || 'rgba(255,255,255,0.6)') : (t.body || '#555') };
+  // Pins: Fließtext muss lesbar sein (Classic hat #555 auch auf Dunkel)
+  const bodyCol = isDark ? (t.body || 'rgba(255,255,255,0.6)') : (t.body || '#555');
+  const pinBodyCol = (contrast(bodyCol, bg) ?? 5) < 4.5 ? (isDark ? 'rgba(255,255,255,0.8)' : '#444444') : bodyCol;
+  const bd = { fontFamily: t.bodyFont, fontSize: (pin && toPx(t.bodySize || '0.65rem') < toPx('0.8rem')) ? '0.8rem' : (t.bodySize || '0.65rem'), fontWeight: pin ? Math.max(Number(t.bodyWeight) || 400, 400) : t.bodyWeight, fontStyle: t.bodyStyle || 'normal', lineHeight: 1.75, color: pin ? pinBodyCol : bodyCol };
   const al = { width: 28, height: 2, marginBottom: 14, background: t.accent, boxShadow: t.glow ? `0 0 8px ${t.accent}` : 'none' };
-  const ft = { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 24px', display: 'flex', justifyContent: 'space-between', zIndex: 5, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` };
-  const ftx = { fontFamily: t.uiFont, fontSize: t.footerSize || '0.42rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.25)' : t.muted };
+  const ft = { position: 'absolute', bottom: 0, left: 0, right: 0, padding: pin ? '12px 24px 22px' : '12px 24px', display: 'flex', justifyContent: 'space-between', zIndex: 5, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` };
+  const ftx = pin
+    ? { fontFamily: t.uiFont, fontSize: '0.55rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.85)' : textColor }
+    : { fontFamily: t.uiFont, fontSize: t.footerSize || '0.42rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.25)' : t.muted };
   const corner = t.brutal
     ? <div style={{ position: 'absolute', top: 0, right: 0, width: 70, height: 70, background: t.tertiary || t.accent, opacity: 0.15 }} />
     : <div style={{ position: 'absolute', top: 0, right: 0, width: 60, height: 60, borderRight: `1.5px solid ${t.accent}`, borderTop: `1.5px solid ${t.accent}`, opacity: 0.3 }} />;
-  const footer = <div style={ft}><span style={{ ...ftx, color: t.accent, opacity: isDark ? 0.5 : 1 }}>sarahiver.com</span><span style={ftx}>{pageNum}</span></div>;
+  const footer = <div style={ft}><span style={pin ? ftx : { ...ftx, color: t.accent, opacity: isDark ? 0.5 : 1 }}>sarahiver.com</span><span style={ftx}>{pageNum}</span></div>;
 
   const renderPost = () => {
     switch (layout) {
@@ -321,7 +329,7 @@ export default function PostCanvas({
           </div>{footer}</div>); }
       case 'dark':
         return (<div style={{ background: t.bgDark || t.bg, width: W, height: H, position: 'relative', overflow: 'hidden' }}>
-          <div style={{ ...logo, ...(t.logoDarkStyle) }}>S&I.</div>{corner}
+          <div style={pin ? logo : { ...logo, ...(t.logoDarkStyle) }}>S&I.</div>{corner}
           {t.glow && <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 70% 60%, ${t.secondary || t.accent}0F, transparent 60%)`, pointerEvents: 'none' }} />}
           {t.brutal ? <><HardShadow top={20} right={20} bottom={20} left={20} color={t.tertiary || '#FFE66D'} />
           <div style={{ position: 'absolute', inset: 20, background: t.accent, border: '3px solid #0D0D0D', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '50px 20px 20px', zIndex: 2 }}>
