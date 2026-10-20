@@ -17,7 +17,7 @@ const COLORS = {
 // Firmendaten
 const COMPANY = {
   name: 'S&I.',
-  fullName: 'Iver Bohnes geb. Gentz',
+  fullName: 'Iver Bohnes',
   street: 'Große Freiheit 82',
   city: '22767 Hamburg',
   country: 'Deutschland',
@@ -404,7 +404,7 @@ export function generateContractPDF(project, pricing, options = {}) {
   // "Digital signiert" Vermerk
   doc.setFontSize(7);
   setColor('gray');
-  doc.text(`Digital signiert von Iver Bohnes geb. Gentz am ${formatDate(contractDate)}`, m, y);
+  doc.text(`Digital signiert von Iver Bohnes am ${formatDate(contractDate)}`, m, y);
 
   addFooter();
 

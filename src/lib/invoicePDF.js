@@ -16,7 +16,7 @@ const COLORS = {
 // Firmendaten
 const COMPANY = {
   name: 'S&I.',
-  fullName: 'Iver Bohnes geb. Gentz',
+  fullName: 'Iver Bohnes',
   street: 'Große Freiheit 82',
   city: '22767 Hamburg',
   country: 'Deutschland',

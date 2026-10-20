@@ -73,7 +73,7 @@ export function generateThemedContractPDF(project, pricing) {
   setColor('primary');
   doc.text('Zwischen', m, y); y += 6;
   setColor();
-  doc.text('S&I. wedding – Iver Bohnes geb. Gentz', m, y); y += 5;
+  doc.text('S&I. wedding – Iver Bohnes', m, y); y += 5;
   doc.text('E-Mail: wedding@sarahiver.de', m, y); y += 5;
   setColor('gray');
   doc.setFont('helvetica', 'italic');

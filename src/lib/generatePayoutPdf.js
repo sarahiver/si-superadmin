@@ -296,7 +296,7 @@ export function generatePayoutPdf(payout, options = {}) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(gray);
-  doc.text('S&I. Wedding  |  Iver Bohnes geb. Gentz  |  siwedding.de', margin, footerY);
+  doc.text('S&I. Wedding  |  Iver Bohnes  |  siwedding.de', margin, footerY);
   doc.text('Kontoinhaber: Iver Bohnes  |  IBAN: DE76 1001 1001 2623 8509 68  |  BIC: NTSBDEB1XXX  |  N26', margin, footerY + 4);
   doc.text(`Dokument erstellt am ${fmtDate(new Date())}`, W - margin, footerY, { align: 'right' });
 
