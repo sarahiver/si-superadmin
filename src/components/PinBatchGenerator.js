@@ -13,6 +13,12 @@ import PostCanvas from '../lib/postCanvas';
 import styled from 'styled-components';
 import { adminFetch } from '../lib/apiClient';
 import { withUtm } from './PinterestPublish';
+import {
+  CATEGORIES, CATEGORY_ORDER, LOCK_DAYS,
+  classifyTarget, normUrl, buildRecentMap, isLocked, daysSince, pickMix, interleave,
+} from '../lib/pinMix';
+
+const SITE = 'https://www.sarahiver.com';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', gray: '#666666', lightGray: '#E5E5E5', green: '#2E7D32', amber: '#B45309' };
 
@@ -122,6 +128,54 @@ const Item = styled.label`
 
   &:hover { background: #FCFCFC; }
   input { accent-color: ${colors.red}; }
+`;
+
+const Chip = styled.span`
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: ${p => p.$color};
+  border: 1px solid ${p => p.$color};
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  margin-left: auto;
+  white-space: nowrap;
+`;
+
+const LockNote = styled.span`
+  font-size: 0.68rem;
+  color: ${colors.amber};
+  white-space: nowrap;
+`;
+
+const MixBar = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.75rem;
+  color: ${colors.gray};
+
+  input {
+    width: 4rem;
+    border: 1px solid ${colors.lightGray};
+    border-radius: 6px;
+    padding: 0.35rem 0.5rem;
+    font-family: inherit;
+  }
+`;
+
+const MixBtn = styled.button`
+  border: 1px solid ${colors.black};
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: ${p => (p.disabled ? 0.5 : 1)};
 `;
 
 const SmallBtns = styled.div`
@@ -312,9 +366,12 @@ export function scheduleDate(startDate, index, perDay = 1) {
 export default function PinBatchGenerator() {
   const [boards, setBoards] = useState([]);
   const [boardId, setBoardId] = useState('');
-  const [articles, setArticles] = useState([]);
-  const [tools, setTools] = useState([]);
+  // Alle Ziele (Kaufseiten, Tools, Blog) mit Kategorie und letztem Pin-Datum
+  const [targets, setTargets] = useState([]);
+  const [recent, setRecent] = useState(null); // { normUrl: 'YYYY-MM-DD' }
+  const [mixCount, setMixCount] = useState(7);
   const [selected, setSelected] = useState(new Set());
+  const touchedRef = useRef(false);
   const [startDate, setStartDate] = useState(() => {
     const d = new Date(Date.now() + 24 * 3600 * 1000);
     return d.toISOString().slice(0, 10);
@@ -358,28 +415,87 @@ export default function PinBatchGenerator() {
     adminFetch('/api/pinterest?action=blog_list')
       .then(r => r.json())
       .then(d => {
-        setArticles(d.slugs || []);
-        setTools(d.tools || []);
-        // Tools vorselektieren — die stärksten Pin-Ziele
-        setSelected(new Set((d.tools || []).map(t => t.slug)));
+        const prettify = (slug) => slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const commercial = (d.commercial || []).map(c => ({
+          slug: c.slug, title: c.title,
+          url: c.slug.startsWith('demo-') ? `https://siwedding.de/${c.slug}`
+            : c.slug === 'start' ? `${SITE}/` : `${SITE}/blog/hochzeitswebsite-vergleich-2026`,
+        }));
+        const tools = (d.tools || []).map(t => ({ slug: t.slug, title: t.title, url: `${SITE}/${t.slug}` }));
+        const posts = (d.slugs || []).map(sl => ({ slug: sl, title: prettify(sl), url: `${SITE}/blog/${sl}` }));
+        // Gleiche Zielseite nur einmal (Vergleich ist Kaufseite UND Blog-Artikel)
+        const seen = new Set();
+        const all = [...commercial, ...tools, ...posts].filter(t => {
+          const k = normUrl(t.url);
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+        setTargets(all.map(t => ({ ...t, category: classifyTarget(t.slug) })));
       })
       .catch(() => {});
   }, [loadBoards]);
 
-  const toggle = (slug) =>
+  // Was wurde wann gepinnt/geplant? Queue (inkl. veröffentlicht) + Entwürfe
+  const loadRecent = useCallback(() => {
+    Promise.all([
+      adminFetch('/api/pinterest?action=queue_list').then(r => r.json()).catch(() => ({})),
+      adminFetch('/api/pinterest?action=draft_list').then(r => r.json()).catch(() => ({})),
+    ]).then(([q, dr]) => {
+      setRecent(buildRecentMap([...(q.items || []), ...(dr.drafts || [])]));
+    });
+  }, []);
+
+  useEffect(() => {
+    loadRecent();
+    window.addEventListener('pinDraftsChanged', loadRecent);
+    window.addEventListener('pinQueueChanged', loadRecent);
+    return () => {
+      window.removeEventListener('pinDraftsChanged', loadRecent);
+      window.removeEventListener('pinQueueChanged', loadRecent);
+    };
+  }, [loadRecent]);
+
+  // Ziele mit letztem Pin-Datum
+  const withLast = targets.map(t => ({ ...t, last: recent ? recent[normUrl(t.url)] || null : null }));
+  const bySlug = Object.fromEntries(withLast.map(t => [t.slug, t]));
+
+  const applyMix = useCallback((n) => {
+    const picked = pickMix(withLast, n);
+    setSelected(new Set(picked.map(t => t.slug)));
+  }, [withLast]);
+
+  // Beim ersten Laden direkt einen Mix vorschlagen (solange nichts angeklickt wurde)
+  useEffect(() => {
+    if (touchedRef.current || !targets.length || !recent) return;
+    touchedRef.current = true;
+    applyMix(mixCount);
+  }, [targets, recent, applyMix, mixCount]);
+
+  const toggle = (slug) => {
+    touchedRef.current = true;
     setSelected(cur => {
       const next = new Set(cur);
       if (next.has(slug)) next.delete(slug); else next.add(slug);
       return next;
     });
+  };
 
-  const selectAll = () => setSelected(new Set([...tools.map(t => t.slug), ...articles]));
-  const selectNone = () => setSelected(new Set());
+  const selectNone = () => { touchedRef.current = true; setSelected(new Set()); };
+  const fmt = (iso) => (iso ? iso.split('-').reverse().slice(0, 2).join('.') + '.' : '');
+  const lockedSelected = [...selected].filter(s => bySlug[s] && isLocked(bySlug[s].last));
+  const mixInfo = CATEGORY_ORDER.slice(0, 3).map(c => {
+    const k = [...selected].filter(s => bySlug[s]?.category === c).length;
+    return `${CATEGORIES[c].label} ${k}`;
+  }).join(' · ');
 
   const prettify = (slug) => slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
   const run = useCallback(async () => {
-    const slugs = [...selected].slice(0, 20); // Cap: max 20 pro Lauf
+    // Kategorien abwechselnd einplanen, nicht drei Website-Pins am Stück
+    const slugs = interleave([...selected].map(s => bySlug[s] || { slug: s, category: 'bridge' }))
+      .map(t => t.slug)
+      .slice(0, 20); // Cap: max 20 pro Lauf
     if (!boardId || slugs.length === 0) return;
     setBusy(true);
     cancelRef.current = false;
@@ -455,7 +571,7 @@ export default function PinBatchGenerator() {
     }
     setBusy(false);
     window.dispatchEvent(new CustomEvent('pinDraftsChanged'));
-  }, [selected, boardId, boards, startDate, perDay]);
+  }, [selected, boardId, boards, startDate, perDay, bySlug]);
 
   return (
     <Panel>
@@ -465,28 +581,62 @@ export default function PinBatchGenerator() {
         „Pins pro Tag". Entwürfe prüfen und „In Queue" — erst dann veröffentlicht der tägliche Cron.
       </PanelSub>
 
+      <MixBar>
+        <MixBtn onClick={() => { touchedRef.current = true; applyMix(mixCount); }} disabled={busy || !targets.length}>
+          ✨ Mix vorschlagen
+        </MixBtn>
+        <span>Anzahl</span>
+        <input
+          type="number" min="1" max="20" value={mixCount} disabled={busy}
+          onChange={e => setMixCount(Math.min(20, Math.max(1, parseInt(e.target.value, 10) || 1)))}
+        />
+        <span>
+          60 % Brückenthemen · 30 % Hochzeitswebsite · 10 % Reichweite — ohne Ziele,
+          die in den letzten {LOCK_DAYS} Tagen gepinnt oder schon geplant sind
+        </span>
+      </MixBar>
+
       <SmallBtns>
-        <button onClick={selectAll} disabled={busy}>Alle auswählen</button>
         <button onClick={selectNone} disabled={busy}>Auswahl leeren</button>
-        <span style={{ fontSize: '0.72rem', color: colors.gray }}>{selected.size} ausgewählt (max. 20/Lauf)</span>
+        <span style={{ fontSize: '0.72rem', color: colors.gray }}>
+          {selected.size} ausgewählt (max. 20/Lauf){selected.size > 0 && ` — ${mixInfo}`}
+        </span>
       </SmallBtns>
 
       <ListWrap>
-        <GroupHead>Kostenlose Tools (beste Pin-Ziele)</GroupHead>
-        {tools.map(t => (
-          <Item key={t.slug}>
-            <input type="checkbox" checked={selected.has(t.slug)} onChange={() => toggle(t.slug)} disabled={busy} />
-            {t.title}
-          </Item>
-        ))}
-        <GroupHead>Blog-Artikel</GroupHead>
-        {articles.map(slug => (
-          <Item key={slug}>
-            <input type="checkbox" checked={selected.has(slug)} onChange={() => toggle(slug)} disabled={busy} />
-            {prettify(slug)}
-          </Item>
-        ))}
+        {CATEGORY_ORDER.map(cat => {
+          const list = withLast.filter(t => t.category === cat);
+          if (!list.length) return null;
+          return (
+            <React.Fragment key={cat}>
+              <GroupHead>{CATEGORIES[cat].label} — {CATEGORIES[cat].hint}</GroupHead>
+              {list.map(t => {
+                const locked = isLocked(t.last);
+                return (
+                  <Item key={t.slug} style={cat === 'avoid' ? { opacity: 0.6 } : undefined}>
+                    <input type="checkbox" checked={selected.has(t.slug)} onChange={() => toggle(t.slug)} disabled={busy} />
+                    <span>{t.title}</span>
+                    {t.last && (
+                      <LockNote style={locked ? undefined : { color: colors.gray }}>
+                        {locked ? '⏸ ' : ''}{daysSince(t.last) < 0 ? 'geplant' : 'zuletzt'} {fmt(t.last)}
+                      </LockNote>
+                    )}
+                    <Chip $color={CATEGORIES[cat].color}>{cat === 'website' ? 'Website' : cat === 'bridge' ? 'Brücke' : cat === 'reach' ? 'Reichweite' : 'Meiden'}</Chip>
+                  </Item>
+                );
+              })}
+            </React.Fragment>
+          );
+        })}
       </ListWrap>
+
+      {lockedSelected.length > 0 && (
+        <p style={{ fontSize: '0.74rem', color: colors.amber, margin: '-0.4rem 0 0.9rem' }}>
+          ⚠ {lockedSelected.length} ausgewählte{lockedSelected.length === 1 ? 's Ziel wurde' : ' Ziele wurden'} in den
+          letzten {LOCK_DAYS} Tagen schon gepinnt oder ist bereits geplant — mehrere Pins auf dieselbe
+          Seite nehmen sich gegenseitig die Reichweite.
+        </p>
+      )}
 
       <Row>
         <Field>
