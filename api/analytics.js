@@ -4,6 +4,54 @@
 // Env Vars: GA4_PROPERTY_ID, GOOGLE_SERVICE_ACCOUNT_JSON
 
 import { setCorsHeaders, verifySessionToken } from './lib/auth.js';
+import { createClient } from '@supabase/supabase-js';
+
+// ── Datumshilfen (Europe/Berlin = Zeitzone der GA4-Property) ──
+const DAY = 86400000;
+const berlinDate = (offsetDays = 0) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date(Date.now() + offsetDays * DAY));
+const addDays = (iso, n) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+};
+// Berliner Mitternacht eines Datums als UTC-Zeitstempel (für Supabase)
+const berlinMidnightUTC = (iso) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const guess = Date.UTC(y, m - 1, d);
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', hourCycle: 'h23' }).format(new Date(guess)));
+  return new Date(guess - hour * 3600000).toISOString();
+};
+
+/**
+ * Zeiträume für GA4, Vorperiode und Search Console.
+ * GA4: N VOLLE Tage bis gestern; Vorperiode gleich lang direkt davor.
+ *   Vorher: "Ndays ago bis heute" = N+1 Tage inkl. angebrochenem Heute,
+ *   verglichen mit N Vortagen — die Veränderung in % war dadurch verzerrt.
+ * GSC: Google liefert die letzten ~3 Tage unvollständig. Das Fenster endet
+ *   deshalb vor 3 Tagen und hat dieselbe Länge N. Vorher endete es heute —
+ *   ein "7-Tage"-Wert enthielt real nur ~4 Tage Daten.
+ * Heute/Gestern bleiben Einzeltage (Heute ist ausdrücklich unvollständig).
+ */
+export function computeRanges(periodNum, todayIso = berlinDate(0)) {
+  const N = periodNum;
+  let cur;
+  let prev;
+  if (N === 1) {
+    cur = { start: todayIso, end: todayIso, partial: true };
+    prev = { start: addDays(todayIso, -1), end: addDays(todayIso, -1) };
+  } else if (N === 2) {
+    cur = { start: addDays(todayIso, -1), end: addDays(todayIso, -1) };
+    prev = { start: addDays(todayIso, -2), end: addDays(todayIso, -2) };
+  } else {
+    cur = { start: addDays(todayIso, -N), end: addDays(todayIso, -1) };
+    prev = { start: addDays(todayIso, -2 * N), end: addDays(todayIso, -N - 1) };
+  }
+  const days = N <= 2 ? 1 : N;
+  const gscEnd = addDays(todayIso, -3);
+  const gsc = { start: addDays(gscEnd, -(days - 1)), end: gscEnd };
+  const gscPrev = { start: addDays(gsc.start, -days), end: addDays(gsc.start, -1) };
+  return { current: cur, previous: prev, gsc, gscPrevious: gscPrev, days };
+}
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -36,28 +84,21 @@ export default async function handler(req, res) {
     // Marketing-KPIs nur von sarahiver.com; Demo-Seiten (siwedding.de) separat.
     const MARKETING_HOST = { filter: { fieldName: 'hostName', inListFilter: { values: ['sarahiver.com', 'www.sarahiver.com'] } } };
     const DEMO_HOST = { filter: { fieldName: 'hostName', inListFilter: { values: ['siwedding.de', 'www.siwedding.de'] } } };
+    const PAGE_VIEW = { filter: { fieldName: 'eventName', stringFilter: { value: 'page_view' } } };
+    const FROM_SITE = { orGroup: { expressions: [
+      { filter: { fieldName: 'pagePathPlusQueryString', stringFilter: { matchType: 'CONTAINS', value: 'src=' } } },
+      { filter: { fieldName: 'pageReferrer', stringFilter: { matchType: 'CONTAINS', value: 'sarahiver.com' } } },
+    ] } };
     const withHost = (host, existing) => existing
       ? ({ andGroup: { expressions: [host, existing] } })
       : host;
 
-    // "1" = Heute (today only), "2" = Gestern (yesterday only), else = last N days
-    let startDate, endDate, prevStartDate, prevEndDate;
-    if (period === '1') {
-      startDate = 'today';
-      endDate = 'today';
-      prevStartDate = 'yesterday';
-      prevEndDate = 'yesterday';
-    } else if (period === '2') {
-      startDate = 'yesterday';
-      endDate = 'yesterday';
-      prevStartDate = '2daysAgo';
-      prevEndDate = '2daysAgo';
-    } else {
-      startDate = `${period}daysAgo`;
-      endDate = 'today';
-      prevStartDate = `${parseInt(period) * 2}daysAgo`;
-      prevEndDate = `${parseInt(period) + 1}daysAgo`;
-    }
+    // "1" = Heute, "2" = Gestern, sonst N volle Tage bis gestern (siehe computeRanges)
+    const ranges = computeRanges(periodNum);
+    const startDate = ranges.current.start;
+    const endDate = ranges.current.end;
+    const prevStartDate = ranges.previous.start;
+    const prevEndDate = ranges.previous.end;
 
     const [
       overview, overviewPrev,
@@ -69,6 +110,7 @@ export default async function handler(req, res) {
       // Demo-Site Queries (siwedding.de)
       demoPages, demoEvents,
       demoSourcesLegacy, demoVisitsFromSite,
+      demoVisitsByDesign, demoCtaByDesign,
     ] = await Promise.all([
       // 1) Overview (current)
       runReport(accessToken, GA4_PROPERTY_ID, {
@@ -259,14 +301,36 @@ export default async function handler(req, res) {
       // Demo-Besucher, die von sarahiver.com kamen. Nur diese Zahl gehört in
       // den Funnel nach "Demo geklickt" — alle Demo-Besucher (Pinterest,
       // Direktlinks, Paare mit Link) ergaben Quoten über 100 %.
+      // Zuordnung über ?src=… (setzt jeder Demo-Link der Website) ODER den
+      // Referrer. Vorher NUR Referrer — die Links hatten rel="noreferrer",
+      // es kam nie ein Referrer an → dauerhaft 0.
       safeReport(accessToken, GA4_PROPERTY_ID, {
         dateRanges: [{ startDate, endDate }],
         metrics: [{ name: 'totalUsers' }],
         dimensionFilter: { andGroup: { expressions: [
-          DEMO_HOST,
-          { filter: { fieldName: 'eventName', stringFilter: { value: 'page_view' } } },
-          { filter: { fieldName: 'pageReferrer', stringFilter: { matchType: 'CONTAINS', value: 'sarahiver.com' } } },
+          DEMO_HOST, PAGE_VIEW, FROM_SITE,
         ] } },
+      }),
+      // Demo-Besuche von der Website je Design (pagePath = /demo-<design>)
+      safeReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'pagePath' }],
+        metrics: [{ name: 'totalUsers' }],
+        dimensionFilter: { andGroup: { expressions: [DEMO_HOST, PAGE_VIEW, FROM_SITE] } },
+        orderBys: [{ metric: { metricName: 'totalUsers' }, desc: true }],
+        limit: 20,
+      }),
+      // Demo-CTA-Klicks je Design (Seite, auf der geklickt wurde)
+      safeReport(accessToken, GA4_PROPERTY_ID, {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'pagePath' }],
+        metrics: [{ name: 'eventCount' }, { name: 'totalUsers' }],
+        dimensionFilter: { andGroup: { expressions: [
+          DEMO_HOST,
+          { filter: { fieldName: 'eventName', stringFilter: { value: 'demo_overlay_cta' } } },
+        ] } },
+        orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+        limit: 20,
       }),
     ]);
 
@@ -293,6 +357,36 @@ export default async function handler(req, res) {
     // Build event summary from allEvents
     const eventsData = parseRows(allEvents, ['event'], ['count', 'users']);
     const ec = (name) => eventsData.find(e => e.event === name)?.count || 0;
+    // Zähleinheiten getrennt: Events (Anzahl) und Nutzer (eindeutig).
+    // null = Abfrage fehlgeschlagen → im Report "nicht verfügbar" statt 0.
+    const eventCounts = allEvents ? Object.fromEntries(eventsData.map(e => [e.event, e.count])) : null;
+    const eventUsers = allEvents ? Object.fromEntries(eventsData.map(e => [e.event, e.users])) : null;
+
+    // ── Tatsächliche Anfragen aus der Datenbank (unabhängig von GA4/Consent) ──
+    // Nur Website-Formular und Partner-Links (source), keine manuell im
+    // SuperAdmin angelegten Einträge.
+    let inquiries = null;
+    let inquiriesError = null;
+    try {
+      if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+        const countBetween = async (r) => {
+          const { count, error } = await sb.from('contact_requests')
+            .select('id', { count: 'exact', head: true })
+            .gte('created_at', berlinMidnightUTC(r.start))
+            .lt('created_at', berlinMidnightUTC(addDays(r.end, 1)))
+            .or('source.eq.website_contact,source.like.partner_*');
+          if (error) throw error;
+          return count || 0;
+        };
+        const [cur, prev] = await Promise.all([countBetween(ranges.current), countBetween(ranges.previous)]);
+        inquiries = { current: cur, previous: prev };
+      } else {
+        inquiriesError = 'SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY nicht gesetzt';
+      }
+    } catch (err) {
+      inquiriesError = String(err.message || err);
+    }
 
     // ── Google Search Console (gleicher Service Account; muss als Nutzer der
     //    GSC-Property hinzugefügt sein, sonst kommt gscError zurück) ──
@@ -300,20 +394,9 @@ export default async function handler(req, res) {
     let gscError = null;
     try {
       const siteUrl = process.env.GSC_SITE_URL || 'sc-domain:sarahiver.com';
-      // GSC verlangt YYYY-MM-DD (GA4-Relativdaten wie "30daysAgo" sind ungültig)
-      const toISO = (d) => d.toISOString().slice(0, 10);
-      const now = new Date();
-      let gscStartDate, gscEndDate;
-      if (period === '1') {
-        gscStartDate = gscEndDate = toISO(now);
-      } else if (period === '2') {
-        const y = new Date(now); y.setDate(y.getDate() - 1);
-        gscStartDate = gscEndDate = toISO(y);
-      } else {
-        const s0 = new Date(now); s0.setDate(s0.getDate() - periodNum);
-        gscStartDate = toISO(s0);
-        gscEndDate = toISO(now);
-      }
+      // Fenster siehe computeRanges: endet vor 3 Tagen (Datenverzögerung)
+      const gscStartDate = ranges.gsc.start;
+      const gscEndDate = ranges.gsc.end;
       const gscQuery = (body) =>
         fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`, {
           method: 'POST',
@@ -325,10 +408,13 @@ export default async function handler(req, res) {
           return d;
         });
 
-      const [gscTotals, gscQueries, gscPages] = await Promise.all([
+      const [gscTotals, gscQueries, gscPages, gscTotalsPrev] = await Promise.all([
         gscQuery({}), // ohne Dimension = Gesamtwerte
         gscQuery({ dimensions: ['query'], rowLimit: 15 }),
-        gscQuery({ dimensions: ['page'], rowLimit: 15 }),
+        // 250 Seiten: reicht für die Einteilung nach Inhaltstyp (Report)
+        gscQuery({ dimensions: ['page'], rowLimit: 250 }),
+        // Vorperiode gleicher Länge direkt davor
+        gscQuery({ startDate: ranges.gscPrevious.start, endDate: ranges.gscPrevious.end }),
       ]);
 
       const mapRows = (d, key) => (d.rows || []).map(r => ({
@@ -340,8 +426,17 @@ export default async function handler(req, res) {
       }));
 
       const t = gscTotals.rows?.[0] || {};
+      const tp = gscTotalsPrev.rows?.[0] || null;
       gsc = {
         siteUrl,
+        range: ranges.gsc,
+        previousRange: ranges.gscPrevious,
+        totalsPrev: tp ? {
+          clicks: tp.clicks || 0,
+          impressions: tp.impressions || 0,
+          ctr: Math.round((tp.ctr || 0) * 1000) / 10,
+          position: Math.round((tp.position || 0) * 10) / 10,
+        } : null,
         totals: {
           clicks: t.clicks || 0,
           impressions: t.impressions || 0,
@@ -356,6 +451,13 @@ export default async function handler(req, res) {
     }
 
     res.status(200).json({
+      ranges,
+      eventCounts,
+      eventUsers,
+      inquiries,
+      inquiriesError,
+      demoVisitsByDesign: demoVisitsByDesign ? parseRows(demoVisitsByDesign, ['page'], ['users']) : null,
+      demoCtaByDesign: demoCtaByDesign ? parseRows(demoCtaByDesign, ['page'], ['count', 'users']) : null,
       gsc,
       gscError,
       overview: parseOverview(overview),

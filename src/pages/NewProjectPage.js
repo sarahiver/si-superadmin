@@ -156,7 +156,8 @@ export default function NewProjectPage() {
     partner2_name: '',
     wedding_date: fromRequest?.wedding_date || '',
     slug: '',
-    theme: fromRequest?.interested_theme || 'botanical',
+    // Anfrageformular nennt das Parallax-Theme "modern"
+    theme: (fromRequest?.interested_theme === 'modern' ? 'parallax' : fromRequest?.interested_theme) || 'botanical',
     package: fromRequest?.interested_package || 'website',
     addons: [],
     client_name: fromRequest?.name || '',

@@ -5,6 +5,7 @@ import styled, { keyframes } from 'styled-components';
 import Layout from '../components/Layout';
 import { adminFetch } from '../lib/apiClient';
 import { generateAnalyticsReport } from '../lib/analyticsReportPDF';
+import { buildFunnel, de } from '../lib/funnelReport';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5', blue: '#3B82F6', purple: '#8B5CF6' };
 
@@ -66,6 +67,7 @@ export default function AnalyticsPage() {
   const funnelVal = (name) => (data?.formFunnel || []).find(f => f.event === name)?.count || 0;
   // Events von den Demo-Seiten (siwedding.de)
   const demoEv = (name) => (data?.demoEvents || []).find(e => e.event === name) || {};
+  const funnel = buildFunnel(data);
 
   return (
     <Layout>
@@ -127,9 +129,9 @@ export default function AnalyticsPage() {
               <Change value={change(data.overview?.averageSessionDuration, data.overviewPrev?.averageSessionDuration)} />
             </KPICard>
             <KPICard $hl>
-              <KPILabel>Conversion Rate</KPILabel>
-              <KPIValue $accent>{data.overview?.activeUsers ? ((funnelVal('generate_lead') / data.overview.activeUsers) * 100).toFixed(2) + '%' : '0%'}</KPIValue>
-              <KPISub>{funnelVal('generate_lead')} Anfragen</KPISub>
+              <KPILabel>Anfragen</KPILabel>
+              <KPIValue $accent>{data.inquiries ? data.inquiries.current : '–'}</KPIValue>
+              <KPISub>Anfragen (Datenbank) · {funnelVal('generate_lead')} in GA4</KPISub>
             </KPICard>
           </KPIGrid>
 
@@ -148,45 +150,26 @@ export default function AnalyticsPage() {
 
           {/* ============ CONVERSION FUNNEL ============ */}
           <Collapsible title="Conversion Funnel" icon="🎯" defaultOpen={true}>
+            {/* Gleiche Berechnung wie im PDF (lib/funnelReport.js): Einheit je
+                Stufe, Quoten nur bei gleicher Einheit, "nicht verfügbar" statt 0 */}
             <FunnelGrid>
-              <FunnelStep><FunnelNum>{fmt(data.overview?.activeUsers || 0)}</FunnelNum><FunnelLbl>Besucher</FunnelLbl></FunnelStep>
-              <FunnelArr>→</FunnelArr>
-              <FunnelStep>
-                <FunnelNum>{ev('demoClicks')}</FunnelNum><FunnelLbl>Demo geklickt</FunnelLbl>
-                <FunnelPct>{data.overview?.activeUsers ? ((ev('demoClicks') / data.overview.activeUsers) * 100).toFixed(1) + '%' : '—'}</FunnelPct>
-              </FunnelStep>
-              <FunnelArr>→</FunnelArr>
-              <FunnelStep>
-                {/* Nur Besucher, die von sarahiver.com kamen — alle Demo-Besucher
-                    (Pinterest, Direktlinks) ergaben Quoten über 100 %. */}
-                {data.demoVisitsFromSite != null ? (<>
-                  <FunnelNum>{data.demoVisitsFromSite}</FunnelNum><FunnelLbl>Demo besucht (von Website)</FunnelLbl>
-                  <FunnelPct>{ev('demoClicks') && data.demoVisitsFromSite <= ev('demoClicks') ? ((data.demoVisitsFromSite / ev('demoClicks')) * 100).toFixed(0) + '%' : '—'}</FunnelPct>
-                </>) : (<>
-                  <FunnelNum>{demoEv('page_view').users || 0}</FunnelNum><FunnelLbl>Demo besucht (alle Quellen)</FunnelLbl>
-                  <FunnelPct>—</FunnelPct>
-                </>)}
-              </FunnelStep>
-              <FunnelArr>→</FunnelArr>
-              <FunnelStep>
-                <FunnelNum>{demoEv('demo_overlay_cta').count || 0}</FunnelNum><FunnelLbl>Demo-CTA</FunnelLbl>
-              </FunnelStep>
-              <FunnelArr>→</FunnelArr>
-              <FunnelStep>
-                <FunnelNum>{ev('selectItem')}</FunnelNum><FunnelLbl>Paket gewählt</FunnelLbl>
-                <FunnelPct>{data.overview?.activeUsers ? ((ev('selectItem') / data.overview.activeUsers) * 100).toFixed(1) + '%' : '—'}</FunnelPct>
-              </FunnelStep>
-              <FunnelArr>→</FunnelArr>
-              <FunnelStep>
-                <FunnelNum>{ev('formStart')}</FunnelNum><FunnelLbl>Formular gestartet</FunnelLbl>
-                <FunnelPct>{ev('selectItem') ? ((ev('formStart') / ev('selectItem')) * 100).toFixed(0) + '%' : '—'}</FunnelPct>
-              </FunnelStep>
-              <FunnelArr>→</FunnelArr>
-              <FunnelStep $hl>
-                <FunnelNum>{ev('generateLead')}</FunnelNum><FunnelLbl>Anfrage gesendet</FunnelLbl>
-                <FunnelPct>{ev('formStart') ? ((ev('generateLead') / ev('formStart')) * 100).toFixed(0) + '% abgeschlossen' : '—'}</FunnelPct>
-              </FunnelStep>
+              {funnel.rows.map((row, i) => (
+                <React.Fragment key={row.key}>
+                  {i > 0 && <FunnelArr>→</FunnelArr>}
+                  <FunnelStep $hl={row.key === 'inquiries'} title={row.extra || ''}>
+                    <FunnelNum>{row.value == null ? '–' : fmt(row.value)}</FunnelNum>
+                    <FunnelLbl>{row.label}</FunnelLbl>
+                    <FunnelPct>{row.value == null ? 'nicht verfügbar' : row.rate != null ? `${de(row.rate)} % v. ${row.base}` : row.unit}</FunnelPct>
+                  </FunnelStep>
+                </React.Fragment>
+              ))}
             </FunnelGrid>
+            {funnel.notes.map((n, i) => <FunnelWarn key={i} style={{ color: colors.gray }}>{n}</FunnelWarn>)}
+            {data.ranges && (
+              <FunnelWarn style={{ color: colors.gray }}>
+                GA4: {data.ranges.current.start} bis {data.ranges.current.end} · Vergleich: {data.ranges.previous.start} bis {data.ranges.previous.end} · Search Console: {data.ranges.gsc.start} bis {data.ranges.gsc.end}
+              </FunnelWarn>
+            )}
             {ev('formError') > 0 && <FunnelWarn>⚠ {ev('formError')} Formular-Fehler im Zeitraum</FunnelWarn>}
           </Collapsible>
 
