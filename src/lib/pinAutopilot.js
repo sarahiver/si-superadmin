@@ -44,9 +44,23 @@ export const berlinToday = (now = new Date()) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(now);
 
 /**
+ * Wartende Pins ohne festen Tag: Queue-/Entwurfs-Einträge ohne Datum oder mit
+ * Datum in der Vergangenheit. Der Cron veröffentlicht sie nach den datierten —
+ * sie belegen also ebenfalls Plätze der nächsten Tage.
+ */
+export function backlogCount(rows, today) {
+  return (rows || []).filter((r) => {
+    if (r.status !== 'draft' && r.status !== 'queued') return false;
+    if (!r.scheduled_date) return true;
+    return String(r.scheduled_date).slice(0, 10) < today;
+  }).length;
+}
+
+/**
  * Freie Plätze: für jeden Tag ab morgen bis lead_days so viele, wie per_day
- * minus bereits belegter (Entwurf oder geplant). Heute bleibt außen vor —
- * der Cron hat für heute schon veröffentlicht.
+ * minus bereits belegter (Entwurf oder geplant). Wartende Pins ohne Datum
+ * (backlogCount) füllen danach die frühesten Lücken. Heute bleibt außen
+ * vor — der Cron hat für heute schon veröffentlicht.
  * @returns string[] — ein Datum je freiem Platz, aufsteigend
  */
 export function planSlots(rows, { today, leadDays, perDay }) {
@@ -57,13 +71,31 @@ export function planSlots(rows, { today, leadDays, perDay }) {
     const d = String(r.scheduled_date).slice(0, 10);
     used[d] = (used[d] || 0) + 1;
   });
+  let backlog = backlogCount(rows, today);
   const slots = [];
   for (let i = 1; i <= leadDays; i++) {
     const d = addDays(today, i);
-    const free = Math.max(0, perDay - (used[d] || 0));
+    let free = Math.max(0, perDay - (used[d] || 0));
+    const take = Math.min(free, backlog);
+    free -= take;
+    backlog -= take;
     for (let k = 0; k < free; k++) slots.push(d);
   }
   return slots;
+}
+
+/**
+ * Wie viele Ziele sind gerade frei, und ab wann wird das nächste frei?
+ * @param targets [{ category, last }] — last = letztes Pin-/Plandatum (ISO)
+ * @param isLocked (last) => boolean — Sperrregel aus pinMix
+ */
+export function lockSummary(targets, isLocked, lockDays) {
+  const usable = (targets || []).filter((t) => t.category !== 'avoid');
+  const locked = usable.filter((t) => isLocked(t.last));
+  const nextFree = locked
+    .map((t) => addDays(String(t.last).slice(0, 10), lockDays))
+    .sort()[0] || null;
+  return { total: usable.length, free: usable.length - locked.length, locked: locked.length, nextFree };
 }
 
 /**

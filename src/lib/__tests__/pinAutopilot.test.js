@@ -1,5 +1,5 @@
 // Tests für die Planungslogik des Pin-Autopiloten
-import { planSlots, learnWeights, chooseVariant, chooseLayout, normalizeConfig, PIN_THEMES, addDays } from '../pinAutopilot';
+import { planSlots, backlogCount, lockSummary, learnWeights, chooseVariant, chooseLayout, normalizeConfig, PIN_THEMES, addDays } from '../pinAutopilot';
 import { buildPinPrompt, parsePinCopy, fallbackPinCopy } from '../pinPrompt';
 
 test('Konfiguration wird begrenzt', () => {
@@ -72,4 +72,29 @@ test('KI-Antwort wird geprüft: accentWord muss in der Headline stehen', () => {
   expect(copy.accentWord).toBe('');
   expect(() => parsePinCopy({ content: [{ type: 'text', text: 'kein json' }] })).toThrow();
   expect(fallbackPinCopy({ title: 'A: B', description: 'C. D' }).headline).toBe('A');
+});
+
+test('wartende Pins ohne Datum oder überfällig belegen die frühesten Plätze', () => {
+  const rows = [
+    { status: 'queued', scheduled_date: null },
+    { status: 'queued', scheduled_date: null },
+    { status: 'queued', scheduled_date: '2026-11-01' }, // überfällig
+    { status: 'draft', scheduled_date: null },
+    { status: 'queued', scheduled_date: '2026-11-07' },
+    { status: 'published', scheduled_date: null },
+  ];
+  expect(backlogCount(rows, '2026-11-05')).toBe(4);
+  // 3 Tage × 2 = 6 Plätze, 1 datiert, 4 wartend → 1 frei am letzten Tag
+  expect(planSlots(rows, { today: '2026-11-05', leadDays: 3, perDay: 2 })).toEqual(['2026-11-08']);
+});
+
+test('Sperr-Übersicht: frei, gesperrt, nächstes freies Datum', () => {
+  const locked = (last) => !!last && last > '2026-10-15';
+  const s = lockSummary([
+    { category: 'bridge', last: '2026-10-20' },
+    { category: 'website', last: '2026-10-18' },
+    { category: 'bridge', last: null },
+    { category: 'avoid', last: null },
+  ], locked, 21);
+  expect(s).toEqual({ total: 3, free: 1, locked: 2, nextFree: '2026-11-08' });
 });

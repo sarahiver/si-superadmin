@@ -48,6 +48,7 @@ const Status = styled.div`
   .err { color: ${colors.red}; }
 `;
 
+const fmtDay = (iso) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '–');
 const fmtDate = (iso) => (iso ? new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–');
 
 export default function PinAutopilot() {
@@ -199,6 +200,20 @@ export default function PinAutopilot() {
           Geplant: <b>{filled} von {state.total_slots}</b> Plätzen in den nächsten {c.lead_days} Tagen
           {' '}({c.per_day} pro Tag — gilt auch für das Veröffentlichen).
         </div>
+        {state.waiting > 0 && (
+          <div>
+            <b>{state.waiting}</b> Pins ohne Datum (oder überfällig) warten in Queue/Entwürfen —
+            sie gehen zuerst raus und belegen die frühesten Plätze.
+          </div>
+        )}
+        {state.targets && (
+          <div className={state.targets.free === 0 ? 'warn' : ''}>
+            Ziele frei: <b>{state.targets.free} von {state.targets.total}</b>
+            {state.targets.free === 0 && state.targets.nextFree
+              && <> — alle in den letzten {state.lock_days} Tagen gepinnt oder geplant. Nächstes frei am {fmtDay(state.targets.nextFree)}, dann füllt der Autopilot automatisch auf.</>}
+            {!state.targets.blog_loaded && <> · Blog-Artikel nicht ladbar</>}
+          </div>
+        )}
         <div>
           Lernstand:{' '}
           {state.learning.ready
@@ -218,8 +233,8 @@ export default function PinAutopilot() {
       </Status>
 
       <div style={{ marginTop: '0.8rem' }}>
-        <Btn type="button" disabled={busy || !c.board_id || state.open_slots === 0} onClick={fillNow}>
-          {state.open_slots === 0 ? 'Vorlauf ist voll' : `Jetzt auffüllen (${state.open_slots} frei)`}
+        <Btn type="button" disabled={busy || !c.board_id || state.open_slots === 0 || state.targets?.free === 0} onClick={fillNow}>
+          {state.open_slots === 0 ? 'Vorlauf ist voll' : state.targets?.free === 0 ? 'Keine Ziele frei' : `Jetzt auffüllen (${Math.min(state.open_slots, state.targets?.free ?? state.open_slots)} möglich)`}
         </Btn>
       </div>
     </Panel>

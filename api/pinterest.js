@@ -14,10 +14,10 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { setCorsHeaders, verifySessionToken } from './lib/auth.js';
-import { normUrl, buildRecentMap, classifyTarget, pickMix, interleave } from '../src/lib/pinMix.js';
+import { normUrl, buildRecentMap, classifyTarget, pickMix, interleave, isLocked, LOCK_DAYS } from '../src/lib/pinMix.js';
 import { buildPinPrompt, parsePinCopy, fallbackPinCopy } from '../src/lib/pinPrompt.js';
 import {
-  PIN_THEMES, SETTINGS_KEY, normalizeConfig, berlinToday, planSlots,
+  PIN_THEMES, SETTINGS_KEY, normalizeConfig, berlinToday, planSlots, backlogCount, lockSummary,
   learnWeights, chooseVariant, chooseLayout,
 } from '../src/lib/pinAutopilot.js';
 
@@ -536,7 +536,15 @@ async function autopilotFill({ budgetMs = 15000, maxDrafts = 4, force = false } 
   if (error) throw error;
 
   const slots = planSlots(rows, { today, leadDays: cfg.lead_days, perDay: cfg.per_day });
-  if (!slots.length) return { created: 0, open_slots: 0, note: `Vorlauf voll (${cfg.lead_days} Tage)` };
+  if (!slots.length) {
+    const waiting = backlogCount(rows, today);
+    return {
+      created: 0, open_slots: 0,
+      note: waiting
+        ? `Vorlauf voll — ${waiting} Pins ohne Datum warten noch in Queue/Entwürfen`
+        : `Vorlauf voll (${cfg.lead_days} Tage)`,
+    };
+  }
 
   // Ziele: Kaufseiten, Tools, Blog — gleiche Zielseite nur einmal
   const blog = await getBlogSlugs().catch(() => []);
@@ -553,7 +561,17 @@ async function autopilotFill({ budgetMs = 15000, maxDrafts = 4, force = false } 
   const now = new Date(`${today}T12:00:00Z`);
   const targets = all.map(t => ({ ...t, category: classifyTarget(t.slug), last: recent[normUrl(t.url)] || null }));
   const picked = interleave(pickMix(targets, Math.min(slots.length, maxDrafts), { today: now }));
-  if (!picked.length) return { created: 0, open_slots: slots.length, note: 'Alle Ziele gesperrt (21 Tage) — Pins pro Tag senken oder Ziele ergänzen' };
+  if (!picked.length) {
+    const ls = lockSummary(targets, (last) => isLocked(last, now), LOCK_DAYS);
+    const nf = ls.nextFree ? ls.nextFree.split('-').reverse().slice(0, 2).join('.') + '.' : null;
+    return {
+      created: 0,
+      open_slots: slots.length,
+      note: `Alle ${ls.total} Ziele in den letzten ${LOCK_DAYS} Tagen gepinnt oder geplant`
+        + (nf ? ` — nächstes wird am ${nf} frei, dann füllt der Autopilot automatisch auf` : '')
+        + (blog.length ? '' : ' (Blog-Artikel nicht ladbar)'),
+    };
+  }
 
   // Theme/Layout: rotieren oder nach Leistung gewichten
   const stats = await loadPinStats().catch(() => []);
@@ -1334,12 +1352,35 @@ async function route(req, res) {
     if (action === 'autopilot_get') {
       const cfg = await getAutopilotConfig();
       const today = berlinToday();
-      const { data: rows } = await supabase
+      const { data: open } = await supabase
         .from('pinterest_queue')
         .select('status, scheduled_date')
-        .in('status', ['draft', 'queued'])
-        .gte('scheduled_date', today);
-      const openSlots = planSlots(rows || [], { today, leadDays: cfg.lead_days, perDay: cfg.per_day }).length;
+        .in('status', ['draft', 'queued']);
+      const openSlots = planSlots(open || [], { today, leadDays: cfg.lead_days, perDay: cfg.per_day }).length;
+      const waiting = backlogCount(open || [], today);
+
+      // Ziel-Übersicht: wie viele sind frei, wann wird das nächste frei?
+      let targetInfo = null;
+      try {
+        const since = new Date(Date.now() - 120 * 86400000).toISOString();
+        const { data: hist } = await supabase
+          .from('pinterest_queue')
+          .select('link, status, scheduled_date, published_at, created_at')
+          .gte('created_at', since)
+          .limit(1000);
+        const recent = buildRecentMap((hist || []).filter(r => r.status !== 'failed'));
+        const blog = await getBlogSlugs().catch(() => []);
+        const seen = new Set();
+        const all = [
+          ...COMMERCIAL.map(c => ({ slug: c.slug, url: c.url })),
+          ...TOOLS.map(t => ({ slug: t.slug, url: t.url })),
+          ...blog.map(sl => ({ slug: sl, url: `${SITE}/blog/${sl}` })),
+        ].filter(t => { const k = normUrl(t.url); if (seen.has(k)) return false; seen.add(k); return true; })
+          .map(t => ({ category: classifyTarget(t.slug), last: recent[normUrl(t.url)] || null }));
+        const now = new Date(`${today}T12:00:00Z`);
+        targetInfo = { ...lockSummary(all, (last) => isLocked(last, now), LOCK_DAYS), blog_loaded: blog.length > 0 };
+      } catch { /* nur Anzeige */ }
+
       const { data: lastRuns } = await supabase
         .from('pinterest_cron_runs')
         .select('started_at, metrics')
@@ -1352,6 +1393,9 @@ async function route(req, res) {
         config: cfg,
         open_slots: openSlots,
         total_slots: cfg.lead_days * cfg.per_day,
+        waiting,
+        targets: targetInfo,
+        lock_days: LOCK_DAYS,
         last_run: lastAuto ? { at: lastAuto.started_at, ...lastAuto.metrics.autopilot } : null,
         learning: { ready: lw.ready, impressions: lw.totalImpressions, scores: lw.scores },
         ai_key_set: !!process.env.ANTHROPIC_API_KEY,
