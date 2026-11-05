@@ -589,6 +589,7 @@ export default function PinterestDrafts({ renderImage, onPromoted }) {
                 .join(' · ')}
               {' · '}
               {d.scheduled_date ? `für ${new Date(d.scheduled_date).toLocaleDateString('de-DE')}` : 'ohne Datum'}
+              {d.meta?.autopilot && ' · 🤖 Autopilot'}
               {d.link && (
                 <span title={d.link}>
                   {' · → '}{(() => { try { const u = new URL(d.link); return u.hostname.replace('www.', '') + u.pathname; } catch { return d.link; } })()}

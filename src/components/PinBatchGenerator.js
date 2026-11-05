@@ -13,6 +13,7 @@ import PostCanvas from '../lib/postCanvas';
 import styled from 'styled-components';
 import { adminFetch } from '../lib/apiClient';
 import { withUtm } from './PinterestPublish';
+import { buildPinPrompt, parsePinCopy, fallbackPinCopy } from '../lib/pinPrompt';
 import {
   CATEGORIES, CATEGORY_ORDER, LOCK_DAYS,
   classifyTarget, normUrl, buildRecentMap, isLocked, daysSince, pickMix, interleave,
@@ -310,42 +311,21 @@ export async function renderPinBase64({ layout, eyebrow, headline, accentWord, b
 // ============================================
 // KI-COPY (kompakter Pinterest-Prompt pro Ziel)
 // ============================================
-async function aiPinCopy({ title, description, url }) {
-  const prompt = `Du textest Pinterest-Pins für S&I. — Premium-Hochzeitswebsites aus Hamburg (sarahiver.com).
-Zielgruppe: verlobte Paare (DACH). Ton: warm, konkret, immer "ihr/eure". Kein Clickbait, keine Jahreszahlen in der Headline, kein Englisch mitten im Text.
-
-Pin-Ziel (Artikel/Tool):
-Titel: ${title}
-Beschreibung: ${description}
-URL: ${url}
-
-Pinterest ist eine SUCHMASCHINE: Headline & Beschreibung brauchen die Suchbegriffe, nach denen Paare wirklich suchen (aus Titel/Beschreibung ableiten). Optimiere auf Saves und Klicks.
-
-Antworte NUR mit validem JSON, kein Markdown:
-{"eyebrow":"2-4 Worte Kategorie-Zeile","headline":"keyword-reiches Versprechen, max 9 Worte","accentWord":"ein Wort das WORTWÖRTLICH in headline vorkommt","body":"1 Satz Nutzwert, max 18 Worte","pinTitle":"SEO-Pin-Titel, max 95 Zeichen, wichtigstes Keyword vorn","pinDescription":"SEO-Beschreibung 2-3 Sätze mit Keywords + sanftem CTA, max 480 Zeichen"}`;
-
+// Prompt und Auswertung liegen in lib/pinPrompt — dieselben Regeln nutzt der
+// Autopilot im Cron (api/pinterest.js).
+async function aiPinCopy(meta) {
+  const prompt = buildPinPrompt(meta);
   const response = await adminFetch('/api/ai-suggest', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt, webSearch: false }),
   });
   const data = await response.json();
-  const text = (data.content || []).filter(i => i.type === 'text').map(i => i.text || '').join('\n');
-  const clean = text.replace(/```json|```/g, '').trim();
-  const jsonMatch = clean.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('KI-Antwort ohne JSON');
-  return JSON.parse(jsonMatch[0]);
+  return parsePinCopy(data);
 }
 
 // Fallback ohne KI: Metadaten direkt verwenden — Batch bleibt nie stecken
-const fallbackCopy = (meta) => ({
-  eyebrow: 'Hochzeitsplanung',
-  headline: meta.title.split(':')[0].slice(0, 60),
-  accentWord: '',
-  body: (meta.description || '').split('. ')[0].slice(0, 110),
-  pinTitle: meta.title.slice(0, 95),
-  pinDescription: (meta.description || meta.title).slice(0, 480),
-});
+const fallbackCopy = fallbackPinCopy;
 
 /**
  * Datum für den i-ten Pin eines Laufs. Bei mehreren Pins pro Tag teilen

@@ -14,6 +14,12 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { setCorsHeaders, verifySessionToken } from './lib/auth.js';
+import { normUrl, buildRecentMap, classifyTarget, pickMix, interleave } from '../src/lib/pinMix.js';
+import { buildPinPrompt, parsePinCopy, fallbackPinCopy } from '../src/lib/pinPrompt.js';
+import {
+  PIN_THEMES, SETTINGS_KEY, normalizeConfig, berlinToday, planSlots,
+  learnWeights, chooseVariant, chooseLayout,
+} from '../src/lib/pinAutopilot.js';
 
 // Produktion oder Sandbox. Im Trial-Zugriff lehnt die Produktions-API das
 // Erstellen von Pins grundsätzlich ab ("Apps with Trial access may not create
@@ -421,7 +427,196 @@ async function getBlogMeta(slug) {
 }
 
 // Pins pro Cron-Lauf. Ohne Variable 1; 0, leer oder keine Zahl ebenfalls 1.
-const pinsPerDay = () => Math.max(1, parseInt(process.env.PINTEREST_PINS_PER_DAY || '1', 10) || 1);
+// Pins pro Tag: Sobald der Autopilot einmal gespeichert wurde, gilt dessen
+// Wert (auch fürs Veröffentlichen) — sonst wie bisher PINTEREST_PINS_PER_DAY.
+const envPinsPerDay = () => Math.max(1, parseInt(process.env.PINTEREST_PINS_PER_DAY || '1', 10) || 1);
+let _apCache = null;
+const pinsPerDay = () => (_apCache && _apCache.saved ? _apCache.per_day : envPinsPerDay());
+
+// ---------------------------------------------------------------------------
+// Autopilot: Einstellungen in site_settings (keine neue Tabelle nötig)
+// ---------------------------------------------------------------------------
+async function getAutopilotConfig() {
+  try {
+    const { data } = await supabase.from('site_settings').select('value').eq('key', SETTINGS_KEY).maybeSingle();
+    _apCache = { ...normalizeConfig(data?.value), saved: !!data };
+  } catch {
+    _apCache = { ...normalizeConfig(null), saved: false };
+  }
+  return _apCache;
+}
+
+async function setAutopilotConfig(patch) {
+  const cur = await getAutopilotConfig();
+  const next = normalizeConfig({ ...cur, ...patch });
+  const { error } = await supabase
+    .from('site_settings')
+    .upsert({ key: SETTINGS_KEY, value: next, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+  if (error) throw error;
+  _apCache = { ...next, saved: true };
+  return _apCache;
+}
+
+// KI-Text serverseitig (gleicher Prompt wie der Batch-Generator im Browser)
+const AI_MODELS = () => [...new Set([
+  (process.env.ANTHROPIC_MODEL || '').trim(),
+  ...(process.env.ANTHROPIC_MODELS || '').split(',').map((m) => m.trim()),
+  'claude-sonnet-4-6',
+  'claude-haiku-4-5-20251001',
+].filter(Boolean))];
+
+async function aiPinCopyServer(meta, previousHeadlines) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error('ANTHROPIC_API_KEY fehlt');
+  const prompt = buildPinPrompt(meta, { previousHeadlines });
+  let lastErr = null;
+  for (const model of AI_MODELS()) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model, max_tokens: 1024, messages: [{ role: 'user', content: prompt }] }),
+      });
+      // eslint-disable-next-line no-await-in-loop
+      const data = await r.json().catch(() => ({}));
+      if (r.ok) return parsePinCopy(data);
+      lastErr = new Error(data?.error?.message || `HTTP ${r.status}`);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('Kein KI-Modell erreichbar');
+}
+
+// Leistung veröffentlichter Pins (für die Gewichtung von Theme/Layout)
+async function loadPinStats() {
+  const { data: pins } = await supabase
+    .from('pinterest_queue')
+    .select('id, meta, published_at, pin_id')
+    .eq('status', 'published')
+    .not('pin_id', 'is', null)
+    .limit(500);
+  const ids = (pins || []).map((p) => p.pin_id);
+  const byPin = {};
+  for (let i = 0; i < ids.length; i += 25) {
+    // eslint-disable-next-line no-await-in-loop
+    const { data: days } = await supabase
+      .from('pinterest_pin_metrics')
+      .select('pin_id, date, impressions, saves, pin_clicks, outbound_clicks, data_status')
+      .in('pin_id', ids.slice(i, i + 25))
+      .limit(5000);
+    (days || []).forEach((d) => { (byPin[d.pin_id] = byPin[d.pin_id] || []).push(d); });
+  }
+  return (pins || []).map((p) => ({
+    theme: p.meta?.theme || null,
+    layout: p.meta?.layout || null,
+    ...summarize(p, byPin[p.pin_id] || []),
+  }));
+}
+
+/**
+ * Legt Entwürfe für freie Plätze der nächsten Tage an (Status 'draft').
+ * Bild und Veröffentlichung entstehen erst bei „Alle in Queue" im Browser.
+ */
+async function autopilotFill({ budgetMs = 15000, maxDrafts = 4, force = false } = {}) {
+  const started = Date.now();
+  const cfg = await getAutopilotConfig();
+  if (!cfg.enabled && !force) return { skipped: 'Autopilot ist aus' };
+  if (!cfg.board_id) return { skipped: 'Kein Board gewählt' };
+
+  const today = berlinToday();
+  const since = new Date(Date.now() - 120 * 86400000).toISOString();
+  const { data: rows, error } = await supabase
+    .from('pinterest_queue')
+    .select('id, title, link, status, scheduled_date, published_at, created_at, meta')
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(1000);
+  if (error) throw error;
+
+  const slots = planSlots(rows, { today, leadDays: cfg.lead_days, perDay: cfg.per_day });
+  if (!slots.length) return { created: 0, open_slots: 0, note: `Vorlauf voll (${cfg.lead_days} Tage)` };
+
+  // Ziele: Kaufseiten, Tools, Blog — gleiche Zielseite nur einmal
+  const blog = await getBlogSlugs().catch(() => []);
+  const seen = new Set();
+  const all = [
+    ...COMMERCIAL.map(c => ({ slug: c.slug, url: c.url })),
+    ...TOOLS.map(t => ({ slug: t.slug, url: t.url })),
+    ...blog.map(sl => ({ slug: sl, url: `${SITE}/blog/${sl}` })),
+  ].filter(t => { const k = normUrl(t.url); if (seen.has(k)) return false; seen.add(k); return true; });
+
+  // Sperre: alles, was in den letzten 21 Tagen gepinnt, geplant oder als
+  // Entwurf vorgesehen ist (abgelehnte/fehlgeschlagene zählen nicht)
+  const recent = buildRecentMap((rows || []).filter(r => r.status !== 'failed'));
+  const now = new Date(`${today}T12:00:00Z`);
+  const targets = all.map(t => ({ ...t, category: classifyTarget(t.slug), last: recent[normUrl(t.url)] || null }));
+  const picked = interleave(pickMix(targets, Math.min(slots.length, maxDrafts), { today: now }));
+  if (!picked.length) return { created: 0, open_slots: slots.length, note: 'Alle Ziele gesperrt (21 Tage) — Pins pro Tag senken oder Ziele ergänzen' };
+
+  // Theme/Layout: rotieren oder nach Leistung gewichten
+  const stats = await loadPinStats().catch(() => []);
+  const themeW = learnWeights(stats, 'theme');
+  const layoutW = learnWeights(stats, 'layout');
+  const history = (rows || []).filter(r => r.meta);
+  const recentThemes = history.map(r => r.meta.theme).filter(Boolean);
+  const recentLayouts = history.map(r => r.meta.layout).filter(Boolean);
+
+  const created = [];
+  const errors = [];
+  for (let i = 0; i < picked.length; i++) {
+    if (Date.now() - started > budgetMs) break;
+    const t = picked[i];
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const meta = COMMERCIAL.find(c => c.slug === t.slug) || toolMeta(t.slug) || (await getBlogMeta(t.slug));
+      const prevHeadlines = (rows || [])
+        .filter(r => normUrl(r.link) === normUrl(meta.url))
+        .map(r => r.meta?.headline || r.title);
+      let copy;
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        copy = await aiPinCopyServer(meta, prevHeadlines);
+      } catch {
+        copy = fallbackPinCopy(meta);
+      }
+      const theme = chooseVariant(PIN_THEMES, recentThemes, themeW);
+      const layout = chooseLayout(!!meta.image, recentLayouts, layoutW);
+      recentThemes.unshift(theme);
+      if (layout !== 'statement') recentLayouts.unshift(layout);
+      const row = {
+        board_id: cfg.board_id,
+        board_name: cfg.board_name || null,
+        title: copy.pinTitle || copy.headline,
+        description: copy.pinDescription || meta.description || null,
+        link: withUtm(meta.url),
+        image_data: null,
+        scheduled_date: slots[created.length],
+        status: 'draft',
+        meta: {
+          layout, theme,
+          eyebrow: copy.eyebrow, headline: copy.headline, accentWord: copy.accentWord, body: copy.body,
+          imageUrl: meta.image || null, sourceSlug: meta.slug || t.slug,
+          autopilot: true, category: t.category,
+        },
+      };
+      // eslint-disable-next-line no-await-in-loop
+      const { error: insErr } = await supabase.from('pinterest_queue').insert(row);
+      if (insErr) throw insErr;
+      created.push({ title: row.title, date: row.scheduled_date, theme, layout, category: t.category });
+    } catch (err) {
+      errors.push({ slug: t.slug, error: String(err.message || err).slice(0, 200) });
+    }
+  }
+  return {
+    created: created.length,
+    open_slots: slots.length - created.length,
+    drafts: created,
+    errors,
+    learning: { ready: themeW.ready, impressions: themeW.totalImpressions },
+  };
+}
 
 // UTM serverseitig sicherstellen — auch wenn das Frontend sie vergisst.
 // Vorher: Wählte man im Entwurf die Zielseite aus der Liste, wurde die
@@ -468,6 +663,7 @@ async function logCronRun(entry) {
 
 // ── Cron: fällige Pins veröffentlichen (vorher api/pinterest-cron.js) ──
 async function runCron() {
+  await getAutopilotConfig(); // gespeicherte Pins pro Tag laden
   const perDay = pinsPerDay();
   const today = new Date().toISOString().slice(0, 10);
   const { data: due, error } = await supabase
@@ -667,13 +863,31 @@ async function route(req, res) {
       } catch (err) {
         result.metrics = { error: String(err.message || err) };
       }
+      // Autopilot: Entwürfe für die nächsten Tage anlegen. Fehler hier dürfen
+      // den Cron-Lauf ebenfalls nicht als gescheitert melden.
+      try {
+        result.autopilot = await autopilotFill({ budgetMs: 15000, maxDrafts: 4 });
+      } catch (err) {
+        result.autopilot = { error: String(err.message || err) };
+      }
       await logCronRun({
         started_at,
         trigger: looksLikeVercelCron ? 'cron' : 'manuell',
         ok: true,
         published: result.published,
         blocked: result.blocked,
-        metrics: result.metrics ? { synced: result.metrics.synced, failed: result.metrics.failed, error: result.metrics.error } : null,
+        metrics: (result.metrics || result.autopilot) ? {
+          synced: result.metrics?.synced,
+          failed: result.metrics?.failed,
+          error: result.metrics?.error,
+          // im selben JSON-Feld, damit keine Tabellenänderung nötig ist
+          autopilot: result.autopilot ? {
+            created: result.autopilot.created || 0,
+            skipped: result.autopilot.skipped || null,
+            note: result.autopilot.note || null,
+            error: result.autopilot.error || null,
+          } : null,
+        } : null,
         results: (result.results || []).map(x => ({ id: x.id, title: x.title, ok: x.ok, pin_id: x.pin_id || null, error: x.error || null })),
         error: result.blocked ? result.reason : null,
       });
@@ -741,6 +955,7 @@ async function route(req, res) {
 
     // ── Verbindungsstatus (für das Panel im Dashboard) ──
     if (action === 'status') {
+      await getAutopilotConfig();
       const row = await loadTokenRow();
       if (!row) {
         return res.status(200).json({
@@ -1113,6 +1328,49 @@ async function route(req, res) {
       const { error } = await supabase.from('pinterest_queue').update({ meta }).eq('id', id);
       if (error) throw error;
       return res.status(200).json({ ok: true });
+    }
+
+    // ── Autopilot ──
+    if (action === 'autopilot_get') {
+      const cfg = await getAutopilotConfig();
+      const today = berlinToday();
+      const { data: rows } = await supabase
+        .from('pinterest_queue')
+        .select('status, scheduled_date')
+        .in('status', ['draft', 'queued'])
+        .gte('scheduled_date', today);
+      const openSlots = planSlots(rows || [], { today, leadDays: cfg.lead_days, perDay: cfg.per_day }).length;
+      const { data: lastRuns } = await supabase
+        .from('pinterest_cron_runs')
+        .select('started_at, metrics')
+        .order('started_at', { ascending: false })
+        .limit(5);
+      const lastAuto = (lastRuns || []).find(r => r.metrics && r.metrics.autopilot) || null;
+      const stats = await loadPinStats().catch(() => []);
+      const lw = learnWeights(stats, 'theme');
+      return res.status(200).json({
+        config: cfg,
+        open_slots: openSlots,
+        total_slots: cfg.lead_days * cfg.per_day,
+        last_run: lastAuto ? { at: lastAuto.started_at, ...lastAuto.metrics.autopilot } : null,
+        learning: { ready: lw.ready, impressions: lw.totalImpressions, scores: lw.scores },
+        ai_key_set: !!process.env.ANTHROPIC_API_KEY,
+      });
+    }
+
+    if (action === 'autopilot_set') {
+      const patch = {};
+      ['enabled', 'board_id', 'board_name', 'per_day', 'lead_days'].forEach((k) => {
+        if (req.body && k in req.body) patch[k] = req.body[k];
+      });
+      const cfg = await setAutopilotConfig(patch);
+      return res.status(200).json({ config: cfg });
+    }
+
+    // „Jetzt auffüllen": kleine Portion je Aufruf (Frontend ruft mehrfach)
+    if (action === 'autopilot_run') {
+      const result = await autopilotFill({ budgetMs: 8000, maxDrafts: 2, force: true });
+      return res.status(200).json(result);
     }
 
     // ── Blog-Rohstoff ──

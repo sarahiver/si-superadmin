@@ -6,6 +6,7 @@ import React from 'react';
 import { PinQueue, PinterestConnect } from '../components/PinterestPublish';
 import PinBatchGenerator, { renderPinBase64 } from '../components/PinBatchGenerator';
 import PinterestDrafts from '../components/PinterestDrafts';
+import PinAutopilot from '../components/PinAutopilot';
 import PinterestStats from '../components/PinterestStats';
 
 export default function PinterestPage() {
@@ -16,6 +17,9 @@ export default function PinterestPage() {
       {/* Rückkanal zuerst: Was bisher funktioniert hat, steuert die
           nächsten Entwürfe (Layout, Theme, Board, Wochentag). */}
       <PinterestStats />
+
+      {/* Autopilot legt täglich Entwürfe an; Freigabe unten in den Entwürfen */}
+      <PinAutopilot />
 
       <PinBatchGenerator />
 
