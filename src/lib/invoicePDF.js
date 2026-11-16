@@ -95,6 +95,7 @@ export function generateInvoicePDF(project, pricing, options = {}) {
   doc.text(COMPANY.street, headerRight, 23, { align: 'right' });
   doc.text(COMPANY.city, headerRight, 28, { align: 'right' });
   doc.text(COMPANY.email, headerRight, 33, { align: 'right' });
+  if (COMPANY.taxId) doc.text(`Steuernummer: ${COMPANY.taxId}`, headerRight, 38, { align: 'right' });
 
   y = 50;
 
@@ -321,30 +322,42 @@ export function generateInvoicePDF(project, pricing, options = {}) {
     y += 8;
   }
 
-  // Gesamt
+  // Gesamt. Bei Anzahlungs- und Schlussrechnung steht zuerst der Paketpreis, dann der Betrag dieser Rechnung –
+  // so widersprechen sich Position und Summe nicht.
+  const half = pricing.total * 0.5;
+  let finalAmount = pricing.total;
+  if (isDeposit) finalAmount = half;
+  if (isFinal && options.depositPaid) finalAmount = half;
+  const split = finalAmount !== pricing.total;
+  const sumLine = (label, value) => {
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(...COLORS.black);
+    doc.text(label, sumX - 25, y); doc.text(value, pw - m - 3, y, { align: 'right' });
+    y += 6;
+  };
+  if (split) {
+    sumLine('Gesamtbetrag laut Vertrag:', formatPrice(pricing.total));
+    if (isFinal) sumLine('Abzüglich Anzahlung:', `-${formatPrice(half)}`);
+    y += 2;
+  }
+
   doc.setDrawColor(...COLORS.black);
   doc.setLineWidth(0.5);
-  doc.line(sumX - 5, y - 2, pw - m, y - 2);
+  doc.line(sumX - 30, y - 2, pw - m, y - 2);
 
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLORS.black);
-  doc.text('Gesamtbetrag:', sumX, y + 3);
+  doc.text(isDeposit ? 'Anzahlung (50 %):' : split ? 'Restbetrag:' : 'Gesamtbetrag:', sumX - 25, y + 3);
   doc.setTextColor(...COLORS.red);
-
-  let finalAmount = pricing.total;
-  if (isDeposit) finalAmount = pricing.total * 0.5;
-  if (isFinal && options.depositPaid) finalAmount = pricing.total * 0.5;
-
   doc.text(formatPrice(finalAmount), pw - m - 3, y + 3, { align: 'right' });
 
   y += 10;
 
-  // Kleinunternehmerregelung
+  // Kleinunternehmerregelung – rechtsbündig, damit der Satz nicht aus der Seite läuft
   doc.setFontSize(7);
   doc.setFont('helvetica', 'italic');
   doc.setTextColor(...COLORS.gray);
-  doc.text('Gemäß § 19 UStG wird keine Umsatzsteuer berechnet (Kleinunternehmerregelung).', sumX - 5, y);
+  doc.text('Gemäß § 19 UStG wird keine Umsatzsteuer berechnet (Kleinunternehmerregelung).', pw - m - 3, y, { align: 'right' });
   y += 12;
 
   // ============================================
@@ -389,8 +402,8 @@ export function generateInvoicePDF(project, pricing, options = {}) {
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(...COLORS.gray);
-    doc.text('Dies ist eine Anzahlungsrechnung über 50% des Gesamtbetrags.', m, y);
-    doc.text('Die Schlussrechnung erfolgt bei Fertigstellung der Website.', m, y + 5);
+    doc.text('Dies ist eine Anzahlungsrechnung über 50 % des Gesamtbetrags.', m, y);
+    doc.text(`Der Restbetrag von ${formatPrice(half)} wird mit der Schlussrechnung bei Freigabe der Website (Go-Live) fällig.`, m, y + 5);
     y += 15;
   }
 
@@ -478,7 +491,7 @@ export function generateInvoicePDF(project, pricing, options = {}) {
       // Label unter QR
       doc.setFontSize(5.5);
       doc.setTextColor(...COLORS.gray);
-      doc.text('Mit deiner Banking-App', qrX + qrSize / 2, qrY + qrSize + 3.5, { align: 'center' });
+      doc.text('Mit der Banking-App', qrX + qrSize / 2, qrY + qrSize + 3.5, { align: 'center' });
       doc.text('scannen', qrX + qrSize / 2, qrY + qrSize + 6.5, { align: 'center' });
     }
   } catch (e) {
@@ -527,8 +540,11 @@ function addFooter(doc, pageNum) {
   doc.setTextColor(150, 150, 150);
   const footerLine = `${COMPANY.fullName} · ${COMPANY.street} · ${COMPANY.city} · ${COMPANY.email}`;
   doc.text(footerLine, pw / 2, ph - 12, { align: 'center' });
-  doc.text('Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.', pw / 2, ph - 8, { align: 'center' });
+  doc.text(`Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.${COMPANY.taxId ? ` · Steuernummer: ${COMPANY.taxId}` : ''}`, pw / 2, ph - 8, { align: 'center' });
   doc.text(`Seite ${pageNum}`, pw - m, ph - 8, { align: 'right' });
 }
+
+// Für die Vollständigkeitsprüfung vor dem Erstellen (siehe documentText.js)
+export const COMPANY_TAX_ID = COMPANY.taxId;
 
 export default { generateInvoicePDF };
