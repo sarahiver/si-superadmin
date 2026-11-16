@@ -1910,6 +1910,56 @@ export default function ProjectDetailPage() {
     else { toast.success('Projekt gelöscht'); navigate('/projects'); }
   };
 
+  // Weitere Positionen: bei allen Paketen, auch beim Individual-Paket (dort zugleich Leistungsumfang im Vertrag)
+  const customExtrasBlock = (
+                <CustomExtrasSection>
+                  <CustomExtrasTitle>
+                    <span className="title">{isIndividual ? 'Leistungsumfang und weitere Positionen' : 'Individuelle Extras'}</span>
+                    <AddExtraButton onClick={addCustomExtra}>{isIndividual ? '+ Position hinzufügen' : '+ Extra hinzufügen'}</AddExtraButton>
+                  </CustomExtrasTitle>
+                  {isIndividual && <div style={{ fontSize: '0.8rem', color: '#666', margin: '0 0 0.75rem', lineHeight: 1.5 }}>Jeder Titel erscheint im Vertrag unter § 2 als Punkt des Leistungsumfangs. Mit 0 € beschreibt die Position nur den Umfang; ein Betrag wird zum individuellen Preis addiert.</div>}
+
+                  {(formData.custom_extras || []).map(extra => (
+                    <CustomExtraItem key={extra.id}>
+                      <div className="extra-header">
+                        <input
+                          className="extra-title-input"
+                          type="text"
+                          value={extra.title}
+                          onChange={e => updateCustomExtra(extra.id, 'title', e.target.value)}
+                          placeholder="Titel (z.B. Designanpassung Countdown)"
+                        />
+                        <div className="extra-amount">
+                          <input
+                            type="number"
+                            value={extra.amount || ''}
+                            onChange={e => updateCustomExtra(extra.id, 'amount', parseFloat(e.target.value) || 0)}
+                            placeholder="0"
+                          />
+                          <span>€</span>
+                        </div>
+                      </div>
+                      <textarea
+                        className="extra-description"
+                        value={extra.description}
+                        onChange={e => updateCustomExtra(extra.id, 'description', e.target.value)}
+                        placeholder="Detaillierte Beschreibung für Vertrag/Rechnung (z.B. Runde Uhr mit Gold-Akzenten statt Standard-Flip-Counter, Animation bei Ziffernwechsel)"
+                      />
+                      <div className="extra-footer">
+                        <button className="delete-btn" onClick={() => deleteCustomExtra(extra.id)}>✕ Entfernen</button>
+                      </div>
+                    </CustomExtraItem>
+                  ))}
+
+                  {(formData.custom_extras || []).length > 0 && (
+                    <CustomExtrasSummary>
+                      <span className="label">Individuelle Extras gesamt</span>
+                      <span className="total">+{formatPrice(pricing.customExtrasPrice)}</span>
+                    </CustomExtrasSummary>
+                  )}
+                </CustomExtrasSection>
+  );
+
   const handleGenerateContract = () => {
     if (!confirmDocument(formData, 'Vertrag')) return;
     try {
@@ -2109,52 +2159,7 @@ export default function ProjectDetailPage() {
                   <Input type="number" value={formData.discount || 0} onChange={e => handleChange('discount', parseFloat(e.target.value) || 0)} style={{ width: '120px', textAlign: 'right' }} />
                 </ExtraComponentsRow>
 
-                {/* Custom Extras */}
-                <CustomExtrasSection>
-                  <CustomExtrasTitle>
-                    <span className="title">Individuelle Extras</span>
-                    <AddExtraButton onClick={addCustomExtra}>+ Extra hinzufügen</AddExtraButton>
-                  </CustomExtrasTitle>
-
-                  {(formData.custom_extras || []).map(extra => (
-                    <CustomExtraItem key={extra.id}>
-                      <div className="extra-header">
-                        <input
-                          className="extra-title-input"
-                          type="text"
-                          value={extra.title}
-                          onChange={e => updateCustomExtra(extra.id, 'title', e.target.value)}
-                          placeholder="Titel (z.B. Designanpassung Countdown)"
-                        />
-                        <div className="extra-amount">
-                          <input
-                            type="number"
-                            value={extra.amount || ''}
-                            onChange={e => updateCustomExtra(extra.id, 'amount', parseFloat(e.target.value) || 0)}
-                            placeholder="0"
-                          />
-                          <span>€</span>
-                        </div>
-                      </div>
-                      <textarea
-                        className="extra-description"
-                        value={extra.description}
-                        onChange={e => updateCustomExtra(extra.id, 'description', e.target.value)}
-                        placeholder="Detaillierte Beschreibung für Vertrag/Rechnung (z.B. Runde Uhr mit Gold-Akzenten statt Standard-Flip-Counter, Animation bei Ziffernwechsel)"
-                      />
-                      <div className="extra-footer">
-                        <button className="delete-btn" onClick={() => deleteCustomExtra(extra.id)}>✕ Entfernen</button>
-                      </div>
-                    </CustomExtraItem>
-                  ))}
-
-                  {(formData.custom_extras || []).length > 0 && (
-                    <CustomExtrasSummary>
-                      <span className="label">Individuelle Extras gesamt</span>
-                      <span className="total">+{formatPrice(pricing.customExtrasPrice)}</span>
-                    </CustomExtrasSummary>
-                  )}
-                </CustomExtrasSection>
+                {customExtrasBlock}
               </AddonsSection>
             )}
             
@@ -2168,6 +2173,7 @@ export default function ProjectDetailPage() {
                   </div>
                   <Input type="number" value={formData.custom_price || 0} onChange={e => handleChange('custom_price', parseFloat(e.target.value) || 0)} style={{ width: '150px', textAlign: 'right', fontSize: '1.2rem', fontWeight: 'bold' }} />
                 </ExtraComponentsRow>
+                {customExtrasBlock}
               </AddonsSection>
             )}
             
