@@ -1667,7 +1667,9 @@ export default function ProjectDetailPage() {
       }
     } catch (err) {
       console.error('Error setting password:', err);
-      toast.error('Fehler beim Setzen des Passworts');
+      // Die Ursache mit anzeigen (z. B. fehlende Datenbankfunktion) – sonst lässt sich der Fehler nicht eingrenzen
+      const reason = String((err && err.message) || '').slice(0, 200);
+      toast.error(`Fehler beim Setzen des Passworts${reason ? `: ${reason}` : ''}`, { duration: 12000 });
     }
     setIsSavingPassword(false);
   };
