@@ -13,7 +13,9 @@ import { updateProject, getRsvpsByProject } from '../lib/supabase';
 export const LANGUAGES = [
   { id: 'en', name: 'Englisch' }, { id: 'tr', name: 'Türkisch' }, { id: 'de', name: 'Deutsch' }, { id: 'fr', name: 'Französisch' },
 ];
-export const CASSIS_ORDER = ['hero', 'timeline', 'countdown', 'rsvp', 'directions', 'faq', 'witnesses'];
+// Reihenfolge der Seite (Cassis V4): Anfahrt und Antwortkarte sowie Trauzeug:innen und Fragen stehen je direkt hintereinander –
+// nur dann teilen sie sich im Theme eine Fläche.
+export const CASSIS_ORDER = ['hero', 'countdown', 'timeline', 'directions', 'rsvp', 'witnesses', 'faq'];
 export const CASSIS_FEATURES = {
   i18n: { languages: ['en', 'tr', 'de', 'fr'], default: 'en' },
   rsvp: { max_persons: 8, child_ages: true, confirmation_mail: true },
