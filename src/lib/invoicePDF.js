@@ -2,6 +2,7 @@
 // Generiert professionelle Rechnung im S&I. Editorial Stil
 import { jsPDF } from 'jspdf';
 import { getPackage, formatPrice } from './pricing';
+import { scopeLines } from './documentText';
 import { buildEPCPayload, generateQRSVG, encodeToModules } from './qrGenerator';
 
 // S&I. Farben
@@ -205,9 +206,11 @@ export function generateInvoicePDF(project, pricing, options = {}) {
 
   // Hauptpaket
   if (project.package === 'individual') {
+    // Der vereinbarte Umfang steht als Unterzeilen an der Position (dieselben Zeilen wie in § 2 des Vertrags)
+    const scope = scopeLines(project, pkg).filter((line) => !/^individuell vereinbart/i.test(line));
     positions.push({
       pos: pos++,
-      desc: 'Individual-Paket – Hochzeits-Website',
+      desc: ['Individual-Paket – Hochzeits-Website', ...scope.map((line) => `– ${line}`)].join('\n'),
       qty: 1,
       unit: formatPrice(pricing.total),
       total: formatPrice(pricing.total),
@@ -259,13 +262,22 @@ export function generateInvoicePDF(project, pricing, options = {}) {
     }
   }
 
+  // Seitenumbruch innerhalb der Positionen (viele Unterzeilen)
+  const checkRowBreak = (needed) => {
+    if (y + needed > ph - 25) { addFooter(doc, pageNum); doc.addPage(); pageNum++; y = 25; }
+  };
+
   // Positionen zeichnen
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...COLORS.black);
 
   positions.forEach((item, idx) => {
     const isLast = idx === positions.length - 1;
-    const rowHeight = item.desc.includes('\n') ? 12 : 8;
+    // Lange Unterzeilen umbrechen, damit sie nicht in die Spalte „Menge" laufen
+    doc.setFontSize(8);
+    const descLines = item.desc.split('\n').flatMap((line, i) => (i === 0 ? [line] : doc.splitTextToSize(line, pw - 2 * m - 15 - 62)));
+    const rowHeight = 8 + (descLines.length - 1) * 4;
+    checkRowBreak(rowHeight + 4);
 
     // Zebrastreifen
     if (idx % 2 === 1) {
@@ -277,7 +289,6 @@ export function generateInvoicePDF(project, pricing, options = {}) {
     doc.text(String(item.pos), m + 3, y + 3);
 
     // Mehrzeilige Beschreibung
-    const descLines = item.desc.split('\n');
     descLines.forEach((line, lineIdx) => {
       if (lineIdx === 0) {
         doc.setFont('helvetica', 'normal');
