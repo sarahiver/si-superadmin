@@ -3,6 +3,7 @@
 import { jsPDF } from 'jspdf';
 import { projectHost } from './projectUrl';
 import { getPackage, calculatePricing, formatPrice } from './pricing';
+import { hostingSentence, revisionSentence, scopeLines } from './documentText';
 import { SIGNATURE_IVER_GENTZ } from './signatureData';
 
 // S&I. Farben
@@ -237,7 +238,7 @@ export function generateContractPDF(project, pricing, options = {}) {
   addSection('2', 'Leistungsumfang');
   addParagraph(`Gewähltes Paket: ${pkg.name}`);
   addParagraph('Der Leistungsumfang umfasst:');
-  pkg.deliverables.forEach(feature => {
+  scopeLines(project, pkg).forEach(feature => {
     addBullet(feature);
   });
 
@@ -324,12 +325,12 @@ export function generateContractPDF(project, pricing, options = {}) {
   addParagraph('Vom Auftraggeber bereitgestellte Inhalte (Fotos, Texte) verbleiben in dessen Eigentum.');
 
   addSection('6', 'Hosting und Laufzeit');
-  addParagraph(`Die Hosting-Laufzeit beträgt ${pkg.hosting} ab Freischaltung der Website. Das Hosting ist im Paketpreis enthalten.`);
+  addParagraph(`${hostingSentence(pkg.hosting)} Das Hosting ist im Paketpreis enthalten.`);
   addParagraph('Nach Ablauf der Laufzeit kann das Hosting gegen eine Gebühr verlängert werden. Der Auftraggeber wird rechtzeitig über das Ende der Laufzeit informiert.');
   addParagraph('Nach Ende der Hosting-Laufzeit wird die Website deaktiviert und nach weiteren 30 Tagen gelöscht, sofern keine Verlängerung vereinbart wurde.');
 
   addSection('7', 'Änderungen und Revisionen');
-  addParagraph(`Im ${pkg.name}-Paket sind ${pkg.name === 'Premium' ? 'unbegrenzte' : pkg.name === 'Standard' ? '4' : '2'} Revisionen enthalten (${pkg.name === 'Starter' ? '1 vor und 1 nach' : pkg.name === 'Standard' ? '2 vor und 2 nach' : ''} Go-Live).`);
+  addParagraph(revisionSentence(pkg.name));
   addParagraph('Eine Revision umfasst kleinere Anpassungen an Texten, Bildern oder Layout. Grundlegende Änderungen am Design oder Funktionsumfang gelten als Zusatzleistung und werden separat berechnet.');
 
   addSection('8', 'Stornierung');

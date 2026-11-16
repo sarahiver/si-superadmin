@@ -16,7 +16,8 @@ import {
 } from '../lib/pricing';
 import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail } from '../lib/emailService';
 import { generateContractPDF } from '../lib/contractPDF';
-import { generateInvoicePDF } from '../lib/invoicePDF';
+import { generateInvoicePDF, COMPANY_TAX_ID } from '../lib/invoicePDF';
+import { missingDocumentData } from '../lib/documentText';
 import { generatePayoutPdf } from '../lib/generatePayoutPdf';
 import { generateWebsiteQRSVG } from '../lib/qrGenerator';
 import { adminFetch } from '../lib/apiClient';
@@ -1910,6 +1911,7 @@ export default function ProjectDetailPage() {
   };
 
   const handleGenerateContract = () => {
+    if (!confirmDocument(formData, 'Vertrag')) return;
     try {
       const result = generateContractPDF(formData, pricing);
       toast.success(`Vertrag erstellt: ${result.filename}`);
@@ -2514,6 +2516,7 @@ export default function ProjectDetailPage() {
 
                 <PDFButtons>
                   <PDFButton $primary onClick={() => {
+                    if (!confirmDocument(formData, 'Vertrag')) return;
                     const result = generateContractPDF(formData, pricing);
                     handleChange('contract_number', result.contractNumber);
                     handleChange('contract_date', new Date().toISOString().split('T')[0]);
@@ -2612,6 +2615,7 @@ export default function ProjectDetailPage() {
 
                 <PDFButtons>
                   <PDFButton onClick={() => {
+                    if (!confirmDocument(formData, 'Rechnung')) return;
                     const result = generateInvoicePDF(formData, pricing, { isDeposit: true });
                     handleChange('deposit_invoice_number', result.invoiceNumber);
                     handleChange('deposit_invoice_date', new Date().toISOString().split('T')[0]);
@@ -2620,6 +2624,7 @@ export default function ProjectDetailPage() {
                     📃 Anzahlung
                   </PDFButton>
                   <PDFButton onClick={() => {
+                    if (!confirmDocument(formData, 'Rechnung')) return;
                     const result = generateInvoicePDF(formData, pricing, { isFinal: true, depositPaid: formData.deposit_paid });
                     handleChange('final_invoice_number', result.invoiceNumber);
                     handleChange('final_invoice_date', new Date().toISOString().split('T')[0]);
@@ -2628,6 +2633,7 @@ export default function ProjectDetailPage() {
                     📃 Schlussrechnung
                   </PDFButton>
                   <PDFButton $primary onClick={() => {
+                    if (!confirmDocument(formData, 'Rechnung')) return;
                     const result = generateInvoicePDF(formData, pricing);
                     toast.success(`Rechnung erstellt: ${result.filename}`);
                   }}>
@@ -3033,4 +3039,12 @@ export default function ProjectDetailPage() {
       </StickyBottomBar>
     </Layout>
   );
+}
+
+
+// Vor dem Erstellen: fehlende Pflichtangaben nennen. Abbrechen lässt alles, wie es ist.
+function confirmDocument(project, kind) {
+  const missing = missingDocumentData(project, { invoice: kind === 'Rechnung', taxId: COMPANY_TAX_ID });
+  if (!missing.length) return true;
+  return window.confirm(`${kind}: Es fehlen noch Angaben:\n\n– ${missing.join('\n– ')}\n\nTrotzdem erstellen?`);
 }
