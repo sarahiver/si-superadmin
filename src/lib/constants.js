@@ -15,7 +15,7 @@ export const THEMES = {
   classic: { id: 'classic', name: 'Classic', description: 'Warm, Elegant, Zeitlos' },
   parallax: { id: 'parallax', name: 'Parallax', description: '3D Scroll, Bold Typography, Immersiv' },
   summer: { id: 'summer', name: 'Summer', description: 'Warm, Sommerlich, Collage-Hero' },
-  cassis: { id: 'cassis', name: 'Cassis', description: 'Blaugrau, mehrsprachig, Kalenderblatt' },
+  cassis: { id: 'cassis', name: 'Cassis', description: 'Schlicht, Blaugrau, mehrsprachig' },
   // cinematic: erst eintragen, wenn das Theme in si-wedding-themes registriert ist
   // (App.js + ThemeRenderer). Sonst bekommt das Paar eine kaputte Seite.
 };
@@ -62,8 +62,6 @@ export const ALL_COMPONENTS = [
   { id: 'witnesses', name: 'Trauzeugen', core: false },
   { id: 'faq', name: 'FAQ', core: false },
   { id: 'weddingabc', name: 'Hochzeits-ABC', core: false },
-  // Nicht in DEFAULT_COMPONENT_ORDER: erscheint nur bei Projekten, deren Reihenfolge den Bereich enthält
-  { id: 'childcare', name: 'Kinderbetreuung (Cassis)', core: false },
 ];
 
 export const DEFAULT_COMPONENT_ORDER = [
