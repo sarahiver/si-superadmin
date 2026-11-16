@@ -52,15 +52,32 @@ function parseGuests(r) {
   return [];
 }
 
+/** Ernährungsweise einer Person als Text; ältere Einträge haben nur freien Text. */
+export function dietLabel(g) {
+  if (!g) return '';
+  const names = { vegetarian: 'Vegetarisch', vegan: 'Vegan', other: 'Sonstiges' };
+  if (g.diet === 'none') return '';
+  if (names[g.diet]) return g.diet === 'other' && g.diet_note ? `Sonstiges: ${g.diet_note}` : names[g.diet];
+  return typeof g.dietary === 'string' ? g.dietary.trim() : '';
+}
+
 /** Kennzahlen der RSVP-Übersicht. */
 export function summarize(rsvps) {
-  const out = { answers: 0, yes: 0, no: 0, persons: 0, children: [], byLang: {} };
+  const out = { answers: 0, yes: 0, no: 0, persons: 0, children: [], byLang: {}, diets: {}, withAllergies: 0 };
   (rsvps || []).forEach((r) => {
     out.answers += 1;
     if (r.language) out.byLang[r.language] = (out.byLang[r.language] || 0) + 1;
     if (!r.attending) { out.no += 1; return; }
     out.yes += 1; out.persons += r.persons || 1;
-    parseGuests(r).forEach((g) => { if (g && g.is_child) out.children.push(Number.isInteger(g.age) ? g.age : null); });
+    const guests = parseGuests(r);
+    // Ältere Antworten ohne Angaben je Person: die Angaben der Antwort zählen einmal
+    const list = guests.length ? guests : [{ dietary: r.dietary, allergies: r.allergies }];
+    list.forEach((g) => {
+      if (!g) return;
+      if (g.is_child) out.children.push(Number.isInteger(g.age) ? g.age : null);
+      const d = dietLabel(g); if (d) out.diets[d] = (out.diets[d] || 0) + 1;
+      if (g.allergies) out.withAllergies += 1;
+    });
   });
   out.children.sort((a, b) => (a ?? 99) - (b ?? 99));
   return out;
@@ -115,22 +132,32 @@ export function RsvpOverview({ projectId }) {
           {sum.children.length > 0 && (
             <p style={S.hint} data-testid="rsvp-children">Alter der Kinder: {sum.children.map((a) => (a === null ? 'ohne Angabe' : a)).join(', ')}</p>
           )}
+          {(Object.keys(sum.diets).length > 0 || sum.withAllergies > 0) && (
+            <p style={S.hint} data-testid="rsvp-diets">Ernährung: {Object.keys(sum.diets).length === 0 ? 'keine Besonderheiten' : Object.entries(sum.diets).sort((a, b) => b[1] - a[1]).map(([d, n]) => `${d} ${n}`).join(' · ')}{sum.withAllergies > 0 ? ` · ${sum.withAllergies} ${sum.withAllergies === 1 ? 'Person' : 'Personen'} mit Allergie-Angabe` : ''}</p>
+          )}
           {Object.keys(sum.byLang).length > 0 && (
             <p style={S.hint} data-testid="rsvp-languages">Sprache der Antworten: {Object.entries(sum.byLang).sort((a, b) => b[1] - a[1]).map(([l, n]) => `${langName(l)} ${n}`).join(' · ')}</p>
           )}
           {rows.length === 0 ? <p style={S.hint}>Noch keine Antworten.</p> : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead><tr><th style={S.th}>Name</th><th style={S.th}>Status</th><th style={S.th}>Personen</th><th style={S.th}>Kinder (Alter)</th><th style={S.th}>Sprache</th></tr></thead>
+                <thead><tr><th style={S.th}>Name</th><th style={S.th}>Status</th><th style={S.th}>Personen</th><th style={S.th}>Kinder (Alter)</th><th style={S.th}>Ernährung und Allergien je Person</th><th style={S.th}>Sprache</th></tr></thead>
                 <tbody>
                   {rows.map((r) => {
-                    const kids = parseGuests(r).filter((g) => g && g.is_child);
+                    const all = parseGuests(r);
+                    const kids = all.filter((g) => g && g.is_child);
+                    const people = (all.length ? all : [{ name: r.name, dietary: r.dietary, allergies: r.allergies }])
+                      .map((g, i) => ({ name: (g && g.name) || (i === 0 ? r.name : `Person ${i + 1}`), diet: dietLabel(g), allergies: (g && g.allergies) || '' }))
+                      .filter((p) => p.diet || p.allergies);
                     return (
                       <tr key={r.id}>
                         <td style={S.td}>{r.name}</td>
                         <td style={S.td}>{r.attending ? 'Zusage' : 'Absage'}</td>
                         <td style={S.td}>{r.attending ? (r.persons || 1) : '–'}</td>
                         <td style={S.td}>{kids.length ? kids.map((k) => (Number.isInteger(k.age) ? k.age : '?')).join(', ') : '–'}</td>
+                        <td style={S.td} data-testid="rsvp-person-diet">{!r.attending || people.length === 0 ? '–' : people.map((p, i) => (
+                          <div key={i}>{p.name}: {[p.diet, p.allergies ? `Allergien: ${p.allergies}` : ''].filter(Boolean).join(' · ')}</div>
+                        ))}</td>
                         <td style={S.td}>{r.language ? langName(r.language) : '–'}</td>
                       </tr>
                     );
