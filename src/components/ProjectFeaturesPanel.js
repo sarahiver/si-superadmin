@@ -15,7 +15,8 @@ export const LANGUAGES = [
 ];
 // Reihenfolge der Seite (Cassis V4): Anfahrt und Antwortkarte sowie Trauzeug:innen und Fragen stehen je direkt hintereinander –
 // nur dann teilen sie sich im Theme eine Fläche.
-export const CASSIS_ORDER = ['hero', 'countdown', 'timeline', 'directions', 'rsvp', 'witnesses', 'faq'];
+// Hotels und Dresscode erscheinen nur, wenn im Dashboard Inhalte dafür eingetragen sind.
+export const CASSIS_ORDER = ['hero', 'countdown', 'timeline', 'directions', 'rsvp', 'accommodations', 'dresscode', 'witnesses', 'faq'];
 export const CASSIS_FEATURES = {
   i18n: { languages: ['en', 'tr', 'de', 'fr'], default: 'en' },
   rsvp: { max_persons: 8, child_ages: true, confirmation_mail: true },
