@@ -302,6 +302,23 @@ export async function updateContent(projectId, updates) {
   });
 }
 
+/** Alle Bereiche eines Projekts als einzelne Zeilen (id, component, content). */
+export async function getContentRows(projectId) {
+  return db({
+    action: 'select', table: 'project_content',
+    filters: [{ op: 'eq', column: 'project_id', value: projectId }],
+    options: { select: 'id,project_id,component,content' },
+  });
+}
+
+/** Inhalt genau eines Bereichs ersetzen. Die Zeile muss zum Projekt gehören. */
+export async function updateContentRow(projectId, rowId, content) {
+  return db({
+    action: 'update', table: 'project_content', data: { content },
+    filters: [{ op: 'eq', column: 'id', value: rowId }, { op: 'eq', column: 'project_id', value: projectId }],
+  });
+}
+
 // ============================================
 // PHOTOS
 // ============================================

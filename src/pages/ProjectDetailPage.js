@@ -25,6 +25,7 @@ import { adminFetch } from '../lib/apiClient';
 import AddressAutocomplete, { formatAddress } from '../components/AddressAutocomplete';
 import PhoneInput from '../components/PhoneInput';
 import ProjectFeaturesPanel from '../components/ProjectFeaturesPanel';
+import TranslatePanel from '../components/TranslatePanel';
 
 const colors = { black: '#0A0A0A', white: '#FAFAFA', red: '#C41E3A', green: '#10B981', orange: '#F59E0B', gray: '#666666', lightGray: '#E5E5E5', background: '#F5F5F5' };
 
@@ -3004,6 +3005,7 @@ export default function ProjectDetailPage() {
           {/* SECTION 9: Sprachen, RSVP-Regeln und RSVP-Übersicht */}
           <CollapsibleSection number="09" title="Sprachen & RSVP" badge={project?.features?.rsvp || project?.features?.i18n ? 'Aktiv' : ''} defaultOpen={false}>
             <ProjectFeaturesPanel project={project} onSaved={loadProject} />
+            {project?.theme === 'cassis' && <TranslatePanel project={project} />}
           </CollapsibleSection>
         </MainColumn>
 
