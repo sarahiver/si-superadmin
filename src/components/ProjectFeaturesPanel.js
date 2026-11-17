@@ -9,14 +9,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { updateProject, getRsvpsByProject } from '../lib/supabase';
+import { THEME_COMPONENTS } from '../lib/componentOrder';
 
 export const LANGUAGES = [
   { id: 'en', name: 'Englisch' }, { id: 'tr', name: 'Türkisch' }, { id: 'de', name: 'Deutsch' }, { id: 'fr', name: 'Französisch' },
 ];
-// Reihenfolge der Seite (Cassis V4): Anfahrt und Antwortkarte sowie Trauzeug:innen und Fragen stehen je direkt hintereinander –
-// nur dann teilen sie sich im Theme eine Fläche.
-// Hotels und Dresscode erscheinen nur, wenn im Dashboard Inhalte dafür eingetragen sind.
-export const CASSIS_ORDER = ['hero', 'countdown', 'timeline', 'directions', 'rsvp', 'accommodations', 'dresscode', 'witnesses', 'faq'];
+// Reihenfolge und Auswahl der Bereiche: siehe lib/componentOrder.js
+export const CASSIS_ORDER = THEME_COMPONENTS.cassis;
 export const CASSIS_FEATURES = {
   i18n: { languages: ['en', 'tr', 'de', 'fr'], default: 'en' },
   rsvp: { max_persons: 8, child_ages: true, confirmation_mail: true },

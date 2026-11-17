@@ -17,6 +17,7 @@ import {
 import { sendWelcomeEmails, sendGoLiveEmail, sendReminderEmail, sendPasswordResetEmail } from '../lib/emailService';
 import { generateContractPDF } from '../lib/contractPDF';
 import { generateInvoicePDF, COMPANY_TAX_ID } from '../lib/invoicePDF';
+import { withMissingComponents } from '../lib/componentOrder';
 import { missingDocumentData } from '../lib/documentText';
 import { generatePayoutPdf } from '../lib/generatePayoutPdf';
 import { generateWebsiteQRSVG } from '../lib/qrGenerator';
@@ -1431,7 +1432,8 @@ export default function ProjectDetailPage() {
         custom_extras: data.custom_extras || [],
         component_config: data.component_config || {},
         custom_styles: data.custom_styles || {},
-        component_order: data.component_order || DEFAULT_COMPONENT_ORDER,
+        // Bereiche, die es beim letzten Speichern noch nicht gab, erscheinen in der Liste (ausgeschaltet)
+        component_order: withMissingComponents(data.component_order, data.theme),
         active_components: data.active_components || [...CORE_COMPONENTS],
         std_date: data.std_date || '',
         archive_date: data.archive_date || '',
@@ -2066,7 +2068,7 @@ export default function ProjectDetailPage() {
   // Normalisiert: ohne Schema, ohne Schrägstrich am Ende (siehe lib/projectUrl.js)
   const { host: baseUrl, website: websiteUrl, admin: adminUrl } = projectUrls(formData);
   const coupleNames = formData.partner1_name && formData.partner2_name ? `${formData.partner1_name} & ${formData.partner2_name}` : 'Unbenannt';
-  const componentOrder = formData.component_order || DEFAULT_COMPONENT_ORDER;
+  const componentOrder = withMissingComponents(formData.component_order, formData.theme);
   const emailCount = emailLogs.length;
 
   return (
