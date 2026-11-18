@@ -6,7 +6,7 @@ import React, { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { adminFetch } from '../lib/apiClient';
 import { getContentRows, updateContentRow } from '../lib/supabase';
-import { planProject, translateJobs, resolveJob, applyToContent, SECTION_NAMES, LANG_NAMES, SOURCE_LANGUAGE } from '../lib/autoTranslate';
+import { planProject, translateJobs, resolveJob, applyToContent, classifyApiError, SECTION_NAMES, LANG_NAMES, SOURCE_LANGUAGE } from '../lib/autoTranslate';
 
 const S = {
   box: { border: '1px solid #E5E5E5', padding: '1.25rem', marginBottom: '1.25rem', background: '#fff' },
@@ -29,7 +29,7 @@ const KIND = { neu: 'neu', aktualisiert: 'ersetzt eigene Übersetzung', verschob
 async function ask(prompt) {
   const res = await adminFetch('/api/ai-suggest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, webSearch: false }) });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data && data.error && (data.error.message || data.error)) || `Fehler ${res.status}`);
+  if (!res.ok) { const c = classifyApiError(res.status, data); const err = new Error(c.message); err.fatal = c.fatal; throw err; }
   const text = (data.content || []).filter((i) => i.type === 'text').map((i) => i.text || '').join('\n');
   return { text, truncated: data.stop_reason === 'max_tokens' };
 }
@@ -70,7 +70,7 @@ export default function TranslatePanel({ project, askModel = ask }) {
       setFailed(jobs.filter((j) => bad.includes(j.id)));
       setPhase('preview');
     } catch (e) {
-      setPhase('idle'); setNote(`Vorbereiten fehlgeschlagen: ${e.message}. Es wurde nichts gespeichert.`);
+      setPhase('idle'); setNote(`Übersetzen abgebrochen. ${e.message} Es wurde nichts gespeichert.`);
     }
   };
 
