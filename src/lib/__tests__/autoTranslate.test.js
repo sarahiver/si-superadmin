@@ -176,6 +176,8 @@ describe('Fehler des Dienstes', () => {
     expect(classifyApiError(404, { error: { message: 'model: claude-x not found' } }).message).toMatch(/ANTHROPIC_MODEL/);
     expect(classifyApiError(529, { error: { message: 'Overloaded' } }).fatal).toBe(false);
     expect(classifyApiError(429, {}).fatal).toBe(false);
+    const limit = classifyApiError(400, { type: 'error', error: { type: 'invalid_request_error', message: 'You have reached your specified API usage limits. You will regain access on 2026-12-01 at 00:00 UTC.' } });
+    expect(limit.fatal).toBe(true); expect(limit.message).toMatch(/Ausgabenlimit/); expect(limit.message).toMatch(/regain access on 2026-12-01/);
     expect(classifyApiError(400, {}).message).toBe('Fehler 400');
   });
 });

@@ -302,7 +302,8 @@ export function classifyApiError(status, data) {
   const text = String(raw);
   const fatal = ![408, 429, 502, 503, 504, 529].includes(status);
   let hint = '';
-  if (/credit balance/i.test(text)) hint = 'Das Guthaben des Anthropic-Kontos ist aufgebraucht. Bitte in der Anthropic Console unter „Plans & Billing" aufladen.';
+  if (/usage limits?/i.test(text)) hint = 'Das selbst gesetzte Ausgabenlimit des Anthropic-Kontos ist erreicht. In der Anthropic Console unter „Limits" anheben oder bis zum genannten Datum warten.';
+  else if (/credit balance/i.test(text)) hint = 'Das Guthaben des Anthropic-Kontos ist aufgebraucht. Bitte in der Anthropic Console unter „Plans & Billing" aufladen.';
   else if (status === 401 || /api[- ]?key|authentication/i.test(text)) hint = status === 401 && !/api[- ]?key|x-api-key|authentication/i.test(text) ? 'Die Anmeldung im SuperAdmin ist abgelaufen. Bitte neu anmelden.' : 'Der Anthropic-Schlüssel wird nicht angenommen. Bitte ANTHROPIC_API_KEY in Vercel prüfen.';
   else if (/ANTHROPIC_API_KEY not set/i.test(text)) hint = 'In Vercel ist für den SuperAdmin kein ANTHROPIC_API_KEY hinterlegt.';
   else if (/model/i.test(text) && (status === 400 || status === 404)) hint = 'Keines der eingestellten Modelle ist verfügbar. Bitte ANTHROPIC_MODEL in Vercel auf ein aktuelles Modell setzen.';
