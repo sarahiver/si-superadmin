@@ -1,4 +1,4 @@
-import { collectEntries, planProject, translateJobs, resolveJob, applyToContent, parseAnswer, chunkJobs, hash } from '../autoTranslate';
+import { collectEntries, planProject, translateJobs, resolveJob, applyToContent, parseAnswer, chunkJobs, hash, classifyApiError } from '../autoTranslate';
 
 const CTX = { master: 'en', languages: ['en', 'tr', 'de', 'fr'] };
 // Falsches „Sprachmodell": erkennt Deutsch an einer Marke und hängt die Zielsprache an den Text
@@ -151,4 +151,33 @@ describe('Antworten des Sprachmodells', () => {
     expect(chunks.length).toBeGreaterThan(3); expect(chunks.flat()).toHaveLength(10);
   });
   test('Prüfsumme ist stabil und unterscheidet Texte', () => { expect(hash('a')).toBe(hash('a')); expect(hash('a')).not.toBe(hash('b')); });
+});
+
+describe('Fehler des Dienstes', () => {
+  const rows = [{ id: 'r', component: 'faq', content: { questions: Array.from({ length: 12 }, (_, i) => ({ question: `DE:Frage ${i} ${'x'.repeat(120)}`, answer: `DE:Antwort ${i} ${'y'.repeat(120)}` })) } }];
+  test('grundsätzliche Ablehnung bricht den Lauf nach der ersten Anfrage ab', async () => {
+    let calls = 0; const jobs = planProject(rows, CTX);
+    const ask = async () => { calls++; const e = new Error('kein Guthaben'); e.fatal = true; throw e; };
+    await expect(translateJobs(jobs, { ...CTX, ask })).rejects.toThrow('kein Guthaben');
+    expect(calls).toBe(1);
+  });
+  test('vorübergehende Störung: Lauf geht weiter, betroffene Texte werden gemeldet', async () => {
+    const jobs = planProject(rows, CTX); let calls = 0;
+    const ask = async () => { calls++; throw new Error('überlastet'); };
+    const { failed, results } = await translateJobs(jobs, { ...CTX, ask });
+    expect(failed).toHaveLength(jobs.length); expect(Object.keys(results)).toHaveLength(0); expect(calls).toBeGreaterThan(jobs.length);
+  });
+  test('Einordnung der Meldungen', () => {
+    const credit = classifyApiError(400, { type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.' } });
+    expect(credit.fatal).toBe(true); expect(credit.message).toMatch(/Guthaben/); expect(credit.message).toMatch(/credit balance is too low/);
+    expect(classifyApiError(401, { error: { type: 'authentication_error', message: 'invalid x-api-key' } }).message).toMatch(/ANTHROPIC_API_KEY in Vercel prüfen/);
+    expect(classifyApiError(401, { error: 'Token abgelaufen' }).message).toMatch(/neu anmelden/);
+    expect(classifyApiError(500, { error: 'ANTHROPIC_API_KEY not set' })).toMatchObject({ fatal: true });
+    expect(classifyApiError(404, { error: { message: 'model: claude-x not found' } }).message).toMatch(/ANTHROPIC_MODEL/);
+    expect(classifyApiError(529, { error: { message: 'Overloaded' } }).fatal).toBe(false);
+    expect(classifyApiError(429, {}).fatal).toBe(false);
+    const limit = classifyApiError(400, { type: 'error', error: { type: 'invalid_request_error', message: 'You have reached your specified API usage limits. You will regain access on 2026-12-01 at 00:00 UTC.' } });
+    expect(limit.fatal).toBe(true); expect(limit.message).toMatch(/Ausgabenlimit/); expect(limit.message).toMatch(/regain access on 2026-12-01/);
+    expect(classifyApiError(400, {}).message).toBe('Fehler 400');
+  });
 });

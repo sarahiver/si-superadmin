@@ -182,6 +182,8 @@ const toItem = (j, languages, master) => ({
  * Übersetzt alle Aufträge. `ask(prompt)` liefert { text, truncated }.
  * Zurück: { results: { id: {...} }, failed: [id, ...] }. Ein Päckchen, das nicht verwertbar
  * beantwortet wird, wird halbiert und erneut gefragt; einzelne Texte danach Sprache für Sprache.
+ * Wirft `ask` einen Fehler mit `fatal: true` (Dienst lehnt die Anfrage grundsätzlich ab, z. B. kein Guthaben,
+ * falscher Schlüssel), bricht der ganze Lauf sofort ab – weiteres Probieren würde nur dieselbe Ablehnung erzeugen.
  */
 export async function translateJobs(jobs, { languages, master, ask, onProgress }) {
   const results = {}; const failed = [];
@@ -189,7 +191,7 @@ export async function translateJobs(jobs, { languages, master, ask, onProgress }
   const run = async (list) => {
     const items = list.map((j) => toItem(j, languages, master));
     let answer = null;
-    try { const r = await ask(buildPrompt(items, languages)); answer = r && !r.truncated ? parseAnswer(r.text) : null; } catch { answer = null; }
+    try { const r = await ask(buildPrompt(items, languages)); answer = r && !r.truncated ? parseAnswer(r.text) : null; } catch (e) { if (e && e.fatal) throw e; answer = null; }
     const missing = list.filter((j) => !answer || !isPlain(answer[j.id]));
     for (const j of list) if (answer && isPlain(answer[j.id])) { results[j.id] = answer[j.id]; done++; if (onProgress) onProgress(done, jobs.length); }
     if (!missing.length) return;
@@ -199,7 +201,7 @@ export async function translateJobs(jobs, { languages, master, ask, onProgress }
     if (item.to.length > 1) {
       const merged = {};
       for (const l of item.to) {
-        try { const r = await ask(buildPrompt([{ ...item, to: [l] }], languages)); const a = r && !r.truncated ? parseAnswer(r.text) : null; if (a && isPlain(a[j.id])) Object.assign(merged, a[j.id]); } catch { /* bleibt offen */ }
+        try { const r = await ask(buildPrompt([{ ...item, to: [l] }], languages)); const a = r && !r.truncated ? parseAnswer(r.text) : null; if (a && isPlain(a[j.id])) Object.assign(merged, a[j.id]); } catch (e) { if (e && e.fatal) throw e; /* sonst bleibt der Text offen */ }
       }
       if (Object.keys(merged).length) { results[j.id] = merged; done++; if (onProgress) onProgress(done, jobs.length); return; }
     }
@@ -289,4 +291,23 @@ export function applyToContent(content, applied, { master }) {
   }
   if (marks.size) { if (!isPlain(next.i18n)) next.i18n = {}; next.i18n._auto = [...marks].slice(-3000); }
   return next;
+}
+
+/**
+ * Fehlerantwort der Schnittstelle einordnen. Zurück: { message, fatal }.
+ * Vorübergehende Störungen (Überlastung, Zeitüberschreitung) sind nicht fatal; alles andere beendet den Lauf.
+ */
+export function classifyApiError(status, data) {
+  const raw = (data && data.error && (data.error.message || (typeof data.error === 'string' ? data.error : ''))) || (data && data.message) || '';
+  const text = String(raw);
+  const fatal = ![408, 429, 502, 503, 504, 529].includes(status);
+  let hint = '';
+  if (/usage limits?/i.test(text)) hint = 'Das selbst gesetzte Ausgabenlimit des Anthropic-Kontos ist erreicht. In der Anthropic Console unter „Limits" anheben oder bis zum genannten Datum warten.';
+  else if (/credit balance/i.test(text)) hint = 'Das Guthaben des Anthropic-Kontos ist aufgebraucht. Bitte in der Anthropic Console unter „Plans & Billing" aufladen.';
+  else if (status === 401 || /api[- ]?key|authentication/i.test(text)) hint = status === 401 && !/api[- ]?key|x-api-key|authentication/i.test(text) ? 'Die Anmeldung im SuperAdmin ist abgelaufen. Bitte neu anmelden.' : 'Der Anthropic-Schlüssel wird nicht angenommen. Bitte ANTHROPIC_API_KEY in Vercel prüfen.';
+  else if (/ANTHROPIC_API_KEY not set/i.test(text)) hint = 'In Vercel ist für den SuperAdmin kein ANTHROPIC_API_KEY hinterlegt.';
+  else if (/model/i.test(text) && (status === 400 || status === 404)) hint = 'Keines der eingestellten Modelle ist verfügbar. Bitte ANTHROPIC_MODEL in Vercel auf ein aktuelles Modell setzen.';
+  else if (status === 429) hint = 'Zu viele Anfragen in kurzer Zeit.';
+  const message = [hint, text ? `Meldung des Dienstes (${status}): ${text.slice(0, 300)}` : `Fehler ${status}`].filter(Boolean).join(' ');
+  return { message, fatal };
 }
